@@ -4,7 +4,7 @@ import { defineMessages, injectIntl } from 'react-intl';
 import ReactPlayer from 'react-player';
 import { sendMessage, onMessage, removeAllListeners } from './service';
 import logger from '/imports/startup/client/logger';
-
+import ExternalVideoCloseButton from './externalvideo-close-button/component';
 import ArcPlayer from './custom-players/arc-player';
 
 import { styles } from './styles';
@@ -406,7 +406,17 @@ class VideoPlayer extends Component {
 
     this.handleFirstPlay();
   }
-
+  
+  renderExternalVideoClose() {
+    const { isPresenter } = this.props;
+    const { playing } = this.state;
+    if (isPresenter && playing) {
+      return <ExternalVideoCloseButton />;
+    } else {
+      return null;
+    }
+  }
+  
   render() {
     const { videoUrl, intl } = this.props;
     const {
@@ -439,6 +449,7 @@ class VideoPlayer extends Component {
           onPause={this.handleOnPause}
           ref={(ref) => { this.player = ref; }}
         />
+        {this.renderExternalVideoClose()}
       </div>
     );
   }
