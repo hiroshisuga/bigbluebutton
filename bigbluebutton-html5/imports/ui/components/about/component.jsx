@@ -1,7 +1,7 @@
 import React from 'react';
 import { defineMessages, injectIntl } from 'react-intl';
 import Modal from '/imports/ui/components/modal/simple/component';
-
+//test
 const intlMessages = defineMessages({
   title: {
     id: 'app.about.title',
