@@ -118,6 +118,7 @@ class RandomUserSelect extends Component {
           mountModal(null);
         }}
         contentLabel={intl.formatMessage(messages.ariaModalTitle)}
+        parentSelector={() => { if (document.fullscreenElement) return document.querySelector("[class^=presentationContainer]"); else return document.body;}}
       >
         {viewElement}
       </Modal>
