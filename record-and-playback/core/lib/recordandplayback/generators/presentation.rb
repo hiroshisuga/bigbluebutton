@@ -148,7 +148,7 @@ module BigBlueButton
         end
         presentations << presentation
       end
-      presentation
+      presentations
     end
   end
 
