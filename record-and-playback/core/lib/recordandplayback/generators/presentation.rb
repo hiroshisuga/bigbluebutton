@@ -113,28 +113,40 @@ module BigBlueButton
     def self.get_presentation_for_preview(process_dir)
       events_xml = "#{process_dir}/events.xml"
       BigBlueButton.logger.info("Task: Getting from events the presentation to be used for preview")
-      presentation = {}
+      presentations = []
+      presentation_filenames = {}
       doc = Nokogiri::XML(File.open(events_xml))
+      doc.xpath("//event[@eventname='ConversionCompletedEvent']").each do |conversion_event|
+        presentation_filenames[conversion_event.xpath("presentationName").text] = conversion_event.xpath("originalFilename").text
+      end
       doc.xpath("//event[@eventname='SharePresentationEvent']").each do |presentation_event|
+        i_sld=0
+        presentation = {}
+        presentation[:slides] = {}
         # Extract presentation data from events
         presentation_id = presentation_event.xpath("presentationName").text
-        presentation_filename = presentation_event.xpath("originalFilename").text
+        presentation_filename = presentation_filenames[presentation_id]
         # Set textfile directory
         textfiles_dir = "#{process_dir}/presentation/#{presentation_id}/textfiles"
         # Set presentation hashmap to be returned
         unless presentation_filename == "default.pdf"
           presentation[:id] = presentation_id
           presentation[:filename] = presentation_filename
+          slide_nums = Dir.glob("#{textfiles_dir}/slide-*.txt").collect{|f| f.sub(/.*slide-(\d+).txt$/,'\1').to_i}.sort
           presentation[:slides] = {}
-          for i in 1..3
+          slide_nums.each do |i|
             if File.file?("#{textfiles_dir}/slide-#{i}.txt")
               text_from_slide = self.get_text_from_slide(textfiles_dir, i)
-              presentation[:slides][i] = { :alt => text_from_slide == nil ? '' : text_from_slide }
+              presentation[:slides][i_sld+=1] = { :alt => text_from_slide == nil ? '' : text_from_slide }
+              presentation[:slides][i_sld][:id] = presentation_id
+              presentation[:slides][i_sld][:filename] = presentation_filename
+              presentation[:slides][i_sld][:i] = i
             end
           end
           # Break because something else than default.pdf was found
           break
         end
+        presentations << presentation
       end
       presentation
     end
