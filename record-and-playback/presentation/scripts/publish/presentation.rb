@@ -37,6 +37,9 @@ $presentation_props = YAML::load(File.read('presentation.yml'))
 # by 2. This is just here to call out how spooky that is.
 $magic_mystery_number = 2
 
+# Number of thumbnails to be included in the metadata; 0:all
+$nthumb = 0
+
 def scaleToDeskshareVideo(width, height)
   deskshare_video_height = $presentation_props['deskshare_output_height'].to_f
   deskshare_video_width = $presentation_props['deskshare_output_height'].to_f
@@ -1264,25 +1267,27 @@ begin
           playback.remove
         end
         ## Add the actual playback
-        presentation = BigBlueButton::Presentation.get_presentation_for_preview("#{$process_dir}")
+        presentations = BigBlueButton::Presentation.get_presentation_for_preview("#{$process_dir}")
         metadata_with_playback = Nokogiri::XML::Builder.with(metadata.at('recording')) do |xml|
             xml.playback {
               xml.format("presentation")
               xml.link("#{playback_protocol}://#{playback_host}/playback/presentation/2.3/#{$meeting_id}")
               xml.processing_time("#{processing_time}")
               xml.duration("#{recording_time}")
-              unless presentation.empty?
-                xml.extensions {
-                  xml.preview {
-                    xml.images {
-                      presentation[:slides].each do |key,val|
-                        attributes = {:width => "176", :height => "136", :alt => (val[:alt] != nil)? "#{val[:alt]}": ""}
-                        xml.image(attributes){ xml.text("#{playback_protocol}://#{playback_host}/presentation/#{$meeting_id}/presentation/#{presentation[:id]}/thumbnails/thumb-#{key}.png") }
+              xml.extensions {
+                xml.preview {
+                  xml.images {
+                    presentations.each do |presentation|
+                      unless presentation.empty?
+                        presentation[:slides][0..$nthumb-1].each do |key,val|
+                          attributes = {:width => "176", :height => "136", :alt => (val[:alt] != nil)? "#{val[:alt]}": ""}
+                          xml.image(attributes){ xml.text("#{playback_protocol}://#{playback_host}/presentation/#{$meeting_id}/presentation/#{presentation[:id]}/thumbnails/thumb-#{key}.png") }
+                        end
                       end
-                    }
+                    end
                   }
                 }
-              end
+              }
             }
         end
         ## Write the new metadata.xml
