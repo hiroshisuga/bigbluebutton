@@ -23,7 +23,7 @@
 require 'rubygems'
 require 'nokogiri'
 
-# Number of thumbnails to be included in the metadata (0 -> all)
+# Max number of thumbnails to be included from each presentation to the metadata (0 -> all)
 $nthumb = 10
 
 module BigBlueButton
