@@ -37,9 +37,6 @@ $presentation_props = YAML::load(File.read('presentation.yml'))
 # by 2. This is just here to call out how spooky that is.
 $magic_mystery_number = 2
 
-# Number of thumbnails to be included in the metadata; 0:all
-$nthumb = 0
-
 def scaleToDeskshareVideo(width, height)
   deskshare_video_height = $presentation_props['deskshare_output_height'].to_f
   deskshare_video_width = $presentation_props['deskshare_output_height'].to_f
@@ -1279,7 +1276,7 @@ begin
                   xml.images {
                     presentations.each do |presentation|
                       unless presentation.empty?
-                        presentation[:slides][0..$nthumb-1].each do |key,val|
+                        presentation[:slides].each do |key,val|
                           attributes = {:width => "176", :height => "136", :alt => (val[:alt] != nil)? "#{val[:alt]}": ""}
                           xml.image(attributes){ xml.text("#{playback_protocol}://#{playback_host}/presentation/#{$meeting_id}/presentation/#{presentation[:id]}/thumbnails/thumb-#{key}.png") }
                         end
