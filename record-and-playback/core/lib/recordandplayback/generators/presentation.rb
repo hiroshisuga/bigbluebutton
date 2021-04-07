@@ -23,6 +23,9 @@
 require 'rubygems'
 require 'nokogiri'
 
+# Number of thumbnails to be included in the metadata (0 -> all)
+$nthumb = 10
+
 module BigBlueButton
   class Presentation
     # Get the presentations.
@@ -134,7 +137,7 @@ module BigBlueButton
           presentation[:filename] = presentation_filename
           slide_nums = Dir.glob("#{textfiles_dir}/slide-*.txt").collect{|f| f.sub(/.*slide-(\d+).txt$/,'\1').to_i}.sort
           presentation[:slides] = {}
-          slide_nums.each do |i|
+          slide_nums[0..$nthumb-1].each do |i|
             if File.file?("#{textfiles_dir}/slide-#{i}.txt")
               text_from_slide = self.get_text_from_slide(textfiles_dir, i)
               presentation[:slides][i_sld+=1] = { :alt => text_from_slide == nil ? '' : text_from_slide }
@@ -143,8 +146,6 @@ module BigBlueButton
               presentation[:slides][i_sld][:i] = i
             end
           end
-          # Break because something else than default.pdf was found
-          break
         end
         presentations << presentation
       end
