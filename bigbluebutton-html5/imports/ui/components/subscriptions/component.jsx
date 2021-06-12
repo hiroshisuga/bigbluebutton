@@ -20,6 +20,7 @@ const SUBSCRIPTIONS = [
   'presentation-pods', 'users-settings', 'guestUser', 'users-infos', 'note', 'meeting-time-remaining',
   'network-information', 'local-settings', 'users-typing', 'record-meetings', 'video-streams',
   'connection-status', 'voice-call-states',
+  'uploaded-file',
 ];
 
 const EVENT_NAME = 'bbb-group-chat-messages-subscription-has-stoppped';

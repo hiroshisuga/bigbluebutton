@@ -95,6 +95,26 @@ class UrlMappings {
       action = [POST: 'putRecordingTextTrack']
     }
 
+    "/connection/checkAuthorization"(controller:"connection") {
+      action = [GET:'checkAuthorization']
+    }
+
+    "/bigbluebutton/upload/$source/$token"(controller: "upload") {
+      action = [POST: 'upload']
+    }
+
+    "/bigbluebutton/upload/check"(controller: "upload") {
+      action = [GET: 'check']
+    }
+
+    "/bigbluebutton/download/$source/$id"(controller: "download") {
+      action = [GET: 'download']
+    }
+
+    "/bigbluebutton/download/check"(controller: "download") {
+      action = [GET: 'check']
+    }
+
     "/bigbluebutton/$controller/$action?/$id?(.${format})?" {
       constraints {
         // apply constraints here
