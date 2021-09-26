@@ -119,9 +119,15 @@ class ReaderMenu extends PureComponent {
     } = props.getCaptionsSettings();
 
     const { ownedLocales } = this.props;
+    const initLocale = (ownedLocales && ownedLocales[0]) ? ownedLocales[0].locale : null;
+    const prevLocale = Session.get('captionsLocale');
+    const prevDstLocale = Session.get('captionsDstLocale');
+    const locale = prevLocale ? prevLocale : initLocale;
+    const dstLocale = prevDstLocale ? prevDstLocale : initLocale;
 
     this.state = {
-      locale: (ownedLocales && ownedLocales[0]) ? ownedLocales[0].locale : null,
+      locale,
+      dstLocale,
       backgroundColor,
       fontColor,
       fontFamily,
@@ -182,7 +188,7 @@ class ReaderMenu extends PureComponent {
   }
 
   handleDstLocaleChange(event) {
-    Session.set('captionsDstLocale', event.target.value);
+    this.setState({ dstLocale: event.target.value });
   }
 
   handleSelectChange(fieldname, options, event) {
@@ -195,6 +201,7 @@ class ReaderMenu extends PureComponent {
     const { closeModal, activateCaptions } = this.props;
     const {
       locale,
+      dstLocale,
       backgroundColor,
       fontColor,
       fontFamily,
@@ -206,6 +213,8 @@ class ReaderMenu extends PureComponent {
       fontFamily,
       fontSize,
     };
+    Session.set('captionsLocale', locale);
+    Session.set('captionsDstLocale', dstLocale);
     activateCaptions(locale, settings);
     closeModal();
   }
@@ -226,10 +235,11 @@ class ReaderMenu extends PureComponent {
       fontFamily,
       fontSize,
       locale,
+      dstLocale,
     } = this.state;
 
     const defaultLocale = locale || DEFAULT_VALUE;
-    const defaultDstLocale = Session.get('captionsDstLocale') || defaultLocale;
+    const defaultDstLocale = dstLocale || defaultLocale;
 
     const ariaTextColor = `${intl.formatMessage(intlMessages.fontColor)} ${intl.formatMessage(intlMessages.current, { 0: HEX_COLOR_NAMES[fontColor.toLowerCase()] })}`;
     const ariaBackgroundColor = `${intl.formatMessage(intlMessages.backgroundColor)} ${intl.formatMessage(intlMessages.current, { 0: HEX_COLOR_NAMES[backgroundColor.toLowerCase()] })}`;
