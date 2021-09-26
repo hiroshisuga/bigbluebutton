@@ -409,6 +409,7 @@ public:
     takeOwnership: true
     lines: 2
     time: 5000
+    googleTranslateUrl: https://script.google.com/macros/s/AKfycbzjAcnGMJRy6LsxejHEA6_S1eIEga2rFK8hT1G2NWQ3MPbasfcdF20myBdzjUIUxmmA5w
   chat:
     enabled: true
     itemsPerPage: 100
