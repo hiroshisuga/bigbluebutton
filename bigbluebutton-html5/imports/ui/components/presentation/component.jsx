@@ -942,7 +942,12 @@ class Presentation extends PureComponent {
     const svgWidth = svgDimensions.width;
 
     const toolbarHeight = this.getToolbarHeight();
-
+    
+    let toolbarWidth = 0;
+    if (this.refWhiteboardArea) {
+      toolbarWidth = svgWidth;
+    }
+    
     const { presentationToolbarMinWidth } = DEFAULT_VALUES;
 
     const isLargePresentation = (svgWidth > presentationToolbarMinWidth || isMobile)
