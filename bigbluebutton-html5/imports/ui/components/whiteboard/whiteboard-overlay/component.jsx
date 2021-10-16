@@ -177,7 +177,7 @@ export default class WhiteboardOverlay extends Component {
             drawSettings={drawSettings}
             whiteboardId={whiteboardId}
             physicalSlideWidth={physicalSlideWidth}
-          physicalSlideHeight={physicalSlideHeight}
+            physicalSlideHeight={physicalSlideHeight}
           />
         );
       }
