@@ -28,6 +28,7 @@ export default class ShapeDrawListener extends Component {
       y: undefined,
     };
 
+    this.isFilled = false;
     // to track the status of drawing
     this.isDrawing = false;
 
@@ -43,6 +44,7 @@ export default class ShapeDrawListener extends Component {
     this.handleTouchMove = this.handleTouchMove.bind(this);
     this.handleTouchEnd = this.handleTouchEnd.bind(this);
     this.handleTouchCancel = this.handleTouchCancel.bind(this);
+    this.handleKeyDown = this.handleKeyDown.bind(this);
   }
 
   componentDidMount() {
@@ -126,6 +128,31 @@ export default class ShapeDrawListener extends Component {
     this.sendCoordinates();
   }
 
+  handleKeyDown(event) {
+    const {
+      physicalSlideWidth,
+      physicalSlideHeight,
+    } = this.props;
+
+    const d = {
+      x: 1.0 * physicalSlideHeight / (physicalSlideWidth + physicalSlideHeight),
+      y: 1.0 * physicalSlideWidth  / (physicalSlideWidth + physicalSlideHeight),
+    };
+
+    if        (event.keyCode == '38') { // up arrow
+      this.initialCoordinate.y -= d.y;
+    } else if (event.keyCode == '40') { // down arrow
+      this.initialCoordinate.y += d.y;
+    } else if (event.keyCode == '37') { // left arrow
+      this.initialCoordinate.x -= d.x;
+    } else if (event.keyCode == '39') { // right arrow
+      this.initialCoordinate.x += d.x;
+    }
+    event.stopPropagation();
+    this.lastSentCoordinate = {x:undefined, y:undefined}; // a hacky solution; to avoid skipping the update in sendCoordinates().
+    this.sendCoordinates();
+  }
+
   handleTouchStart(event) {
     event.preventDefault();
 
@@ -133,6 +160,7 @@ export default class ShapeDrawListener extends Component {
       window.addEventListener('touchend', this.handleTouchEnd, { passive: false });
       window.addEventListener('touchmove', this.handleTouchMove, { passive: false });
       window.addEventListener('touchcancel', this.handleTouchCancel, true);
+      window.addEventListener('keydown', this.handleKeyDown, true);
 
       const { clientX, clientY } = event.changedTouches[0];
       this.commonDrawStartHandler(clientX, clientY);
@@ -140,6 +168,7 @@ export default class ShapeDrawListener extends Component {
     // if you switch to a different window using Alt+Tab while mouse is down and release it
     // it wont catch mouseUp and will keep tracking the movements. Thus we need this check.
     } else {
+      this.isFilled = event.ctrlKey;
       this.sendLastMessage();
     }
   }
@@ -147,14 +176,17 @@ export default class ShapeDrawListener extends Component {
   handleTouchMove(event) {
     event.preventDefault();
     const { clientX, clientY } = event.changedTouches[0];
+    this.isFilled = event.ctrlKey;
     this.commonDrawMoveHandler(clientX, clientY);
   }
 
-  handleTouchEnd() {
+  handleTouchEnd(event) {
+    this.isFilled = event.ctrlKey;
     this.sendLastMessage();
   }
 
-  handleTouchCancel() {
+  handleTouchCancel(event) {
+    this.isFilled = event.ctrlKey;
     this.sendLastMessage();
   }
 
@@ -167,6 +199,7 @@ export default class ShapeDrawListener extends Component {
       if (isLeftClick) {
         window.addEventListener('mouseup', this.handleMouseUp);
         window.addEventListener('mousemove', this.handleMouseMove, true);
+        window.addEventListener('keydown', this.handleKeyDown, true);
 
         const { clientX, clientY } = event;
         this.commonDrawStartHandler(clientX, clientY);
@@ -182,11 +215,13 @@ export default class ShapeDrawListener extends Component {
   // main mouse move handler
   handleMouseMove(event) {
     const { clientX, clientY } = event;
+    this.isFilled = event.ctrlKey;
     this.commonDrawMoveHandler(clientX, clientY);
   }
 
   // main mouse up handler
-  handleMouseUp() {
+  handleMouseUp(event) {
+    this.isFilled = event.ctrlKey;
     this.sendLastMessage();
   }
 
@@ -220,6 +255,7 @@ export default class ShapeDrawListener extends Component {
       this.currentStatus,
       getCurrentShapeId(),
       drawSettings.tool,
+      this.isFilled,
     );
     this.lastSentCoordinate = this.currentCoordinate;
 
@@ -245,6 +281,7 @@ export default class ShapeDrawListener extends Component {
           DRAW_END,
           getCurrentShapeId(),
           drawSettings.tool,
+          this.isFilled,
         );
       }
       this.resetState();
@@ -255,6 +292,7 @@ export default class ShapeDrawListener extends Component {
     // resetting the current drawing state
     window.removeEventListener('mouseup', this.handleMouseUp);
     window.removeEventListener('mousemove', this.handleMouseMove, true);
+    window.removeEventListener('keydown', this.handleKeyDown, true);
     // touchend, touchmove and touchcancel are removed on devices
     window.removeEventListener('touchend', this.handleTouchEnd, { passive: false });
     window.removeEventListener('touchmove', this.handleTouchMove, { passive: false });
@@ -277,7 +315,7 @@ export default class ShapeDrawListener extends Component {
 
   // since Rectangle / Triangle / Ellipse / Line have the same coordinate structure
   // we use the same function for all of them
-  handleDrawCommonAnnotation(startPoint, endPoint, status, id, shapeType) {
+  handleDrawCommonAnnotation(startPoint, endPoint, status, id, shapeType, isFilled) {
     const {
       whiteboardId,
       userId,
@@ -312,6 +350,7 @@ export default class ShapeDrawListener extends Component {
         whiteboardId,
         status,
         type: shapeType,
+        fill: isFilled,
       },
       wbId: whiteboardId,
       userId,
