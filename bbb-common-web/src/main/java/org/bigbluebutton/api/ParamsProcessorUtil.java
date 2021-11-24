@@ -106,33 +106,38 @@ public class ParamsProcessorUtil {
 		private boolean defaultLockSettingsLockOnJoinConfigurable;
 
     private Long maxPresentationFileUpload = 30000000L; // 30MB
+    private Long maxUploadSize = 30000000L; // 30MB
+    private String uploadDir;
 
     private Integer clientLogoutTimerInMinutes = 0;
-	private Integer meetingExpireIfNoUserJoinedInMinutes = 5;
-	private Integer meetingExpireWhenLastUserLeftInMinutes = 1;
-	private Integer userInactivityInspectTimerInMinutes = 120;
-	private Integer userInactivityThresholdInMinutes = 30;
+  	private Integer meetingExpireIfNoUserJoinedInMinutes = 5;
+  	private Integer meetingExpireWhenLastUserLeftInMinutes = 1;
+  	private Integer userInactivityInspectTimerInMinutes = 120;
+  	private Integer userInactivityThresholdInMinutes = 30;
     private Integer userActivitySignResponseDelayInMinutes = 5;
     private Boolean defaultAllowDuplicateExtUserid = true;
-	private Boolean defaultEndWhenNoModerator = false;
-	private Integer defaultEndWhenNoModeratorDelayInMinutes = 1;
-	private Integer defaultHtml5InstanceId = 1;
+  	private Boolean defaultEndWhenNoModerator = false;
+  	private Integer defaultEndWhenNoModeratorDelayInMinutes = 1;
+  	private Integer defaultHtml5InstanceId = 1;
 
-	private String formatConfNum(String s) {
-		if (s.length() > 5) {
-			/* Reverse conference number.
-			* Put a whitespace every third char.
-			* Reverse it again to display it correctly.
-			* Trim leading whitespaces.
-			* */
-			String confNumReversed = new StringBuilder(s).reverse().toString();
-			String confNumSplit = confNumReversed.replaceAll("(.{3})", "$1 ");
-			String confNumL = new StringBuilder(confNumSplit).reverse().toString().trim();
-			return confNumL;
-		}
+    private String bbbVersion = "";
+    private Boolean allowRevealOfBBBVersion = false;
 
-		return s;
-	}
+  	private String formatConfNum(String s) {
+  		if (s.length() > 5) {
+  			/* Reverse conference number.
+  			* Put a whitespace every third char.
+  			* Reverse it again to display it correctly.
+  			* Trim leading whitespaces.
+  			* */
+  			String confNumReversed = new StringBuilder(s).reverse().toString();
+  			String confNumSplit = confNumReversed.replaceAll("(.{3})", "$1 ");
+  			String confNumL = new StringBuilder(confNumSplit).reverse().toString().trim();
+  			return confNumL;
+  		}
+
+  		return s;
+  	}
 
     private String substituteKeywords(String message, String dialNumber, String telVoice, String meetingName) {
         String welcomeMessage = message;
@@ -659,6 +664,14 @@ public class ParamsProcessorUtil {
      	}
 	}
 
+  public String getBbbVersion() {
+    return bbbVersion;
+  }
+
+  public Boolean getAllowRevealOfBBBVersion() {
+    return allowRevealOfBBBVersion;
+  }
+
     public String processWelcomeMessage(String message, Boolean isBreakout) {
         String welcomeMessage = message;
         if (StringUtils.isEmpty(message)) {
@@ -1042,6 +1055,22 @@ public class ParamsProcessorUtil {
 	public Long getMaxPresentationFileUpload() {
 		return maxPresentationFileUpload;
 	}
+	
+	public void setMaxUploadSize(Long maxUploadSize) {
+               this.maxUploadSize = maxUploadSize;
+       }
+
+       public Long getMaxUploadSize() {
+               return maxUploadSize;
+       }
+
+       public void setUploadDir(String uploadDir) {
+               this.uploadDir = uploadDir;
+       }
+
+       public String getUploadDir() {
+               return uploadDir;
+       }
 
 	public void setMuteOnStart(Boolean mute) {
 		defaultMuteOnStart = mute;
@@ -1174,8 +1203,16 @@ public class ParamsProcessorUtil {
 		this.defaultEndWhenNoModerator = val;
 	}
 
-    public void setEndWhenNoModeratorDelayInMinutes(Integer value) {
-        this.defaultEndWhenNoModeratorDelayInMinutes = value;
-    }
+  public void setEndWhenNoModeratorDelayInMinutes(Integer value) {
+      this.defaultEndWhenNoModeratorDelayInMinutes = value;
+  }
+
+  public void setBbbVersion(String version) {
+      this.bbbVersion = this.allowRevealOfBBBVersion ? version : "";
+  }
+
+  public void setAllowRevealOfBBBVersion(Boolean allowVersion) {
+    this.allowRevealOfBBBVersion = allowVersion;
+  }
 
 }

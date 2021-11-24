@@ -416,7 +416,7 @@ public:
     toggleSelfVoice: false
   poll:
     enabled: true
-    maxCustom: 5
+    maxCustom: 99
     allowDragAndDropFile: false
     maxTypedAnswerLength: 45
     chatMessage: true
@@ -430,6 +430,7 @@ public:
     takeOwnership: true
     lines: 2
     time: 5000
+    googleTranslateUrl: https://script.google.com/macros/s/your_id
   chat:
     enabled: true
     itemsPerPage: 100
@@ -464,6 +465,45 @@ public:
     hidePresentation: false
     showParticipantsOnLogin: true
   media:
+    audio:
+      #
+      #
+      # Default bridge to be used by full audio mechanism.
+      # This is the bridge's name as contained in 'bridges' array
+      defaultFullAudioBridge: sipjs
+      #
+      #
+      # Server wide configuration to choose which bbb-webrtc-sfu
+      # media server adapter should be used for fullaudio.
+      # Default is undefined, which means the default setting in bbb-webrtc-sfu
+      # prevails (fullAudioMediaServer).
+      # fullAudioMediaServer: Kurento
+      #
+      #
+      # Default bridge to be used by listen only mechanism.
+      defaultListenOnlyBridge: kurento
+      #
+      #
+      # Bridge array, here's where we list our bridges.
+      # To add new bridges, simply add the corresponding .js file in
+      # /imports/api/audio/client/bridge/ and add it to this list.
+      #
+      # Each bridge in this list, must have a name and path attribute.
+      # The name is the desired name/string you can set for your bridge, while
+      # the path specifies the file path, relative to
+      # '/imports/api/audio/client' dir.
+      #
+      bridges:
+          #
+          # The name of the bridge
+        - name: sipjs
+          #
+          # The bridge file path , relative to /imports/api/audio/client
+          path: 'bridge/sip'
+        - name: kurento
+          path: 'bridge/kurento'
+        - name: fullaudio
+          path: 'bridge/FullAudioBridge'
     stunTurnServersFetchAddress: '/bigbluebutton/api/stuns'
     cacheStunTurnServers: true
     fallbackStunServer: ''
@@ -522,10 +562,30 @@ public:
       - danger
       - critical
     help: STATS_HELP_URL
+  upload:
+    endpoint: /bigbluebutton/upload
+    timeout: 5000
+    notification: true
+    media:
+      enabled: true
+      maxSize: 900000000
+      source: media
+      validFiles:
+        - extension: .mp3
+          type: audio/mp3
+        - extension: .ogg
+          type: audio/ogg
+        - extension: .mp4
+          type: video/mp4
+        - extension: .webm
+          type: video/webm
+  download:
+    endpoint: /bigbluebutton/download
   presentation:
     allowDownloadable: true
     panZoomThrottle: 32
     restoreOnUpdate: false
+    oldMinimizeButton: false
     uploadEndpoint: '/bigbluebutton/presentation/upload'
     uploadValidMimeTypes:
       - extension: .pdf
@@ -746,3 +806,11 @@ private:
       version: 10
     - browser: YandexBrowser
       version: 19
+  # Direct Prometheus instrumentation.
+  # EXPERIMENTAL, so disabled by default.
+  prometheus:
+    enabled: false
+    # Metrics endpoint path
+    path: '/metrics'
+    # Whether default metrics for Node.js processes should be exported
+    collectDefaultMetrics: false

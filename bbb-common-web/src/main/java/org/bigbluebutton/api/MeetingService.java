@@ -50,6 +50,7 @@ import org.bigbluebutton.api.domain.Recording;
 import org.bigbluebutton.api.domain.RegisteredUser;
 import org.bigbluebutton.api.domain.User;
 import org.bigbluebutton.api.domain.UserSession;
+import org.bigbluebutton.api.domain.UploadedFile;
 import org.bigbluebutton.api.domain.MeetingLayout;
 import org.bigbluebutton.api.messaging.MessageListener;
 import org.bigbluebutton.api.messaging.converters.messages.DestroyMeetingMessage;
@@ -73,6 +74,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.gson.Gson;
+
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.InputStream;
 
 public class MeetingService implements MessageListener {
   private static Logger log = LoggerFactory.getLogger(MeetingService.class);
@@ -283,6 +288,33 @@ public class MeetingService implements MessageListener {
     }
   }
 
+  public Boolean isUploadRequestValid(String meetingId, String source, String filename, String userId, String token) {
+    Meeting m = getMeeting(meetingId);
+    if (m != null) {
+      return m.isUploadRequestValid(source, filename, userId, token);
+     } else {
+      return false;
+    }
+  }
+  
+  public Boolean isDownloadRequestValid(String meetingId, String source, String uploadId) {
+    Meeting m = getMeeting(meetingId);
+    if (m != null) {
+      return m.hasUploadedFile(source, uploadId);
+     } else {
+      return false;
+    }
+  }
+  
+  public UploadedFile getUploadedFile(String meetingId, String uploadId) {
+    Meeting m = getMeeting(meetingId);
+    if (m != null) {
+      return m.getUploadedFile(uploadId);
+     } else {
+      return null;
+    }
+  }
+  
   public Boolean authzTokenIsValid(String authzToken) { // Note we DO NOT expire the token
     return uploadAuthzTokens.containsKey(authzToken);
   }
@@ -620,6 +652,22 @@ public class MeetingService implements MessageListener {
     }
   }
 
+  public void fileUploaded(
+    String uploadId,
+    String source,
+    String filename,
+    String contentType,
+    String extension,
+    String userId,
+    String meetingId
+   ) {
+    Meeting m = getMeeting(meetingId);
+    if (m != null) {
+      m.addUploadedFile(source, filename, contentType, extension, uploadId);
+      gw.fileUploaded(uploadId, source, filename, contentType, userId, meetingId);
+    }
+  }
+  
   public void endMeeting(String meetingId) {
     handle(new EndMeeting(meetingId));
   }
@@ -733,6 +781,13 @@ public class MeetingService implements MessageListener {
 
   }
 
+  private void processUploadRequest(UploadRequest message) {
+    Meeting m = getMeeting(message.meetingId);
+    if (m != null) {
+      m.addUploadRequest(message.source, message.filename, message.userId, message.token);
+    }
+  }
+  
   private void processPresentationUploadToken(PresentationUploadToken message) {
     uploadAuthzTokens.put(message.authzToken, message);
   }
@@ -1116,6 +1171,8 @@ public class MeetingService implements MessageListener {
           processRegisterUser((RegisterUser) message);
         } else if (message instanceof CreateBreakoutRoom) {
           processCreateBreakoutRoom((CreateBreakoutRoom) message);
+        } else if (message instanceof UploadRequest) {
+          processUploadRequest((UploadRequest) message);
         } else if (message instanceof PresentationUploadToken) {
           processPresentationUploadToken((PresentationUploadToken) message);
         } else if (message instanceof GuestStatusChangedEventMsg) {
@@ -1189,6 +1246,13 @@ public class MeetingService implements MessageListener {
     log.info("Starting Meeting Service.");
     try {
       processMessage = true;
+      Process p = Runtime.getRuntime().exec(new String[]{"/bin/sh", "-c", "cat /etc/bigbluebutton/bigbluebutton-release | cut -d '=' -f2"});
+
+      BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream()));
+
+      String apiVersionFromFile = reader.readLine();
+
+      paramsProcessorUtil.setBbbVersion(apiVersionFromFile);
       Runnable messageReceiver = new Runnable() {
         public void run() {
           while (processMessage) {

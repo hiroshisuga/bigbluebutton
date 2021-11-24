@@ -21,12 +21,14 @@ const propTypes = {
   intl: PropTypes.shape({
     formatMessage: PropTypes.func.isRequired,
   }).isRequired,
+  fullscreenRef: PropTypes.instanceOf(Element),
   dark: PropTypes.bool,
   bottom: PropTypes.bool,
   isIphone: PropTypes.bool,
   isFullscreen: PropTypes.bool,
   elementName: PropTypes.string,
   className: PropTypes.string,
+  handleToggleFullScreen: PropTypes.func.isRequired,
   color: PropTypes.string,
   fullScreenStyle: PropTypes.bool,
 };
@@ -40,6 +42,7 @@ const defaultProps = {
   className: '',
   color: 'default',
   fullScreenStyle: true,
+  fullscreenRef: null,
 };
 
 const FullscreenButtonComponent = ({
@@ -52,11 +55,16 @@ const FullscreenButtonComponent = ({
   className,
   isIphone,
   isFullscreen,
+  isPresentationDetached,
+  presentationWindow,
+  handleToggleFullScreen,
   layoutContextDispatch,
   currentElement,
   currentGroup,
   color,
   fullScreenStyle,
+  fullscreenRef,
+  handleToggleFullScreen,
 }) => {
   if (isIphone) return null;
 
@@ -78,8 +86,11 @@ const FullscreenButtonComponent = ({
     [styles.top]: !bottom,
     [styles.bottom]: bottom,
   });
+  
+  //const newFullscreenRef = isPresentationDetached ? presentationWindow.document.documentElement : fullscreenRef;
 
   const handleClick = () => {
+    handleToggleFullScreen(fullscreenRef);
     const newElement = (elementId === currentElement) ? '' : elementId;
     const newGroup = (elementGroup === currentGroup) ? '' : elementGroup;
 
@@ -104,7 +115,7 @@ const FullscreenButtonComponent = ({
         color={color || 'default'}
         icon={!isFullscreen ? 'fullscreen' : 'exit_fullscreen'}
         size="sm"
-        onClick={() => handleClick()}
+        onClick={() => isPresentationDetached ? handleToggleFullScreen(presentationWindow.document.documentElement) : handleClick()}
         label={formattedLabel(isFullscreen)}
         hideLabel
         className={buttonClassName}
