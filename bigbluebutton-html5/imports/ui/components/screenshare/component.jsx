@@ -87,6 +87,7 @@ class ScreenshareComponent extends React.Component {
       toggleSwapLayout,
       layoutContextDispatch,
       intl,
+      hidePresentation,
     } = this.props;
 
     screenshareHasStarted();
@@ -100,19 +101,26 @@ class ScreenshareComponent extends React.Component {
     notify(intl.formatMessage(intlMessages.screenshareStarted), 'info', 'desktop');
 
     if (getSwapLayout()) toggleSwapLayout(layoutContextDispatch);
+
+    if (hidePresentation) {
+      layoutContextDispatch({
+        type: ACTIONS.SET_PRESENTATION_IS_OPEN,
+        value: true,
+      });
+    }
   }
 
   componentDidUpdate(prevProps) {
     const {
       isPresenter,
     } = this.props;
-    if (isPresenter && !prevProps.isPresenter) {
+    if (prevProps.isPresenter && !isPresenter) {
       screenshareHasEnded();
     }
   }
 
   componentWillUnmount() {
-    const { intl, fullscreenContext, layoutContextDispatch } = this.props;
+    const { intl, fullscreenContext, layoutContextDispatch, hidePresentation } = this.props;
     screenshareHasEnded();
     window.removeEventListener('screensharePlayFailed', this.handlePlayElementFailed);
     unsubscribeFromStreamStateChange('screenshare', this.onStreamStateChange);
@@ -126,6 +134,13 @@ class ScreenshareComponent extends React.Component {
           element: '',
           group: '',
         },
+      });
+    }
+
+    if (hidePresentation) {
+      layoutContextDispatch({
+        type: ACTIONS.SET_PRESENTATION_IS_OPEN,
+        value: false,
       });
     }
   }
@@ -323,6 +338,7 @@ class ScreenshareComponent extends React.Component {
       width,
       height,
       zIndex,
+      fullscreenContext,
     } = this.props;
 
     // Conditions to render the (re)connecting dots and the unhealthy stream
@@ -348,7 +364,7 @@ class ScreenshareComponent extends React.Component {
             right,
             height,
             width,
-            zIndex,
+            zIndex: fullscreenContext ? zIndex : undefined,
             backgroundColor: '#06172A',
           }
         }

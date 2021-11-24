@@ -21,6 +21,7 @@ class ActionsBar extends PureComponent {
       handleTakePresenter,
       intl,
       isSharingVideo,
+      hasScreenshare,
       stopExternalVideoShare,
       isCaptionsAvailable,
       isMeteorConnected,
@@ -36,6 +37,7 @@ class ActionsBar extends PureComponent {
       shortcuts,
       layoutContextDispatch,
       actionsBarStyle,
+      isOldMinimizeButtonEnabled,
     } = this.props;
 
     return (
@@ -82,12 +84,16 @@ class ActionsBar extends PureComponent {
           />
         </div>
         <div className={styles.right}>
-          {isLayoutSwapped && !isPresentationDisabled
+          {!isOldMinimizeButtonEnabled ||
+            (isOldMinimizeButtonEnabled && isLayoutSwapped && !isPresentationDisabled)
             ? (
               <PresentationOptionsContainer
+                isLayoutSwapped={isLayoutSwapped}
                 toggleSwapLayout={toggleSwapLayout}
                 layoutContextDispatch={layoutContextDispatch}
-                isThereCurrentPresentation={isThereCurrentPresentation}
+                hasPresentation={isThereCurrentPresentation}
+                hasExternalVideo={isSharingVideo}
+                hasScreenshare={hasScreenshare}
               />
             )
             : null}
