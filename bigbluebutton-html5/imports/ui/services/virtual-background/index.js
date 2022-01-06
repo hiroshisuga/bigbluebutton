@@ -4,8 +4,6 @@
  */
 
 import * as wasmcheck from 'wasm-check';
-import createTFLiteModule from './tflite/tflite.js';
-import createTFLiteSIMDModule from './tflite/tflite-simd.js';
 import {
     CLEAR_TIMEOUT,
     TIMEOUT_TICK,
@@ -19,6 +17,52 @@ import {
 } from '/imports/ui/services/virtual-background/service'
 
 const blurValue = '25px';
+
+function drawImageProp(ctx, img, x, y, w, h, offsetX, offsetY) {
+    if (arguments.length === 2) {
+        x = y = 0;
+        w = ctx.canvas.width;
+        h = ctx.canvas.height;
+    }
+
+    // Default offset is center
+    offsetX = typeof offsetX === 'number' ? offsetX : 0.5;
+    offsetY = typeof offsetY === 'number' ? offsetY : 0.5;
+
+    // Keep bounds [0.0, 1.0]
+    if (offsetX < 0) offsetX = 0;
+    if (offsetY < 0) offsetY = 0;
+    if (offsetX > 1) offsetX = 1;
+    if (offsetY > 1) offsetY = 1;
+
+    const iw = img.width,
+        ih = img.height,
+        r = Math.min(w / iw, h / ih);
+
+    let nw = iw * r,
+        nh = ih * r,
+        cx, cy, cw, ch, ar = 1;
+
+    // Decide which gap to fill
+    if (nw < w) ar = w / nw;
+    if (Math.abs(ar - 1) < 1e-14 && nh < h) ar = h / nh;
+    nw *= ar;
+    nh *= ar;
+
+    // Calc source rectangle
+    cw = iw / (nw / w);
+    ch = ih / (nh / h);
+    cx = (iw - cw) * offsetX;
+    cy = (ih - ch) * offsetY;
+
+    // Make sure source rectangle is valid
+    if (cx < 0) cx = 0;
+    if (cy < 0) cy = 0;
+    if (cw > iw) cw = iw;
+    if (ch > ih) ch = ih;
+
+    ctx.drawImage(img, cx, cy, cw, ch, x, y, w, h);
+}
 
 class VirtualBackgroundService {
 
@@ -106,12 +150,15 @@ class VirtualBackgroundService {
 
         this._outputCanvasCtx.globalCompositeOperation = 'destination-over';
         if (this._options.virtualBackground.isVirtualBackground) {
-            this._outputCanvasCtx.drawImage(
+            drawImageProp(
+                this._outputCanvasCtx,
                 this._virtualImage,
                 0,
                 0,
                 this._inputVideoElement.width,
-                this._inputVideoElement.height
+                this._inputVideoElement.height,
+                0.5,
+                0.5,
             );
         } else {
             this._outputCanvasCtx.filter = `blur(${blurValue})`;
@@ -272,10 +319,10 @@ export async function createVirtualBackgroundService(parameters = null) {
     let modelResponse;
 
     if (wasmcheck.feature.simd) {
-        tflite = await createTFLiteSIMDModule();
+        tflite = await window.createTFLiteSIMDModule();
         modelResponse = await fetch(BASE_PATH+MODELS.model144.path);
     } else {
-        tflite = await createTFLiteModule();
+        tflite = await window.createTFLiteModule();
         modelResponse = await fetch(BASE_PATH+MODELS.model96.path);
     }
 

@@ -87,6 +87,7 @@ public class ParamsProcessorUtil {
     private boolean webcamsOnlyForModerator;
     private boolean defaultMuteOnStart = false;
     private boolean defaultAllowModsToUnmuteUsers = false;
+    private boolean defaultAllowModsToEjectCameras = false;
     private boolean defaultKeepEvents = false;
     private Boolean useDefaultLogo;
     private String defaultLogoURL;
@@ -110,31 +111,34 @@ public class ParamsProcessorUtil {
     private String uploadDir;
 
     private Integer clientLogoutTimerInMinutes = 0;
-	private Integer meetingExpireIfNoUserJoinedInMinutes = 5;
-	private Integer meetingExpireWhenLastUserLeftInMinutes = 1;
-	private Integer userInactivityInspectTimerInMinutes = 120;
-	private Integer userInactivityThresholdInMinutes = 30;
+  	private Integer meetingExpireIfNoUserJoinedInMinutes = 5;
+  	private Integer meetingExpireWhenLastUserLeftInMinutes = 1;
+  	private Integer userInactivityInspectTimerInMinutes = 120;
+  	private Integer userInactivityThresholdInMinutes = 30;
     private Integer userActivitySignResponseDelayInMinutes = 5;
     private Boolean defaultAllowDuplicateExtUserid = true;
-	private Boolean defaultEndWhenNoModerator = false;
-	private Integer defaultEndWhenNoModeratorDelayInMinutes = 1;
-	private Integer defaultHtml5InstanceId = 1;
+  	private Boolean defaultEndWhenNoModerator = false;
+  	private Integer defaultEndWhenNoModeratorDelayInMinutes = 1;
+  	private Integer defaultHtml5InstanceId = 1;
 
-	private String formatConfNum(String s) {
-		if (s.length() > 5) {
-			/* Reverse conference number.
-			* Put a whitespace every third char.
-			* Reverse it again to display it correctly.
-			* Trim leading whitespaces.
-			* */
-			String confNumReversed = new StringBuilder(s).reverse().toString();
-			String confNumSplit = confNumReversed.replaceAll("(.{3})", "$1 ");
-			String confNumL = new StringBuilder(confNumSplit).reverse().toString().trim();
-			return confNumL;
-		}
+    private String bbbVersion = "";
+    private Boolean allowRevealOfBBBVersion = false;
 
-		return s;
-	}
+  	private String formatConfNum(String s) {
+  		if (s.length() > 5) {
+  			/* Reverse conference number.
+  			* Put a whitespace every third char.
+  			* Reverse it again to display it correctly.
+  			* Trim leading whitespaces.
+  			* */
+  			String confNumReversed = new StringBuilder(s).reverse().toString();
+  			String confNumSplit = confNumReversed.replaceAll("(.{3})", "$1 ");
+  			String confNumL = new StringBuilder(confNumSplit).reverse().toString().trim();
+  			return confNumL;
+  		}
+
+  		return s;
+  	}
 
     private String substituteKeywords(String message, String dialNumber, String telVoice, String meetingName) {
         String welcomeMessage = message;
@@ -421,29 +425,36 @@ public class ParamsProcessorUtil {
             }
         }
 
-        boolean learningDashboardEn = learningDashboardEnabled;
-        if (!StringUtils.isEmpty(params.get(ApiParams.LEARNING_DASHBOARD_ENABLED))) {
-            try {
-                learningDashboardEn = Boolean.parseBoolean(params
-                        .get(ApiParams.LEARNING_DASHBOARD_ENABLED));
-            } catch (Exception ex) {
-                log.warn(
-                        "Invalid param [learningDashboardEnabled] for meeting=[{}]",
-                        internalMeetingId);
+        boolean learningDashboardEn = false;
+        int learningDashboardCleanupMins = 0;
+
+        // Learning Dashboard not allowed for Breakout Rooms
+        if(!isBreakout) {
+            learningDashboardEn = learningDashboardEnabled;
+            if (!StringUtils.isEmpty(params.get(ApiParams.LEARNING_DASHBOARD_ENABLED))) {
+                try {
+                    learningDashboardEn = Boolean.parseBoolean(params
+                            .get(ApiParams.LEARNING_DASHBOARD_ENABLED));
+                } catch (Exception ex) {
+                    log.warn(
+                            "Invalid param [learningDashboardEnabled] for meeting=[{}]",
+                            internalMeetingId);
+                }
+            }
+
+            learningDashboardCleanupMins = learningDashboardCleanupDelayInMinutes;
+            if (!StringUtils.isEmpty(params.get(ApiParams.LEARNING_DASHBOARD_CLEANUP_DELAY_IN_MINUTES))) {
+                try {
+                    learningDashboardCleanupMins = Integer.parseInt(params
+                            .get(ApiParams.LEARNING_DASHBOARD_CLEANUP_DELAY_IN_MINUTES));
+                } catch (Exception ex) {
+                    log.warn(
+                            "Invalid param [learningDashboardCleanupDelayInMinutes] for meeting=[{}]",
+                            internalMeetingId);
+                }
             }
         }
 
-        int learningDashboardCleanupMins = learningDashboardCleanupDelayInMinutes;
-        if (!StringUtils.isEmpty(params.get(ApiParams.LEARNING_DASHBOARD_CLEANUP_DELAY_IN_MINUTES))) {
-            try {
-                learningDashboardCleanupMins = Integer.parseInt(params
-                        .get(ApiParams.LEARNING_DASHBOARD_CLEANUP_DELAY_IN_MINUTES));
-            } catch (Exception ex) {
-                log.warn(
-                        "Invalid param [learningDashboardCleanupDelayInMinutes] for meeting=[{}]",
-                        internalMeetingId);
-            }
-        }
 
         //Generate token to access Activity Report
         String learningDashboardAccessToken = "";
@@ -615,6 +626,12 @@ public class ParamsProcessorUtil {
         }
         meeting.setAllowModsToUnmuteUsers(allowModsToUnmuteUsers);
 
+    Boolean allowModsToEjectCameras = defaultAllowModsToEjectCameras;
+    if (!StringUtils.isEmpty(params.get(ApiParams.ALLOW_MODS_TO_EJECT_CAMERAS))) {
+      allowModsToEjectCameras = Boolean.parseBoolean(params.get(ApiParams.ALLOW_MODS_TO_EJECT_CAMERAS));
+    }
+    meeting.setAllowModsToEjectCameras(allowModsToEjectCameras);
+
         return meeting;
     }
 
@@ -653,6 +670,14 @@ public class ParamsProcessorUtil {
      		return defaultLogoutUrl;
      	}
 	}
+
+  public String getBbbVersion() {
+    return bbbVersion;
+  }
+
+  public Boolean getAllowRevealOfBBBVersion() {
+    return allowRevealOfBBBVersion;
+  }
 
     public String processWelcomeMessage(String message, Boolean isBreakout) {
         String welcomeMessage = message;
@@ -1074,6 +1099,14 @@ public class ParamsProcessorUtil {
 		return defaultAllowModsToUnmuteUsers;
 	}
 
+  public void setAllowModsToEjectCameras(Boolean value) {
+    defaultAllowModsToEjectCameras = value;
+  }
+
+  public Boolean getAllowModsToEjectCameras() {
+    return defaultAllowModsToEjectCameras;
+  }
+
 	public List<String> decodeIds(String encodeid) {
 		ArrayList<String> ids=new ArrayList<>();
 		try {
@@ -1185,8 +1218,16 @@ public class ParamsProcessorUtil {
 		this.defaultEndWhenNoModerator = val;
 	}
 
-    public void setEndWhenNoModeratorDelayInMinutes(Integer value) {
-        this.defaultEndWhenNoModeratorDelayInMinutes = value;
-    }
+  public void setEndWhenNoModeratorDelayInMinutes(Integer value) {
+      this.defaultEndWhenNoModeratorDelayInMinutes = value;
+  }
+
+  public void setBbbVersion(String version) {
+      this.bbbVersion = this.allowRevealOfBBBVersion ? version : "";
+  }
+
+  public void setAllowRevealOfBBBVersion(Boolean allowVersion) {
+    this.allowRevealOfBBBVersion = allowVersion;
+  }
 
 }
