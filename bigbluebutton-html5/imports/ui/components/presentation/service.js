@@ -2,8 +2,10 @@ import PresentationPods from '/imports/api/presentation-pods';
 import Presentations from '/imports/api/presentations';
 import { Slides, SlidePositions } from '/imports/api/slides';
 import Auth from '/imports/ui/services/auth';
+import ReactPlayer from 'react-player';
 import PollService from '/imports/ui/components/poll/service';
 
+const isUrlValid = url => ReactPlayer.canPlay(url);
 const POLL_SETTINGS = Meteor.settings.public.poll;
 const MAX_CUSTOM_FIELDS = POLL_SETTINGS.maxCustom;
 
@@ -84,7 +86,13 @@ const parseCurrentSlideContent = (yesValue, noValue, abstentionValue, trueValue,
   let {
     content,
   } = currentSlide;
-
+  
+  const urlRegex = /((http|https):\/\/[a-zA-Z0-9\-.:]+(\/\S*)?)/g;
+  const optionsUrls = content.match(urlRegex) || [];
+  const videoUrls = optionsUrls.filter(value => isUrlValid(value));
+  const urls = optionsUrls.filter(i => videoUrls.indexOf(i) == -1);
+  content = content.replace(new RegExp(urlRegex), '');
+  
   const pollRegex = /[1-9A-Ia-i][.)].*/g;
   let optionsPoll = content.match(pollRegex) || [];
   if (optionsPoll) optionsPoll = optionsPoll.map((opt) => `\r${opt[0]}.`);
@@ -163,10 +171,12 @@ const parseCurrentSlideContent = (yesValue, noValue, abstentionValue, trueValue,
     type: pollTypes.TrueFalse,
     poll,
   }));
-
+  
   return {
     slideId: currentSlide.id,
     quickPollOptions,
+    videoUrls,
+    urls,
   };
 };
 

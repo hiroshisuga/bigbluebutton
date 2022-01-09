@@ -10,6 +10,8 @@ import { styles } from './styles.scss';
 import ZoomTool from './zoom-tool/component';
 import TooltipContainer from '/imports/ui/components/tooltip/container';
 import QuickPollDropdownContainer from '/imports/ui/components/actions-bar/quick-poll-dropdown/container';
+import QuickLinksDropdown from './quick-links-dropdown/component';
+import FullscreenService from '/imports/ui/components/fullscreen-button/service';
 import KEY_CODES from '/imports/utils/keyCodes';
 
 const intlMessages = defineMessages({
@@ -240,7 +242,12 @@ class PresentationToolbar extends PureComponent {
       parseCurrentSlideContent,
       startPoll,
       currentSlide,
+      allowExternalVideo,
+      screenSharingCheck,
+      fullscreenElementId,
       toolbarWidth,
+      isFullscreen,
+      fullscreenRef,
     } = this.props;
 
     const { isMobile } = deviceInfo;
@@ -282,6 +289,23 @@ class PresentationToolbar extends PureComponent {
                 />
               ) : null
             }
+          </div>
+        }
+        {
+          <div>
+          {
+              <QuickLinksDropdown
+                {...{
+                  intl,
+                  amIPresenter,
+                  parseCurrentSlideContent,
+                  allowExternalVideo,
+                  screenSharingCheck,
+                  isFullscreen,
+                  fullscreenRef,
+                }}
+              />
+          }
           </div>
         }
         {
