@@ -11,7 +11,6 @@ import ZoomTool from './zoom-tool/component';
 import TooltipContainer from '/imports/ui/components/tooltip/container';
 import QuickPollDropdownContainer from '/imports/ui/components/actions-bar/quick-poll-dropdown/container';
 import QuickLinksDropdown from './quick-links-dropdown/component';
-import FullscreenService from '/imports/ui/components/fullscreen-button/service';
 import KEY_CODES from '/imports/utils/keyCodes';
 
 const intlMessages = defineMessages({
