@@ -117,7 +117,7 @@ function getAvailableLinks(slideId, videoUrls, urls, videoLabel, urlLabel, isFul
 }
 
 const QuickLinksDropdown = (props) => {
-  const { amIPresenter, intl, parseCurrentSlideContent, allowExternalVideo, screenSharingCheck, isFullscreen, fullscreenRef } = props;
+  const { amIPresenter, intl, parseCurrentSlideContent, allowExternalVideo, /*screenSharingCheck,*/ isFullscreen, fullscreenRef } = props;
   const parsedSlide = parseCurrentSlideContent();
 
   const { slideId, videoUrls, urls } = parsedSlide;
