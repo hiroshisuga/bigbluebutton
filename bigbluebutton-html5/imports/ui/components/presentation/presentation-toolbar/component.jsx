@@ -243,7 +243,6 @@ class PresentationToolbar extends PureComponent {
       currentSlide,
       allowExternalVideo,
       screenSharingCheck,
-      fullscreenElementId,
       toolbarWidth,
       isFullscreen,
       fullscreenRef,
