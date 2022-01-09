@@ -1,7 +1,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { defineMessages } from 'react-intl';
-import _ from 'lodash';
 import { makeCall } from '/imports/ui/services/api';
 //import browser from 'browser-detect';
 import Button from '/imports/ui/components/button/component';
