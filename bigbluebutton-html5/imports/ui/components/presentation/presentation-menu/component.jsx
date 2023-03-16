@@ -265,6 +265,12 @@ const PresentationMenu = (props) => {
       const isVisible = tools.style.visibility == 'hidden' ? false : true;
       const styles = document.querySelector('#TD-Styles').parentElement;
       const option = document.querySelector('#WhiteboardOptionButton');
+      if (option) {
+        //When the RTL-LTR changed, the toolbar appears again,
+        // while the opacity of this button remains the same.
+        //So we need to reset the opacity here.
+        option.style.opacity = isVisible ? 'unset' : '0.2';
+      }
       menuItems.push(
         {
           key: 'list-item-toolvisibility',
