@@ -31,7 +31,6 @@ export default (props) => {
         currentElement,
         currentGroup,
         layoutContextDispatch,
-        handleToggleFullScreen,
       }}
     />
   );
