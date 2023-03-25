@@ -106,6 +106,7 @@ public class MeetingService implements MessageListener {
   private SwfSlidesGenerationProgressNotifier notifier;
 
   private long usersTimeout;
+  private long waitingGuestUsersTimeout;
   private long enteredUsersTimeout;
 
   private ParamsProcessorUtil paramsProcessorUtil;
@@ -177,6 +178,17 @@ public class MeetingService implements MessageListener {
 
   public UserSession getUserSessionWithAuthToken(String token) {
     return sessions.get(token);
+  }
+
+  public Boolean getAllowRequestsWithoutSession(String token) {
+    UserSession us = getUserSessionWithAuthToken(token);
+    if (us == null) {
+      return false;
+    } else {
+      Meeting meeting = getMeeting(us.meetingID);
+      if (meeting == null || meeting.isForciblyEnded()) return false;
+      return meeting.getAllowRequestsWithoutSession();
+    }
   }
 
   public UserSession removeUserSessionWithAuthToken(String token) {
@@ -272,7 +284,7 @@ public class MeetingService implements MessageListener {
         RegisteredUser ru = registeredUser.getValue();
 
         long elapsedTime = now - ru.getGuestWaitedOn();
-        if (elapsedTime >= 15000 && ru.getGuestStatus() == GuestPolicy.WAIT) {
+        if (elapsedTime >= waitingGuestUsersTimeout && ru.getGuestStatus() == GuestPolicy.WAIT) {
           if (meeting.userUnregistered(registeredUserID) != null) {
             gw.guestWaitingLeft(meeting.getInternalId(), registeredUserID);
           };
@@ -446,7 +458,7 @@ public class MeetingService implements MessageListener {
             m.getUserActivitySignResponseDelayInMinutes(), m.getEndWhenNoModerator(), m.getEndWhenNoModeratorDelayInMinutes(),
             m.getMuteOnStart(), m.getAllowModsToUnmuteUsers(), m.getAllowModsToEjectCameras(), m.getMeetingKeepEvents(),
             m.breakoutRoomsParams,
-            m.lockSettingsParams, m.getHtml5InstanceId());
+            m.lockSettingsParams, m.getHtml5InstanceId(), m.getVirtualBackgroundsDisabled());
   }
 
   private String formatPrettyDate(Long timestamp) {
@@ -802,6 +814,41 @@ public class MeetingService implements MessageListener {
     if (m != null) {
       m.addUserCustomData(userID, userCustomData);
     }
+  }
+
+  public Map<String, String> getUserCustomData(
+      Meeting meeting,
+      String externUserID,
+      Map<String, String> params) {
+    Map<String, String> resp = paramsProcessorUtil.getUserCustomData(params);
+
+    // If is breakout room, merge with user's parent meeting userdata
+    if (meeting.isBreakout()) {
+      String parentMeetingId = meeting.getParentMeetingId();
+      Meeting parentMeeting = getMeeting(parentMeetingId);
+
+      if (parentMeeting != null) {
+        // Get parent meeting user's internal id from it's breakout external id
+        // parentUserInternalId-breakoutRoomNumber
+        String parentUserId = externUserID.split("-")[0];
+        User parentUser = parentMeeting.getUserById(parentUserId);
+
+        if (parentUser != null) {
+          // Custom data is stored indexed by user's external id
+          Map<String, Object> customData = parentMeeting.getUserCustomData(parentUser.getExternalUserId());
+
+          if (customData != null) {
+            for (String key : customData.keySet()) {
+              if (!resp.containsKey(key)) {
+                resp.put(key, String.valueOf(customData.get(key)));
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return resp;
   }
 
   private void meetingStarted(MeetingStarted message) {
@@ -1324,6 +1371,10 @@ public class MeetingService implements MessageListener {
 
   public void setUsersTimeout(long value) {
     usersTimeout = value;
+  }
+
+  public void setWaitingGuestUsersTimeout(long value) {
+    waitingGuestUsersTimeout = value;
   }
 
   public void setEnteredUsersTimeout(long value) {

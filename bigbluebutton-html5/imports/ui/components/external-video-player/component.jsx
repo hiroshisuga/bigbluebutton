@@ -177,6 +177,11 @@ class VideoPlayer extends Component {
         value: true,
       });
     }
+
+    layoutContextDispatch({
+      type: ACTIONS.SET_HAS_EXTERNAL_VIDEO,
+      value: true,
+    });
   }
 
   shouldComponentUpdate(nextProps, nextState) {
@@ -206,7 +211,7 @@ class VideoPlayer extends Component {
   }
 
   componentWillUnmount() {
-    const { hidePresentation } = this.props;
+    const { hidePresentation, layoutContextDispatch } = this.props;
     window.removeEventListener('beforeunload', this.onBeforeUnload);
 
     VideoPlayer.clearVideoListeners();
@@ -215,6 +220,11 @@ class VideoPlayer extends Component {
     clearTimeout(this.autoPlayTimeout);
 
     this.player = null;
+
+    layoutContextDispatch({
+      type: ACTIONS.SET_HAS_EXTERNAL_VIDEO,
+      value: false,
+    });
 
     if (hidePresentation) {
       layoutContextDispatch({
@@ -292,10 +302,14 @@ class VideoPlayer extends Component {
   }
 
   handleOnProgress() {
+    const { mutedByEchoTest } = this.state;
+
     const volume = this.getCurrentVolume();
     const muted = this.getMuted();
 
-    this.setState({ volume, muted });
+    if (!mutedByEchoTest) {
+      this.setState({ volume, muted });
+    }
   }
 
   handleVolumeChanged(volume) {
@@ -303,7 +317,11 @@ class VideoPlayer extends Component {
   }
 
   handleOnMuted(muted) {
-    this.setState({ muted });
+    const { mutedByEchoTest } = this.state;
+
+    if (!mutedByEchoTest) {
+      this.setState({ muted });
+    }
   }
 
   handleReload() {
@@ -362,10 +380,10 @@ class VideoPlayer extends Component {
   }
 
   getMuted() {
-    const { muted } = this.state;
+    const { mutedByEchoTest } = this.state;
     const intPlayer = this.player && this.player.getInternalPlayer();
 
-    return (intPlayer && intPlayer.isMuted && intPlayer.isMuted()) || muted;
+    return intPlayer && intPlayer.isMuted && intPlayer.isMuted() && !mutedByEchoTest;
   }
 
   autoPlayBlockDetected() {

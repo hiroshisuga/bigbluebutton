@@ -64,8 +64,6 @@ class TalkingIndicator extends PureComponent {
         [styles.talker]: true,
         [styles.spoke]: !talking,
         [styles.muted]: muted,
-        [styles.mobileHide]: sidebarNavigationIsOpen
-          && sidebarContentIsOpen,
         [styles.isViewer]: !amIModerator,
       };
 
@@ -114,9 +112,6 @@ class TalkingIndicator extends PureComponent {
       const style = {
         [styles.talker]: true,
         [styles.spoke]: nobodyTalking,
-        // [styles.muted]: false,
-        [styles.mobileHide]: sidebarNavigationIsOpen
-          && sidebarContentIsOpen,
       };
 
       const { moreThanMaxIndicatorsTalking, moreThanMaxIndicatorsWereTalking } = intlMessages;
@@ -146,7 +141,7 @@ class TalkingIndicator extends PureComponent {
     };
 
     return (
-      <div className={styles.isTalkingWrapper}>
+      <div className={styles.isTalkingWrapper} data-test="talkingIndicator">
         <div className={styles.speaking}>
           {talkingUserElements}
           {maxIndicator()}

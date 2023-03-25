@@ -26,6 +26,7 @@ import {
 } from '/imports/ui/services/bbb-webrtc-sfu/stream-state-service';
 import { ACTIONS } from '/imports/ui/components/layout/enums';
 import deviceInfo from '/imports/utils/deviceInfo';
+import Settings from '/imports/ui/services/settings';
 
 const intlMessages = defineMessages({
   screenShareLabel: {
@@ -55,6 +56,10 @@ const intlMessages = defineMessages({
     id: 'app.media.screenshare.end',
     description: 'toast to show when a screenshare has ended',
   },
+  screenshareEndedDueToDataSaving: {
+    id: 'app.media.screenshare.endDueToDataSaving',
+    description: 'toast to show when a screenshare has ended by changing data savings option',
+  },
 });
 
 const ALLOW_FULLSCREEN = Meteor.settings.public.app.allowFullscreen;
@@ -72,6 +77,7 @@ class ScreenshareComponent extends React.Component {
   constructor() {
     super();
     this.state = {
+      restoreOnUnmount: true,
       loaded: false,
       autoplayBlocked: false,
       isStreamHealthy: false,
@@ -112,7 +118,15 @@ class ScreenshareComponent extends React.Component {
 
     notify(intl.formatMessage(intlMessages.screenshareStarted), 'info', 'desktop');
 
-    if (getSwapLayout()) toggleSwapLayout(layoutContextDispatch);
+    if (getSwapLayout()) {
+      toggleSwapLayout(layoutContextDispatch)
+      this.setState({ restoreOnUnmount: false });
+    };
+
+    layoutContextDispatch({
+      type: ACTIONS.SET_HAS_SCREEN_SHARE,
+      value: true,
+    });
 
     if (hidePresentation) {
       layoutContextDispatch({
@@ -132,12 +146,28 @@ class ScreenshareComponent extends React.Component {
   }
 
   componentWillUnmount() {
-    const { intl, fullscreenContext, layoutContextDispatch, hidePresentation } = this.props;
+    const {
+      intl,
+      fullscreenContext,
+      layoutContextDispatch,
+      hidePresentation,
+      toggleSwapLayout,
+    } = this.props;
+    const { restoreOnUnmount } = this.state;
     screenshareHasEnded();
     window.removeEventListener('screensharePlayFailed', this.handlePlayElementFailed);
     unsubscribeFromStreamStateChange('screenshare', this.onStreamStateChange);
 
-    notify(intl.formatMessage(intlMessages.screenshareEnded), 'info', 'desktop');
+    if (Settings.dataSaving.viewScreenshare) {
+      notify(intl.formatMessage(intlMessages.screenshareEnded), 'info', 'desktop');
+    } else {
+      notify(intl.formatMessage(intlMessages.screenshareEndedDueToDataSaving), 'info', 'desktop');
+    }
+
+    layoutContextDispatch({
+      type: ACTIONS.SET_HAS_SCREEN_SHARE,
+      value: false,
+    });
 
     if (fullscreenContext) {
       layoutContextDispatch({
@@ -149,11 +179,12 @@ class ScreenshareComponent extends React.Component {
       });
     }
 
-    if (hidePresentation) {
+    if (hidePresentation || !restoreOnUnmount) {
       layoutContextDispatch({
         type: ACTIONS.SET_PRESENTATION_IS_OPEN,
         value: false,
       });
+      toggleSwapLayout(layoutContextDispatch);
     }
   }
 

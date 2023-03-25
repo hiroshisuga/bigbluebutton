@@ -175,6 +175,7 @@ class QuickPollDropdown extends Component {
         }}
         size="lg"
         disabled={!!activePoll}
+        data-test="quickPollBtn"
       />
     );
 

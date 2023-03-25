@@ -101,7 +101,7 @@ class SmartLayout extends Component {
         type: ACTIONS.SET_LAYOUT_INPUT,
         value: _.defaultsDeep({
           sidebarNavigation: {
-            isOpen: input.sidebarNavigation.isOpen || false,
+            isOpen: input.sidebarNavigation.isOpen || sidebarContentPanel !== PANELS.NONE || false,
           },
           sidebarContent: {
             isOpen: sidebarContentPanel !== PANELS.NONE,
@@ -446,8 +446,10 @@ class SmartLayout extends Component {
     const {
       input, fullscreen, isRTL, deviceType,
     } = layoutContextState;
-    const { presentation } = input;
+    const { presentation, externalVideo, screenShare } = input;
     const { isOpen } = presentation;
+    const { hasExternalVideo } = externalVideo;
+    const { hasScreenShare } = screenShare;
     const mediaBounds = {};
     const { element: fullscreenElement } = fullscreen;
 
@@ -472,7 +474,7 @@ class SmartLayout extends Component {
     }
 
     if (input.cameraDock.numCameras > 0 && !input.cameraDock.isDragging) {
-      if (slideSize.width !== 0 && slideSize.height !== 0) {
+      if (slideSize.width !== 0 && slideSize.height !== 0 && !hasExternalVideo && !hasScreenShare) {
         if (slideSize.width < mediaAreaBounds.width && deviceType !== DEVICE_TYPE.MOBILE) {
           if (slideSize.width < (mediaAreaBounds.width * 0.8)) {
             mediaBounds.width = slideSize.width;
