@@ -11,9 +11,7 @@ import org.bigbluebutton.SystemConfiguration
 
 class WhiteboardModel extends SystemConfiguration {
   private var _whiteboards = new HashMap[String, Whiteboard]()
-  private var SYNCUPDATE = false
-  private var SIMPLEPEN = true
-  
+
   private def saveWhiteboard(wb: Whiteboard) {
     _whiteboards += wb.id -> wb
   }
@@ -60,7 +58,6 @@ class WhiteboardModel extends SystemConfiguration {
 
     //not empty and head id equals annotation id
     if (!usersAnnotations.isEmpty && usersAnnotations.head.id == annotation.id) {
-      // never comes here since 2.3, but now we use this again for the synchronized update
       val rtnAnnotation = annotation.copy(position = usersAnnotations.head.position)
       val newAnnotationsMap = wb.annotationsMap + (userId -> (rtnAnnotation :: usersAnnotations.tail))
       //println("Annotation has position [" + usersAnnotations.head.position + "]")
@@ -93,10 +90,8 @@ class WhiteboardModel extends SystemConfiguration {
         }
       }) //newPoints = a.asInstanceOf[ArrayList[Float]])
       val updatedAnnotationData = annotation.annotationInfo + ("points" -> (oldPoints ::: newPoints))
-      
-      val newPosition = wb.annotationCount
-      val updatedAnnotation = annotation.copy(position = newPosition, annotationInfo = updatedAnnotationData)
-      
+      val updatedAnnotation = annotation.copy(position = oldAnnotation.position, annotationInfo = updatedAnnotationData)
+
       val newAnnotationsMap = wb.annotationsMap + (userId -> (updatedAnnotation :: usersAnnotations.tail))
       //println("Annotation has position [" + usersAnnotations.head.position + "]")
       val newWb = wb.copy(annotationsMap = newAnnotationsMap)
@@ -109,7 +104,7 @@ class WhiteboardModel extends SystemConfiguration {
     }
   }
 
-  def endAnnotationPencil(wbId: String, userId: String, annotation: AnnotationVO): AnnotationVO = {
+  def endAnnotationPencil(wbId: String, userId: String, annotation: AnnotationVO, drawEndOnly: Boolean): AnnotationVO = {
     var rtnAnnotation: AnnotationVO = annotation
 
     val wb = getWhiteboard(wbId)
@@ -151,17 +146,12 @@ class WhiteboardModel extends SystemConfiguration {
 
       //val oldPointsJava: java.util.List[java.lang.Float] = oldPoints.asJava.asInstanceOf[java.util.List[java.lang.Float]]
       //println("****class = " + oldPointsJava.getClass())
-      
-      var updatedAnnotationData: Map[String, Any] = Map[String, Any]()
-      if (!SYNCUPDATE || (SYNCUPDATE && SIMPLEPEN)) {
-        val pathData = BezierWrapper.lineSimplifyAndCurve((oldPoints ::: newPoints).asJava.asInstanceOf[java.util.List[java.lang.Float]], dimensions(0), dimensions(1))
-        //println("Path data: pointssize " + pathData.points.size() + " commandssize " + pathData.commands.size())
-        updatedAnnotationData = annotation.annotationInfo + ("points" -> pathData.points.asScala.toList) + ("commands" -> pathData.commands.asScala.toList)
-        //println("oldAnnotation value = " + oldAnnotationOption.getOrElse("Empty"))
-      } else {
-        updatedAnnotationData = annotation.annotationInfo + ("points" -> (oldPoints ::: newPoints))
-      }
+      val pathData = BezierWrapper.lineSimplifyAndCurve((oldPoints ::: newPoints).asJava.asInstanceOf[java.util.List[java.lang.Float]], dimensions(0), dimensions(1))
+      //println("Path data: pointssize " + pathData.points.size() + " commandssize " + pathData.commands.size())
 
+      val updatedAnnotationData = annotation.annotationInfo + ("points" -> pathData.points.asScala.toList) + ("commands" -> pathData.commands.asScala.toList)
+      //println("oldAnnotation value = " + oldAnnotationOption.getOrElse("Empty"))
+      
       var newPosition: Int = oldAnnotationOption match {
         case Some(annotation) => annotation.position
         case None             => wb.annotationCount
@@ -169,17 +159,16 @@ class WhiteboardModel extends SystemConfiguration {
       if (SYNCUPDATE) {
         newPosition = wb.annotationCount
       }
+      
       val updatedAnnotation = annotation.copy(position = newPosition, annotationInfo = updatedAnnotationData)
 
-      val updateExists = !usersAnnotations.isEmpty && usersAnnotations.head.id == annotation.id
       var newUsersAnnotations: List[AnnotationVO] = oldAnnotationOption match {
         //As part of the whiteboard improvments for the HTML5 client it no longer sends
         //DRAW_START and DRAW_UPDATE events (#9019). Client now sends drawEndOnly in the
         //SendWhiteboardAnnotationPubMsg so akka knows not to expect usersAnnotations to be accumulating.
-        //With #14012, DRAW_UPDATE can happen when the synchronised update option is turned on,
-        // and we don't need the argument drawEndOnly anymore.
-         case Some(annotation) if (updateExists) => usersAnnotations.tail
-         case _                                  => usersAnnotations
+        case Some(annotation) if (drawEndOnly == true) => usersAnnotations
+        case Some(annotation)                          => usersAnnotations.tail
+        case None                                      => usersAnnotations
       }
 
       val newAnnotationsMap = wb.annotationsMap + (userId -> (updatedAnnotation :: newUsersAnnotations))
@@ -252,140 +241,29 @@ class WhiteboardModel extends SystemConfiguration {
     }
     last
   }
-  
-  def removeWhiteboardAnnotations(wbId: String, selectedAnnotations: Array[Map[String, String]], userId: String): List[AnnotationVO] = {
-    var lasts: List[AnnotationVO] = List[AnnotationVO]()
-    val wb = getWhiteboard(wbId)
-    if (wb.annotationsMap.nonEmpty) {
-      var newWb = getWhiteboard("dummy")
-      for ((uid, annotation) <- wb.annotationsMap) {
-        if (!wb.multiUser.contains(userId) || userId == uid) {
-          for (a <- selectedAnnotations) {
-            val elemRM = annotation.filter(_.id == a("id"))
-            lasts = lasts ++ elemRM
-          }
-          newWb = removeSpecificAnnotations(wb, uid, annotation, lasts)
-        }
-      }
-      saveWhiteboard(newWb)
-    }
-    lasts
-  }
-  
-  def moveWhiteboardAnnotations(wbId: String, selectedAnnotations: Array[Map[String, String]], offset: Map[String, Float], userId: String): List[AnnotationVO] = {
-    var allMovedAnnotations: List[AnnotationVO] = List[AnnotationVO]()
-    val wb = getWhiteboard(wbId)
-    if (wb.annotationsMap.nonEmpty) {
-      var newAnnotationsMap = wb.annotationsMap
-      for ((uid, annotations) <- wb.annotationsMap) {
-        if (!(wb.multiUser.contains(userId) && userId != uid)) { // don't allow changing the drawings of others in case of multiUser mode
-          var newAnnotations = List(annotations: _*)
-          for (a <- selectedAnnotations) {
-            val oldAnnotation = annotations.find(_.id == a("id")).getOrElse(null)
-            if (oldAnnotation != null) {
-              var updatedAnnotationData = oldAnnotation.annotationInfo
-              if (oldAnnotation.annotationType == "text") {
-                var x: Double = 0
-                var y: Double = 0
-                oldAnnotation.annotationInfo.get("x").foreach(a => {
-                  a match {
-                    case a2: Double => x = a2.asInstanceOf[Double]
-                  }
-                })
-                oldAnnotation.annotationInfo.get("y").foreach(a => {
-                  a match {
-                    case a2: Double => y = a2.asInstanceOf[Double]
-                  }
-                })
-                updatedAnnotationData = oldAnnotation.annotationInfo + ("x" -> (x + offset("x").toString.toDouble), "y" -> (y + offset("y").toString.toDouble))
-              } else {
-                var oldPoints: List[Float] = List[Float]()
-                oldAnnotation.annotationInfo.get("points").foreach(a => {
-                  a match {
-                    case a2: List[_] => oldPoints = a2.asInstanceOf[List[Float]]
-                  }
-                })
-                val newPoints = oldPoints.zipWithIndex.map {
-                  case (a) =>
-                    if (a._2 % 2 == 0) {
-                      a._1.toString.toFloat + offset("x").toString.toFloat
-                    } else {
-                      a._1.toString.toFloat + offset("y").toString.toFloat
-                    }
-                }
-                updatedAnnotationData = oldAnnotation.annotationInfo + ("points" -> (newPoints))
-              }
-              val updatedAnnotation = oldAnnotation.copy(annotationInfo = updatedAnnotationData)
-              newAnnotations = newAnnotations.map(an => if (an.id == a("id")) updatedAnnotation else an)
-              allMovedAnnotations = allMovedAnnotations :+ updatedAnnotation
-            }
-          }
-          newAnnotationsMap = newAnnotationsMap + (uid -> newAnnotations)
-        }
-      }
-      val newWb = wb.copy(annotationsMap = newAnnotationsMap)
-      saveWhiteboard(newWb)
-    }
-    allMovedAnnotations
-  }
-  
-  def reorderWhiteboardAnnotations(wbId: String, selectedAnnotations: Array[Map[String, String]], order: Array[Map[String, String]], userId: String) = {
-    val wb = getWhiteboard(wbId)
-    
-    if (wb.annotationsMap.nonEmpty) {
-      var newAnnotationsMap = wb.annotationsMap
-      var id2position: Map[String, String] = Map[String, String]()
-      for (o <- order) {
-        id2position = id2position + (o("id") -> o("position"))
-      }
-      
-      for ((uid, annotations) <- wb.annotationsMap) {
-        val newAnnotations = annotations.map(an => an.copy(annotationInfo = an.annotationInfo + ("position" -> (id2position(an.id)))))
-        newAnnotationsMap = newAnnotationsMap + (uid -> newAnnotations)
-      }
-      
-      val newWb = wb.copy(annotationsMap = newAnnotationsMap)
-      saveWhiteboard(newWb)
-    }
-  }
-  
+
   private def removeHeadAnnotation(wb: Whiteboard, key: String, list: List[AnnotationVO]): Whiteboard = {
     val newAnnotationsMap = if (list.tail == Nil) wb.annotationsMap - key else wb.annotationsMap + (key -> list.tail)
     wb.copy(annotationsMap = newAnnotationsMap)
   }
 
-  private def removeSpecificAnnotations(wb: Whiteboard, key: String, list: List[AnnotationVO], listRemoved: List[AnnotationVO]): Whiteboard = {
-    var newList = list
-    for (a <- listRemoved) {
-      newList = newList.filterNot(_ == a)
-    }
-    val newAnnotationsMap = if (newList == Nil) wb.annotationsMap - key else wb.annotationsMap + (key -> newList)
-    wb.copy(annotationsMap = newAnnotationsMap)
-  }
-  
   def modifyWhiteboardAccess(wbId: String, multiUser: Array[String]) {
     val wb = getWhiteboard(wbId)
     val newWb = wb.copy(multiUser = multiUser, oldMultiUser = wb.multiUser, changedModeOn = System.currentTimeMillis())
     saveWhiteboard(newWb)
   }
 
-  def modifyWBMode(mId: String, wbMode: Map[String, Boolean]) {
-    if (wbMode.isDefinedAt("synchronizeWBUpdate")) {
-      SYNCUPDATE = wbMode.get("synchronizeWBUpdate").get
-    }
-    if (wbMode.isDefinedAt("simplifyPencil")) {
-      SIMPLEPEN = wbMode.get("simplifyPencil").get
-    }
-  }
-  
   def getWhiteboardAccess(wbId: String): Array[String] = getWhiteboard(wbId).multiUser
+
+  def isNonEjectionGracePeriodOver(wbId: String, userId: String): Boolean = {
+    val wb = getWhiteboard(wbId)
+    val lastChange = System.currentTimeMillis() - wb.changedModeOn
+    !(wb.oldMultiUser.contains(userId) && lastChange < 5000)
+  }
 
   def hasWhiteboardAccess(wbId: String, userId: String): Boolean = {
     val wb = getWhiteboard(wbId)
-    wb.multiUser.contains(userId) || {
-      val lastChange = System.currentTimeMillis() - wb.changedModeOn
-      wb.oldMultiUser.contains(userId) && lastChange < 5000
-    }
+    wb.multiUser.contains(userId)
   }
 
   def getChangedModeOn(wbId: String): Long = getWhiteboard(wbId).changedModeOn
