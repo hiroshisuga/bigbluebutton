@@ -148,6 +148,7 @@ class WhiteboardToolbar extends Component {
       actions,
       multiUser,
       isPresenter,
+      presentationWindow,
     } = this.props;
 
     const drawSettings = actions.getCurrentDrawSettings();
@@ -156,8 +157,8 @@ class WhiteboardToolbar extends Component {
       annotationSelected, thicknessSelected, colorSelected, fontSizeSelected, palmRejection,
     } = this.state;
 
-    document.addEventListener('keydown', this.panOn);
-    document.addEventListener('keyup', this.panOff);
+    presentationWindow.document.addEventListener('keydown', this.panOn);
+    presentationWindow.document.addEventListener('keyup', this.panOff);
 
     // if there are saved drawSettings in the session storage
     // - retrieve them and update toolbar values
@@ -220,8 +221,9 @@ class WhiteboardToolbar extends Component {
   }
 
   componentWillUnmount() {
-    document.removeEventListener('keydown', this.panOn);
-    document.removeEventListener('keyup', this.panOff);
+    const { presentationWindow } = this.props;
+    presentationWindow.document.removeEventListener('keydown', this.panOn);
+    presentationWindow.document.removeEventListener('keyup', this.panOff);
   }
 
   setToolbarValues(drawSettings) {
@@ -605,7 +607,7 @@ class WhiteboardToolbar extends Component {
       thicknessSelected,
     } = this.state;
 
-    const isDisabled = annotationSelected.value === 'hand' || !annotations.length;
+    const isDisabled = annotationSelected.value === 'hand' || annotationSelected.value === 'eraser' || !annotations.length;
     return (
       <ToolbarMenuItem
         disabled={isDisabled}
@@ -699,7 +701,7 @@ class WhiteboardToolbar extends Component {
       colorSelected,
     } = this.state;
 
-    const isDisabled = annotationSelected.value === 'hand' || !annotations.length;
+    const isDisabled = annotationSelected.value === 'hand' || annotationSelected.value === 'eraser' || !annotations.length;
     return (
       <ToolbarMenuItem
         disabled={isDisabled}
@@ -793,6 +795,7 @@ class WhiteboardToolbar extends Component {
       isMeteorConnected,
       multiUser,
       multiUserSize,
+      hideAnnotationsForAnnotator,
     } = this.props;
 
     return (
@@ -805,7 +808,11 @@ class WhiteboardToolbar extends Component {
             : intl.formatMessage(intlMessages.toolbarMultiUserOn)
           }
           data-test={multiUser ? 'turnMultiUsersWhiteboardOff' : 'turnMultiUsersWhiteboardOn'}
-          icon={multiUser ? 'multi_whiteboard' : 'whiteboard'}
+          icon={multiUser
+            ? hideAnnotationsForAnnotator
+                ? 'multi_whiteboard_isolated'
+                : 'multi_whiteboard'
+            : 'whiteboard'}
           onItemClick={this.handleSwitchWhiteboardMode}
           className={styles.toolbarButton}
         />
@@ -834,7 +841,7 @@ class WhiteboardToolbar extends Component {
  
   render() {
     const { annotationSelected } = this.state;
-    const { isPresenter, intl } = this.props;
+    const { isPresenter, presentationWindow, intl } = this.props;
     return (
       <div className={styles.toolbarContainer} role="region" aria-label={intl.formatMessage(intlMessages.toolbarAriaLabel)}>
         <div className={styles.toolbarWrapper}>
@@ -843,7 +850,7 @@ class WhiteboardToolbar extends Component {
           {this.renderColorItem()}
           {this.renderUndoItem()}
           {this.renderClearAllItem()}
-          {window.PointerEvent ? this.renderPalmRejectionItem() : null}
+          {presentationWindow.PointerEvent ? this.renderPalmRejectionItem() : null}
           {isPresenter ? this.renderMultiUserItem() : null}
         </div>
       </div>

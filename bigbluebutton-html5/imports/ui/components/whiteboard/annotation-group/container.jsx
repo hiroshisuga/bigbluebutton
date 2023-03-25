@@ -5,13 +5,14 @@ import AnnotationGroupService from './service';
 import AnnotationGroup from './component';
 
 const AnnotationGroupContainer = ({
-  annotationsInfo, width, height, whiteboardId,
+  annotationsInfo, width, height, whiteboardId, published,
 }) => (
   <AnnotationGroup
     annotationsInfo={annotationsInfo}
     slideWidth={width}
     slideHeight={height}
     whiteboardId={whiteboardId}
+    published={published}
   />
 );
 
@@ -22,7 +23,7 @@ export default withTracker((params) => {
   } = params;
 
   const fetchFunc = published
-    ? AnnotationGroupService.getCurrentAnnotationsInfo : AnnotationGroupService.getUnsetAnnotations;
+    ? AnnotationGroupService.getCurrentAnnotationsInfo : AnnotationGroupService.getUnsentAnnotations;
 
   const annotationsInfo = fetchFunc(whiteboardId);
   return {

@@ -69,7 +69,7 @@ class Captions extends React.Component {
       this.timer = null;
     }
   }
-
+  
   render() {
     const { data } = this.props;
     const { initial } = this.state;

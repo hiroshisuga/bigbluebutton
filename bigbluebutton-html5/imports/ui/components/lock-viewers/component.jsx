@@ -63,6 +63,10 @@ const intlMessages = defineMessages({
     id: 'app.lock-viewers.userListLabel',
     description: 'label for user list toggle',
   },
+  isolatedWhiteboardLabel: {
+    id: 'app.lock-viewers.isolatedWhiteboardLabel',
+    description: 'label for isolated whiteboard toggle',
+  },
   ariaModalTitle: {
     id: 'app.lock-viewers.ariaTitle',
     description: 'aria label for modal title',
@@ -364,6 +368,30 @@ class LockViewersComponent extends Component {
                     showToggleLabel={showToggleLabel}
                     invertColors={invertColors}
                     data-test="lockUserList"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className={styles.row}>
+              <div className={styles.col} aria-hidden="true">
+                <div className={styles.formElement}>
+                  <div className={styles.label}>
+                    {intl.formatMessage(intlMessages.isolatedWhiteboardLabel)}
+                  </div>
+                </div>
+              </div>
+              <div className={styles.col}>
+                <div className={cx(styles.formElement, styles.pullContentRight)}>
+                  {this.displayLockStatus(lockSettingsProps.hideAnnotations)}
+                  <Toggle
+                    icons={false}
+                    defaultChecked={lockSettingsProps.hideAnnotations}
+                    onChange={() => {
+                      this.toggleLockSettings('hideAnnotations');
+                    }}
+                    ariaLabel={intl.formatMessage(intlMessages.isolatedWhiteboardLabel)}
+                    showToggleLabel={showToggleLabel}
+                    invertColors={invertColors}
                   />
                 </div>
               </div>
