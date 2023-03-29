@@ -267,11 +267,6 @@ class ActionsDropdown extends PureComponent {
     return presentationItemElements;
   }
 
-  handleExternalVideoClick() {
-    const { mountModal } = this.props;
-    mountModal(<ExternalVideoModal />);
-  }
-
   handleUploadMediaClick() {
     const { mountModal } = this.props;
     mountModal(<MediaUploadContainer />);
