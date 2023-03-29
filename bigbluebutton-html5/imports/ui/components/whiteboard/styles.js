@@ -250,6 +250,12 @@ const TldrawGlobalStyleText = (arg) => {
     }
   ` : ''}
   
+  ${ (arg.isPresenter) ? `
+    #presentationInnerWrapper div{
+      cursor: default !important;
+    }
+  ` : ''}
+  
   `;
 
   return styleText;
