@@ -2,17 +2,18 @@ import React, { memo } from 'react';
 import PropTypes from 'prop-types';
 import { defineMessages, injectIntl } from 'react-intl';
 import injectWbResizeEvent from '/imports/ui/components/presentation/resize-wrapper/component';
-import Button from '/imports/ui/components/button/component';
 import withShortcutHelper from '/imports/ui/components/shortcut-help/service';
 import { Meteor } from 'meteor/meteor';
 import ChatLogger from '/imports/ui/components/chat/chat-logger/ChatLogger';
-import { styles } from './styles.scss';
+import Styled from './styles';
 import MessageFormContainer from './message-form/container';
 import TimeWindowList from './time-window-list/container';
 import ChatDropdownContainer from './chat-dropdown/container';
 import { PANELS, ACTIONS } from '../layout/enums';
 import { UserSentMessageCollection } from './service';
 import Auth from '/imports/ui/services/auth';
+import browserInfo from '/imports/utils/browserInfo';
+import Header from '/imports/ui/components/common/control-header/component';
 
 const CHAT_CONFIG = Meteor.settings.public.chat;
 const PUBLIC_CHAT_ID = CHAT_CONFIG.public_id;
@@ -52,82 +53,72 @@ const Chat = (props) => {
     syncing,
     syncedPercent,
     lastTimeWindowValuesBuild,
+    width,
   } = props;
 
   const userSentMessage = UserSentMessageCollection.findOne({ userId: Auth.userID, sent: true });
+  const { isChrome } = browserInfo;
 
   const HIDE_CHAT_AK = shortcuts.hideprivatechat;
   const CLOSE_CHAT_AK = shortcuts.closeprivatechat;
+  const isPublicChat = chatID === PUBLIC_CHAT_ID;
   ChatLogger.debug('ChatComponent::render', props);
   return (
-    <div
-      data-test={chatID !== PUBLIC_CHAT_ID ? 'privateChat' : 'publicChat'}
-      className={styles.chat}
+    <Styled.Chat
+      isChrome={isChrome}
+      data-test={isPublicChat ? 'publicChat' : 'privateChat'}
     >
-      <header className={styles.header}>
-        <div
-          data-test="chatTitle"
-          className={styles.title}
-        >
-          <Button
-            onClick={() => {
-              layoutContextDispatch({
-                type: ACTIONS.SET_SIDEBAR_CONTENT_IS_OPEN,
-                value: false,
-              });
-              layoutContextDispatch({
-                type: ACTIONS.SET_ID_CHAT_OPEN,
-                value: '',
-              });
-              layoutContextDispatch({
-                type: ACTIONS.SET_SIDEBAR_CONTENT_PANEL,
-                value: PANELS.NONE,
-              });
-            }}
-            aria-label={intl.formatMessage(intlMessages.hideChatLabel, { 0: title })}
-            accessKey={chatID !== 'public' ? HIDE_CHAT_AK : null}
-            label={title}
-            icon="left_arrow"
-            className={styles.hideBtn}
+      <Header
+        data-test="chatTitle"
+        leftButtonProps={{
+          accessKey: chatID !== 'public' ? HIDE_CHAT_AK : null,
+          'aria-label': intl.formatMessage(intlMessages.hideChatLabel, { 0: title }),
+          'data-test': isPublicChat ? 'hidePublicChat' : 'hidePrivateChat',
+          label: title,
+          onClick: () => {
+            layoutContextDispatch({
+              type: ACTIONS.SET_SIDEBAR_CONTENT_IS_OPEN,
+              value: false,
+            });
+            layoutContextDispatch({
+              type: ACTIONS.SET_ID_CHAT_OPEN,
+              value: '',
+            });
+            layoutContextDispatch({
+              type: ACTIONS.SET_SIDEBAR_CONTENT_PANEL,
+              value: PANELS.NONE,
+            });
+          },
+        }}
+        rightButtonProps={{
+          accessKey: CLOSE_CHAT_AK,
+          'aria-label': intl.formatMessage(intlMessages.closeChatLabel, { 0: title }),
+          'data-test': "closePrivateChat",
+          icon: "close",
+          label: intl.formatMessage(intlMessages.closeChatLabel, { 0: title }),
+          onClick: () => {
+            actions.handleClosePrivateChat(chatID);
+            layoutContextDispatch({
+              type: ACTIONS.SET_SIDEBAR_CONTENT_IS_OPEN,
+              value: false,
+            });
+            layoutContextDispatch({
+              type: ACTIONS.SET_ID_CHAT_OPEN,
+              value: '',
+            });
+            layoutContextDispatch({
+              type: ACTIONS.SET_SIDEBAR_CONTENT_PANEL,
+              value: PANELS.NONE,
+            });
+          },
+        }}
+        customRightButton={isPublicChat && (
+          <ChatDropdownContainer {...{
+            meetingIsBreakout, isMeteorConnected, amIModerator, timeWindowsValues,
+          }}
           />
-        </div>
-        {
-          chatID !== PUBLIC_CHAT_ID
-            ? (
-              <Button
-                icon="close"
-                size="sm"
-                ghost
-                color="dark"
-                hideLabel
-                onClick={() => {
-                  actions.handleClosePrivateChat(chatID);
-                  layoutContextDispatch({
-                    type: ACTIONS.SET_SIDEBAR_CONTENT_IS_OPEN,
-                    value: false,
-                  });
-                  layoutContextDispatch({
-                    type: ACTIONS.SET_ID_CHAT_OPEN,
-                    value: '',
-                  });
-                  layoutContextDispatch({
-                    type: ACTIONS.SET_SIDEBAR_CONTENT_PANEL,
-                    value: PANELS.NONE,
-                  });
-                }}
-                aria-label={intl.formatMessage(intlMessages.closeChatLabel, { 0: title })}
-                label={intl.formatMessage(intlMessages.closeChatLabel, { 0: title })}
-                accessKey={CLOSE_CHAT_AK}
-              />
-            )
-            : (
-              <ChatDropdownContainer {...{
-                meetingIsBreakout, isMeteorConnected, amIModerator, timeWindowsValues,
-              }}
-              />
-            )
-        }
-      </header>
+        )}
+      />
       <TimeWindowList
         id={ELEMENT_ID}
         chatId={chatID}
@@ -146,6 +137,7 @@ const Chat = (props) => {
           syncedPercent,
           lastTimeWindowValuesBuild,
           userSentMessage,
+          width,
         }}
       />
       <MessageFormContainer
@@ -160,7 +152,7 @@ const Chat = (props) => {
         locked={isChatLocked}
         partnerIsLoggedOut={partnerIsLoggedOut}
       />
-    </div>
+    </Styled.Chat>
   );
 };
 

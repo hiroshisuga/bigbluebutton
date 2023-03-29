@@ -1,9 +1,12 @@
 package org.bigbluebutton.api2;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import org.bigbluebutton.api.domain.BreakoutRoomsParams;
 import org.bigbluebutton.api.domain.LockSettingsParams;
+import org.bigbluebutton.api.domain.Group;
 import org.bigbluebutton.api.messaging.converters.messages.DestroyMeetingMessage;
 import org.bigbluebutton.api.messaging.converters.messages.EndMeetingMessage;
 import org.bigbluebutton.api.messaging.converters.messages.PublishedRecordingMessage;
@@ -17,7 +20,9 @@ public interface IBbbWebApiGWApp {
                      String parentMeetingID, String meetingName, Boolean recorded,
                      String voiceBridge, Integer duration, Boolean autoStartRecording,
                      Boolean allowStartStopRecording, Boolean webcamsOnlyForModerator,
-                     String moderatorPass, String viewerPass, Boolean learningDashboardEnabled, String learningDashboardAccessToken, Long createTime,
+                     Integer meetingCameraCap,
+                     Integer userCameraCap,
+                     String moderatorPass, String viewerPass, String learningDashboardAccessToken, Long createTime,
                      String createDate, Boolean isBreakout, Integer sequence, Boolean freejoin, Map<String, String> metadata,
                      String guestPolicy, Boolean authenticatedGuest, String meetingLayout, String welcomeMsgTemplate, String welcomeMsg, String modOnlyMessage,
                      String dialNumber, Integer maxUsers,
@@ -34,7 +39,9 @@ public interface IBbbWebApiGWApp {
                      Boolean keepEvents,
                      BreakoutRoomsParams breakoutParams,
                      LockSettingsParams lockSettingsParams,
-                     Integer html5InstanceId);
+                     Integer html5InstanceId,
+                     ArrayList<Group> groups,
+                     ArrayList<String> disabledFeatures);
 
   void registerUser(String meetingID, String internalUserId, String fullname, String role,
                     String externUserID, String authToken, String avatarURL,

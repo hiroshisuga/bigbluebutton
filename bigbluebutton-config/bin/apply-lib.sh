@@ -9,31 +9,40 @@
 # before BigBlueButton starts
 #
 
-
-if LANG=c ifconfig | grep -q 'venet0:0'; then
-  # IP detection for OpenVZ environment
-  IP=$(ifconfig | grep -v '127.0.0.1' | grep -E "[0-9]*\.[0-9]*\.[0-9]*\.[0-9]*" | tail -1 | cut -d: -f2 | awk '{ print $1}')
+### duplicated code: see deb-helper.sh and bbb-conf
+if [ -e "/sys/class/net/venet0:0" ]; then
+    # IP detection for OpenVZ environment
+    _dev="venet0:0"
 else
-  IP=$(hostname -I | sed 's/ .*//g')
+    _dev=$(awk '$2 == 00000000 { print $1 }' /proc/net/route | head -1)
+fi
+_ips=$(LANG=C ip -4 -br address show dev "$_dev" | awk '{ $1=$2=""; print $0 }')
+_ips=${_ips/127.0.0.1\/8/}
+read -r IP _ <<< "$_ips"
+IP=${IP/\/*} # strip subnet provided by ip address
+if [ -z "$IP" ]; then
+  read -r IP _ <<< "$(hostname -I)"
 fi
 
 if [ -f /usr/share/bbb-web/WEB-INF/classes/bigbluebutton.properties ]; then
   SERVLET_DIR=/usr/share/bbb-web
-else
-  SERVLET_DIR=/var/lib/tomcat7/webapps/bigbluebutton
 fi
 
 BBB_WEB_ETC_CONFIG=/etc/bigbluebutton/bbb-web.properties
 
+# We'll create a newline file to ensure bigbluebutton.properties ends with a newline
+tmpfile=$(mktemp /tmp/carriage-return.XXXXXX)
+echo "\n" > $tmpfile
+
 PROTOCOL=http
 if [ -f $SERVLET_DIR/WEB-INF/classes/bigbluebutton.properties ]; then
-  SERVER_URL=$(cat $SERVLET_DIR/WEB-INF/classes/bigbluebutton.properties $BBB_WEB_ETC_CONFIG | grep -v '#' | sed -n '/^bigbluebutton.web.serverURL/{s/.*\///;p}' | tail -n 1)
-  if cat $SERVLET_DIR/WEB-INF/classes/bigbluebutton.properties $BBB_WEB_ETC_CONFIG | grep -v '#' | grep ^bigbluebutton.web.serverURL | tail -n 1 | grep -q https; then
+  SERVER_URL=$(cat $SERVLET_DIR/WEB-INF/classes/bigbluebutton.properties $tmpfile $BBB_WEB_ETC_CONFIG | grep -v '#' | sed -n '/^bigbluebutton.web.serverURL/{s/.*\///;p}' | tail -n 1)
+  if cat $SERVLET_DIR/WEB-INF/classes/bigbluebutton.properties $tmpfile $BBB_WEB_ETC_CONFIG | grep -v '#' | grep ^bigbluebutton.web.serverURL | tail -n 1 | grep -q https; then
     PROTOCOL=https
   fi
 fi
 
-HOST=$(cat $SERVLET_DIR/WEB-INF/classes/bigbluebutton.properties $BBB_WEB_ETC_CONFIG | grep -v '#' | sed -n '/^bigbluebutton.web.serverURL/{s/.*\///;p}' | tail -n 1)
+HOST=$(cat $SERVLET_DIR/WEB-INF/classes/bigbluebutton.properties $tmpfile $BBB_WEB_ETC_CONFIG | grep -v '#' | sed -n '/^bigbluebutton.web.serverURL/{s/.*\///;p}' | tail -n 1)
 
 HTML5_CONFIG=/usr/share/meteor/bundle/programs/server/assets/app/config/settings.yml
 BBB_WEB_CONFIG=$SERVLET_DIR/WEB-INF/classes/bigbluebutton.properties
@@ -50,7 +59,7 @@ enableHTML5ClientLog() {
   yq w -i $HTML5_CONFIG public.app.askForFeedbackOnLogout true
   chown meteor:meteor $HTML5_CONFIG
 
-  cat > /etc/bigbluebutton/nginx/html5-client-log.nginx << HERE
+  cat > /usr/share/bigbluebutton/nginx/html5-client-log.nginx << HERE
 location /html5log {
         access_log /var/log/nginx/html5-client.log postdata;
         echo_read_request_body;
@@ -105,7 +114,7 @@ enableUFWRules() {
 
 
 enableMultipleKurentos() {
-  echo "  - Configuring three Kurento Media Servers (listen only, webcam, and screeshare)"
+  echo "  - Configuring three Kurento Media Servers (listen only, webcam, and screenshare)"
 
   # Step 1.  Setup shared certificate between FreeSWITCH and Kurento
 

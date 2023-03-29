@@ -261,10 +261,13 @@ export default class WhiteboardOverlay extends Component {
     const {
       whiteboardId,
       sendAnnotation,
+      sendLiveSyncPreviewAnnotation,
       resetTextShapeSession,
       setTextShapeActiveId,
       contextMenuHandler,
       clearPreview,
+      addAnnotationToDiscardedList,
+      undoAnnotation,
       updateCursor,
       presentationWindow,
     } = this.props;
@@ -278,10 +281,13 @@ export default class WhiteboardOverlay extends Component {
       normalizeThickness: this.normalizeThickness,
       normalizeFont: this.normalizeFont,
       sendAnnotation,
+      sendLiveSyncPreviewAnnotation,
       resetTextShapeSession,
       setTextShapeActiveId,
       contextMenuHandler,
       clearPreview,
+      addAnnotationToDiscardedList,
+      undoAnnotation,
     };
 
     return (
@@ -320,6 +326,8 @@ WhiteboardOverlay.propTypes = {
   viewBoxHeight: PropTypes.number.isRequired,
   // Defines a handler to publish an annotation to the server
   sendAnnotation: PropTypes.func.isRequired,
+  // Defines a handler to public an annotation with live preview to the server
+  sendLiveSyncPreviewAnnotation: PropTypes.func.isRequired,
   // Defines a handler to clear a shape preview
   clearPreview: PropTypes.func.isRequired,
   // Defines a current whiteboard id
@@ -345,4 +353,6 @@ WhiteboardOverlay.propTypes = {
   setTextShapeActiveId: PropTypes.func.isRequired,
   // Defines a handler to publish cursor position to the server
   updateCursor: PropTypes.func.isRequired,
+  addAnnotationToDiscardedList: PropTypes.func.isRequired,
+  undoAnnotation: PropTypes.func.isRequired,
 };

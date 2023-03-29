@@ -12,7 +12,9 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
@@ -91,6 +93,7 @@ public class PresentationFileProcessor {
     }
 
     private void extractIntoPages(UploadedPresentation pres) {
+        List<PageToConvert> listOfPagesConverted = new ArrayList<>();
         for (int page = 1; page <= pres.getNumberOfPages(); page++) {
             String presDir = pres.getUploadedFile().getParent();
             File pageFile = new File(presDir + "/page" + "-" + page + ".pdf");
@@ -123,6 +126,18 @@ public class PresentationFileProcessor {
             );
 
             pdfToSwfSlidesGenerationService.process(pageToConvert);
+
+            listOfPagesConverted.add(pageToConvert);
+            PageToConvert timeoutErrorMessage =
+                    listOfPagesConverted.stream().filter(item -> {
+                        return item.getMessageErrorInConversion() != null;
+                    }).findAny().orElse(null);
+
+            if (timeoutErrorMessage != null) {
+                log.error(timeoutErrorMessage.getMessageErrorInConversion());
+                notifier.sendUploadFileTimedout(pres, timeoutErrorMessage.getPageNumber());
+                break;
+            }
         }
     }
 
@@ -180,6 +195,7 @@ public class PresentationFileProcessor {
                 pres.getName(),
                 pres.getAuthzToken(),
                 pres.isDownloadable(),
+                pres.isRemovable(),
                 pres.isCurrent(),
                 pres.getNumberOfPages());
         notifier.sendDocConversionProgress(progress);
@@ -205,7 +221,8 @@ public class PresentationFileProcessor {
             DocPageCountFailed progress = new DocPageCountFailed(pres.getPodId(), pres.getMeetingId(),
                     pres.getId(), pres.getId(),
                     pres.getName(), "notUsedYet", "notUsedYet",
-                    pres.isDownloadable(), ConversionMessageConstants.PAGE_COUNT_FAILED_KEY);
+                    pres.isDownloadable(), pres.isRemovable(), ConversionMessageConstants.PAGE_COUNT_FAILED_KEY,
+                    pres.getTemporaryPresentationId());
 
             notifier.sendDocConversionProgress(progress);
 
@@ -230,8 +247,8 @@ public class PresentationFileProcessor {
             DocPageCountExceeded progress = new DocPageCountExceeded(pres.getPodId(), pres.getMeetingId(),
                     pres.getId(), pres.getId(),
                     pres.getName(), "notUsedYet", "notUsedYet",
-                    pres.isDownloadable(), ConversionMessageConstants.PAGE_COUNT_EXCEEDED_KEY,
-                    e.getPageCount(), e.getMaxNumberOfPages());
+                    pres.isDownloadable(), pres.isRemovable(), ConversionMessageConstants.PAGE_COUNT_EXCEEDED_KEY,
+                    e.getPageCount(), e.getMaxNumberOfPages(), pres.getTemporaryPresentationId());
 
             notifier.sendDocConversionProgress(progress);
         }

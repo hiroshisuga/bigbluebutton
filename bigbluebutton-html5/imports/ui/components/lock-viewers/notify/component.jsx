@@ -20,9 +20,9 @@ const intlDisableMessages = defineMessages({
     id: 'app.userList.userOptions.disablePubChat',
     description: 'label to disable private chat notification',
   },
-  disableNote: {
-    id: 'app.userList.userOptions.disableNote',
-    description: 'label to disable note notification',
+  disableNotes: {
+    id: 'app.userList.userOptions.disableNotes',
+    description: 'label to disable shared notes notification',
   },
   hideUserList: {
     id: 'app.userList.userOptions.hideUserList',
@@ -31,6 +31,9 @@ const intlDisableMessages = defineMessages({
   hideAnnotations: {
     id: 'app.userList.userOptions.hideAnnotations',
     description: 'label to hide viewers annotations',
+  hideViewersCursor: {
+    id: 'app.userList.userOptions.hideViewersCursor',
+    description: 'label to show viewer cursors notification',
   },
   onlyModeratorWebcam: {
     id: 'app.userList.userOptions.webcamsOnlyForModerator',
@@ -55,9 +58,9 @@ const intlEnableMessages = defineMessages({
     id: 'app.userList.userOptions.enablePubChat',
     description: 'label to enable private chat notification',
   },
-  disableNote: {
-    id: 'app.userList.userOptions.enableNote',
-    description: 'label to enable note notification',
+  disableNotes: {
+    id: 'app.userList.userOptions.enableNotes',
+    description: 'label to enable shared notes notification',
   },
   hideUserList: {
     id: 'app.userList.userOptions.showUserList',
@@ -66,6 +69,9 @@ const intlEnableMessages = defineMessages({
   hideAnnotations: {
     id: 'app.userList.userOptions.showAnnotations',
     description: 'label to show viewers annotations',
+  hideViewersCursor: {
+    id: 'app.userList.userOptions.showViewersCursor',
+    description: 'label to hide viewer cursors notification',
   },
   onlyModeratorWebcam: {
     id: 'app.userList.userOptions.enableOnlyModeratorWebcam',
@@ -96,11 +102,11 @@ class LockViewersNotifyComponent extends Component {
       const rejectedKeys = ['setBy', 'lockedLayout'];
 
       const disabledSettings = Object.keys(lockSettings)
-        .filter(key => prevLockSettings[key] !== lockSettings[key]
+        .filter((key) => prevLockSettings[key] !== lockSettings[key]
           && lockSettings[key]
           && !rejectedKeys.includes(key));
       const enableSettings = Object.keys(lockSettings)
-        .filter(key => prevLockSettings[key] !== lockSettings[key]
+        .filter((key) => prevLockSettings[key] !== lockSettings[key]
           && !lockSettings[key]
           && !rejectedKeys.includes(key));
 

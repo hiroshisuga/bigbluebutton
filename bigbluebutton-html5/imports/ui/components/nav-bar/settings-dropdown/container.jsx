@@ -3,17 +3,25 @@ import { withTracker } from 'meteor/react-meteor-data';
 import deviceInfo from '/imports/utils/deviceInfo';
 import browserInfo from '/imports/utils/browserInfo';
 import SettingsDropdown from './component';
-import FullscreenService from '../../fullscreen-button/service';
+import FullscreenService from '/imports/ui/components/common/fullscreen-button/service';
 import { meetingIsBreakout } from '/imports/ui/components/app/service';
+import { layoutSelectInput, layoutSelect } from '../../layout/context';
+import { SMALL_VIEWPORT_BREAKPOINT } from '../../layout/enums';
 
 const { isIphone } = deviceInfo;
 const { isSafari, isValidSafariVersion } = browserInfo;
 
 const noIOSFullscreen = !!(((isSafari && !isValidSafariVersion) || isIphone));
 
-const SettingsDropdownContainer = props => (
-  <SettingsDropdown {...props} />
-);
+const SettingsDropdownContainer = (props) => {
+  const { width: browserWidth } = layoutSelectInput((i) => i.browser);
+  const isMobile = browserWidth <= SMALL_VIEWPORT_BREAKPOINT;
+  const isRTL = layoutSelect((i) => i.isRTL);
+
+  return (
+    <SettingsDropdown {...{ isMobile, isRTL, ...props }} />
+  );
+};
 
 export default withTracker((props) => {
   const handleToggleFullscreen = () => FullscreenService.toggleFullScreen();

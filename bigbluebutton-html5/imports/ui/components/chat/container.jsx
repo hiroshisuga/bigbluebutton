@@ -12,7 +12,8 @@ import ChatLogger from '/imports/ui/components/chat/chat-logger/ChatLogger';
 import lockContextContainer from '/imports/ui/components/lock-viewers/context/container';
 import Chat from '/imports/ui/components/chat/component';
 import ChatService from './service';
-import { LayoutContextFunc } from '../layout/context';
+import { layoutSelect, layoutDispatch } from '../layout/context';
+import { escapeHtml } from '/imports/utils/string-utils';
 
 const CHAT_CONFIG = Meteor.settings.public.chat;
 const PUBLIC_CHAT_KEY = CHAT_CONFIG.public_id;
@@ -71,11 +72,12 @@ const ChatContainer = (props) => {
     isChatLockedPublic,
     isChatLockedPrivate,
     users: propUsers,
-    layoutContextState,
-    layoutContextDispatch,
     ...restProps
   } = props;
-  const { idChatOpen } = layoutContextState;
+
+  const idChatOpen = layoutSelect((i) => i.idChatOpen);
+  const layoutContextDispatch = layoutDispatch();
+
   const isPublicChat = idChatOpen === PUBLIC_CHAT_KEY;
 
   const chatID = idChatOpen;
@@ -199,7 +201,7 @@ const ChatContainer = (props) => {
           id,
           content: [{
             id,
-            text: intl.formatMessage(intlMessages.partnerDisconnected, { 0: chatName }),
+            text: escapeHtml(intl.formatMessage(intlMessages.partnerDisconnected, { 0: chatName })),
             time,
           }],
           time,
@@ -264,4 +266,4 @@ export default lockContextContainer(injectIntl(withTracker(({ intl, userLocks })
       handleClosePrivateChat: ChatService.closePrivateChat,
     },
   };
-})(LayoutContextFunc.withConsumer(ChatContainer))));
+})(ChatContainer)));

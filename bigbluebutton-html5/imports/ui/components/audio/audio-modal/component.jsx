@@ -1,19 +1,17 @@
 import React, { Component } from 'react';
 import PropTypes from 'prop-types';
-import cx from 'classnames';
-import Modal from '/imports/ui/components/modal/simple/component';
-import Button from '/imports/ui/components/button/component';
 import { Session } from 'meteor/session';
 import {
   defineMessages, injectIntl, FormattedMessage,
 } from 'react-intl';
-import { styles } from './styles';
+import Styled from './styles';
 import PermissionsOverlay from '../permissions-overlay/component';
 import AudioSettings from '../audio-settings/component';
 import EchoTest from '../echo-test/component';
 import Help from '../help/component';
 import AudioDial from '../audio-dial/component';
 import AudioAutoplayPrompt from '../autoplay/component';
+import Settings from '/imports/ui/services/settings';
 
 const propTypes = {
   intl: PropTypes.shape({
@@ -41,7 +39,6 @@ const propTypes = {
   audioLocked: PropTypes.bool.isRequired,
   resolve: PropTypes.func,
   isMobileNative: PropTypes.bool.isRequired,
-  isIOSChrome: PropTypes.bool.isRequired,
   isIE: PropTypes.bool.isRequired,
   formattedTelVoice: PropTypes.string.isRequired,
   autoplayBlocked: PropTypes.bool.isRequired,
@@ -178,6 +175,8 @@ class AudioModal extends Component {
       if (forceListenOnlyAttendee || audioLocked) return this.handleJoinListenOnly();
 
       if (joinFullAudioImmediately && !listenOnlyMode) return this.handleJoinMicrophone();
+
+      if (!listenOnlyMode) return this.handleGoToEchoTest();
     }
     return false;
   }
@@ -268,28 +267,7 @@ class AudioModal extends Component {
         disableActions: false,
       });
     }).catch((err) => {
-      const { type } = err;
-      switch (type) {
-        case 'MEDIA_ERROR':
-          this.setState({
-            content: 'help',
-            errCode: 0,
-            disableActions: false,
-          });
-          break;
-        case 'CONNECTION_ERROR':
-          this.setState({
-            errCode: 0,
-            disableActions: false,
-          });
-          break;
-        default:
-          this.setState({
-            errCode: 0,
-            disableActions: false,
-          });
-          break;
-      }
+      this.handleJoinMicrophoneError(err);
     });
   }
 
@@ -343,7 +321,29 @@ class AudioModal extends Component {
       this.setState({
         disableActions: false,
       });
-    }).catch(this.handleGoToAudioOptions);
+    }).catch((err) => {
+      this.handleJoinMicrophoneError(err);
+    });
+  }
+
+  handleJoinMicrophoneError(err) {
+    const { type } = err;
+    switch (type) {
+      case 'MEDIA_ERROR':
+        this.setState({
+          content: 'help',
+          errCode: 0,
+          disableActions: false,
+        });
+        break;
+      case 'CONNECTION_ERROR':
+      default:
+        this.setState({
+          errCode: 0,
+          disableActions: false,
+        });
+        break;
+    }
   }
 
   setContent(content) {
@@ -382,13 +382,13 @@ class AudioModal extends Component {
 
     return (
       <div>
-        <span className={styles.audioOptions}>
+        <Styled.AudioOptions data-test="audioModalOptions">
           {!showMicrophone && !isMobileNative
               && (
               <>
-                <Button
-                  className={styles.audioBtn}
+                <Styled.AudioModalButton
                   label={intl.formatMessage(intlMessages.microphoneLabel)}
+                  data-test="microphoneBtn"
                   aria-describedby="mic-description"
                   icon="unmute"
                   circle
@@ -408,9 +408,9 @@ class AudioModal extends Component {
           {listenOnlyMode
               && (
               <>
-                <Button
-                  className={styles.audioBtn}
+                <Styled.AudioModalButton
                   label={intl.formatMessage(intlMessages.listenOnlyLabel)}
+                  data-test="listenOnlyBtn"
                   aria-describedby="listenOnly-description"
                   icon="listen"
                   circle
@@ -422,10 +422,9 @@ class AudioModal extends Component {
                 </span>
               </>
               )}
-        </span>
+        </Styled.AudioOptions>
         {formattedDialNum ? (
-          <Button
-            className={styles.audioDial}
+          <Styled.AudioDial
             label={dialAudioLabel}
             size="md"
             color="primary"
@@ -445,32 +444,19 @@ class AudioModal extends Component {
     const {
       isEchoTest,
       intl,
-      isIOSChrome,
     } = this.props;
 
     const { content } = this.state;
-
-    if (isIOSChrome) {
-      return (
-        <div>
-          <div className={styles.warning}>!</div>
-          <h4 className={styles.main}>{intl.formatMessage(intlMessages.iOSError)}</h4>
-          <div className={styles.text}>{intl.formatMessage(intlMessages.iOSErrorDescription)}</div>
-          <div className={styles.text}>
-            {intl.formatMessage(intlMessages.iOSErrorRecommendation)}
-          </div>
-        </div>
-      );
-    }
+    const { animations } = Settings.application;
 
     if (this.skipAudioOptions()) {
       return (
-        <div className={styles.connecting} role="alert">
+        <Styled.Connecting role="alert">
           <span data-test={!isEchoTest ? 'connecting' : 'connectingToEchoTest'}>
             {intl.formatMessage(intlMessages.connecting)}
           </span>
-          <span className={styles.connectingAnimation} />
-        </div>
+          <Styled.ConnectingAnimation animations={animations} />
+        </Styled.Connecting>
       );
     }
     return content ? this.contents[content].component() : this.renderAudioOptions();
@@ -554,7 +540,6 @@ class AudioModal extends Component {
     const {
       intl,
       showPermissionsOvelay,
-      isIOSChrome,
       closeModal,
       isIE,
     } = this.props;
@@ -564,15 +549,14 @@ class AudioModal extends Component {
     return (
       <span>
         {showPermissionsOvelay ? <PermissionsOverlay closeModal={closeModal} /> : null}
-        <Modal
-          overlayClassName={styles.overlay}
-          className={styles.modal}
+        <Styled.AudioModal
           onRequestClose={closeModal}
           hideBorder
+          data-test="audioModal"
           contentLabel={intl.formatMessage(intlMessages.ariaModalTitle)}
         >
           {isIE ? (
-            <p className={cx(styles.text, styles.browserWarning)}>
+            <Styled.BrowserWarning>
               <FormattedMessage
                 id="app.audioModal.unsupportedBrowserLabel"
                 description="Warning when someone joins with a browser that isnt supported"
@@ -581,33 +565,25 @@ class AudioModal extends Component {
                   1: <a href="https://getfirefox.com">Firefox</a>,
                 }}
               />
-            </p>
+            </Styled.BrowserWarning>
           ) : null}
           {
             !this.skipAudioOptions()
               ? (
-                <header
-                  data-test="audioModalHeader"
-                  className={styles.header}
-                >
-                  {
-                    isIOSChrome ? null
-                      : (
-                        <h2 className={styles.title}>
-                          {content
-                            ? intl.formatMessage(this.contents[content].title)
-                            : intl.formatMessage(intlMessages.audioChoiceLabel)}
-                        </h2>
-                      )
-                  }
-                </header>
+                <Styled.Header>
+                  <Styled.Title>
+                    {content
+                      ? intl.formatMessage(this.contents[content].title)
+                      : intl.formatMessage(intlMessages.audioChoiceLabel)}
+                  </Styled.Title>
+                </Styled.Header>
               )
               : null
           }
-          <div className={styles.content}>
+          <Styled.Content>
             {this.renderContent()}
-          </div>
-        </Modal>
+          </Styled.Content>
+        </Styled.AudioModal>
       </span>
     );
   }

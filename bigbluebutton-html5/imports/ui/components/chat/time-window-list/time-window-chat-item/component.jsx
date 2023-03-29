@@ -3,13 +3,10 @@ import PropTypes from 'prop-types';
 import { FormattedTime, defineMessages, injectIntl } from 'react-intl';
 import _ from 'lodash';
 import UserAvatar from '/imports/ui/components/user-avatar/component';
-import cx from 'classnames';
 import ChatLogger from '/imports/ui/components/chat/chat-logger/ChatLogger';
-import MessageChatItem from './message-chat-item/component';
 import UploadService from '/imports/ui/components/upload/service';
 import PollService from '/imports/ui/components/poll/service';
-import Icon from '/imports/ui/components/icon/component';
-import { styles } from './styles';
+import Styled from './styles';
 
 const CHAT_CONFIG = Meteor.settings.public.chat;
 const CHAT_CLEAR_MESSAGE = CHAT_CONFIG.system_messages_keys.chat_clear;
@@ -20,7 +17,7 @@ const CHAT_EMPHASIZE_TEXT = CHAT_CONFIG.moderatorChatEmphasized;
 const propTypes = {
   user: PropTypes.shape({
     color: PropTypes.string,
-    isModerator: PropTypes.bool,
+    messageFromModerator: PropTypes.bool,
     isOnline: PropTypes.bool,
     name: PropTypes.string,
   }),
@@ -54,11 +51,32 @@ const intlMessages = defineMessages({
   [CHAT_CLEAR_MESSAGE]: {
     id: 'app.chat.clearPublicChatMessage',
     description: 'message of when clear the public chat',
-  }
+  },
+  breakoutDurationUpdated: {
+    id: 'app.chat.breakoutDurationUpdated',
+    description: 'used when the breakout duration is updated',
+  },
 });
 
 class TimeWindowChatItem extends PureComponent {
+  constructor(props) {
+    super(props);
+    this.state = {
+      forcedUpdateCount: 0,
+    };
+  }
+
   componentDidUpdate(prevProps, prevState) {
+    const { height, forceCacheUpdate, index } = this.props;
+    const elementHeight = this.itemRef ? this.itemRef.clientHeight : null;
+
+    if (elementHeight && height !== 'auto' && elementHeight !== height && this.state.forcedUpdateCount < 10) {
+      // forceCacheUpdate() internally calls forceUpdate(), so we need a stop flag
+      // and cannot rely on shouldComponentUpdate() and other comparisons.
+      forceCacheUpdate(index);
+      this.setState(({ forcedUpdateCount }) => ({ forcedUpdateCount: forcedUpdateCount + 1 }));
+    }
+
     ChatLogger.debug('TimeWindowChatItem::componentDidUpdate::props', { ...this.props }, { ...prevProps });
     ChatLogger.debug('TimeWindowChatItem::componentDidUpdate::state', { ...this.state }, { ...prevState });
   }
@@ -76,6 +94,7 @@ class TimeWindowChatItem extends PureComponent {
   renderSystemMessage() {
     const {
       messages,
+      messageValues,
       chatAreaId,
       handleReadMessage,
       messageKey,
@@ -87,9 +106,12 @@ class TimeWindowChatItem extends PureComponent {
     }
 
     return (
-      <div className={styles.item} key={`time-window-chat-item-${messageKey}`}>
-        <div className={styles.messages}>
-          {messages.map(message => {
+      <Styled.Item
+        key={`time-window-chat-item-${messageKey}`}
+        ref={element => this.itemRef = element} >
+        <Styled.Messages>
+          {messages.map((message) => (
+
           const {
             id,
             time,
@@ -101,10 +123,13 @@ class TimeWindowChatItem extends PureComponent {
           if (text === '') return null;
           
               return (
-                <MessageChatItem
-                  className={(message.id ? styles.systemMessage : styles.systemMessageNoBorder)}
+                <Styled.SystemMessageChatItem
+                  border={message.id}
                   key={message.id ? message.id : _.uniqueId('id-')}
-                  text={intlMessages[text] ? intl.formatMessage(intlMessages[text]) : text }
+                  text={intlMessages[message.text] ? intl.formatMessage(
+                    intlMessages[message.text],
+                    messageValues || {},
+                  ) : message.text}
                   time={message.time}
                   isSystemMessage={message.id ? true : false}
                   systemMessageType={message.text === CHAT_CLEAR_MESSAGE ? 'chatClearMessageText' : 'chatWelcomeMessageText'}
@@ -113,8 +138,8 @@ class TimeWindowChatItem extends PureComponent {
                 />
               );
           })}
-        </div>
-      </div>
+        </Styled.Messages>
+      </Styled.Item>
     );
   }
 
@@ -131,53 +156,54 @@ class TimeWindowChatItem extends PureComponent {
       read,
       name,
       color,
-      isModerator,
+      messageFromModerator,
       avatar,
       isOnline,
+      isSystemSender,
     } = this.props;
 
     const dateTime = new Date(timestamp);
     const regEx = /<a[^>]+>/i;
     ChatLogger.debug('TimeWindowChatItem::renderMessageItem', this.props);
     const defaultAvatarString = name?.toLowerCase().slice(0, 2) || "  ";
-    const emphasizedTextClass = isModerator && CHAT_EMPHASIZE_TEXT && chatId === CHAT_PUBLIC_ID ?
-      styles.emphasizedMessage : null;
+    const emphasizedText = messageFromModerator && CHAT_EMPHASIZE_TEXT && chatId === CHAT_PUBLIC_ID;
 
     return (
-      <div className={styles.item} key={`time-window-${messageKey}`}>
-        <div className={styles.wrapper}>
-          <div className={styles.avatarWrapper}>
+      <Styled.Item
+        key={`time-window-${messageKey}`}
+        ref={element => this.itemRef = element}
+      >
+        <Styled.Wrapper isSystemSender={isSystemSender}>
+          <Styled.AvatarWrapper>
             <UserAvatar
-              className={styles.avatar}
               color={color}
-              moderator={isModerator}
+              moderator={messageFromModerator}
               avatar={avatar}
             >
               {defaultAvatarString}
             </UserAvatar>
-          </div>
-          <div className={styles.content}>
-            <div className={styles.meta}>
-              <div className={isOnline ? styles.name : styles.logout}>
+          </Styled.AvatarWrapper>
+          <Styled.Content>
+            <Styled.Meta>
+              <Styled.Name isOnline={isOnline}>
                 <span>{name}</span>
                 {isOnline
                   ? null
                   : (
-                    <span className={styles.offline}>
+                    <Styled.Offline>
                       {`(${intl.formatMessage(intlMessages.offline)})`}
-                    </span>
+                    </Styled.Offline>
                   )}
-              </div>
-              <time className={styles.time} dateTime={dateTime}>
+              </Styled.Name>
+              <Styled.Time dateTime={dateTime}>
                 <FormattedTime value={dateTime} />
-              </time>
-            </div>
-            <div className={styles.messages}>
+              </Styled.Time>
+            </Styled.Meta>
+            <Styled.Messages>
               {messages.map(message => (
-                <MessageChatItem
-                  className={regEx.test(message.text) ?
-                    cx(styles.hyperlink, emphasizedTextClass) :
-                    cx(styles.message, emphasizedTextClass)}
+                <Styled.ChatItem
+                  hasLink={regEx.test(message.text)}
+                  emphasizedMessage={emphasizedText}
                   key={message.id}
                   text={message.text}
                   time={message.time}
@@ -199,10 +225,10 @@ class TimeWindowChatItem extends PureComponent {
                   scrollArea={scrollArea}
                 />
               ))}
-            </div>
-          </div>
-        </div>
-      </div>
+            </Styled.Messages>
+          </Styled.Content>
+        </Styled.Wrapper>
+      </Styled.Item>
     );
   }
 
@@ -218,46 +244,59 @@ class TimeWindowChatItem extends PureComponent {
       chatAreaId,
       lastReadMessageTime,
       handleReadMessage,
+      dispatch,
+      read,
+      chatId,
     } = this.props;
 
     const dateTime = new Date(timestamp);
 
     return messages ? (
-      <div className={styles.item} key={_.uniqueId('message-poll-item-')}>
-        <div className={styles.wrapper} ref={(ref) => { this.item = ref; }}>
-        <div className={styles.avatarWrapper}>
+      <Styled.Item key={_.uniqueId('message-poll-item-')}>
+        <Styled.Wrapper ref={(ref) => { this.item = ref; }}>
+          <Styled.AvatarWrapper>
             <UserAvatar
-              className={styles.avatar}
               color={PollService.POLL_AVATAR_COLOR}
               moderator={true}
             >
-              {<Icon className={styles.isPoll} iconName="polling" />}
+              {<Styled.PollIcon iconName="polling" />}
             </UserAvatar>
-          </div>
-          <div className={styles.content}>
-            <div className={styles.meta}>
-              <div className={styles.name}>
+          </Styled.AvatarWrapper>
+          <Styled.Content>
+            <Styled.Meta>
+              <Styled.Name>
                 <span>{intl.formatMessage(intlMessages.pollResult)}</span>
-              </div>
-              <time className={styles.time} dateTime={dateTime}>
+              </Styled.Name>
+              <Styled.Time dateTime={dateTime}>
                 <FormattedTime value={dateTime} />
-              </time>
-            </div>
-            <MessageChatItem
+              </Styled.Time>
+            </Styled.Meta>
+            <Styled.PollMessageChatItem
               type="poll"
-              className={cx(styles.message, styles.pollWrapper)}
               key={messages[0].id}
               text={getPollResultString(extra.pollResultData, intl)}
               time={messages[0].time}
               chatAreaId={chatAreaId}
               lastReadMessageTime={lastReadMessageTime}
-              handleReadMessage={handleReadMessage}
+              handleReadMessage={(timestamp) => {
+                handleReadMessage(timestamp);
+
+                if (!read) {
+                  dispatch({
+                    type: 'last_read_message_timestamp_changed',
+                    value: {
+                      chatId,
+                      timestamp,
+                    },
+                  });
+                }
+              }}
               scrollArea={scrollArea}
               color={color}
             />
-          </div>
-        </div>
-      </div>
+          </Styled.Content>
+        </Styled.Wrapper>
+      </Styled.Item>
     ) : null;
   }
 
@@ -270,11 +309,7 @@ class TimeWindowChatItem extends PureComponent {
       return this.renderSystemMessage();
     }
 
-    return (
-      <div className={styles.item}>
-        {this.renderMessageItem()}
-      </div>
-    );
+    return this.renderMessageItem();
   }
 }
 

@@ -173,8 +173,8 @@ object MsgBuilder {
     val header = BbbClientMsgHeader(PresentationConversionCompletedSysPubMsg.NAME, msg.meetingId, msg.authzToken)
 
     val pages = generatePresentationPages(msg.presId, msg.numPages.intValue(), msg.presBaseUrl)
-    val presentation = PresentationVO(msg.presId, msg.filename,
-      current = msg.current.booleanValue(), pages.values.toVector, msg.downloadable.booleanValue())
+    val presentation = PresentationVO(msg.presId, msg.temporaryPresentationId, msg.filename,
+      current = msg.current.booleanValue(), pages.values.toVector, msg.downloadable.booleanValue(), msg.removable.booleanValue())
 
     val body = PresentationConversionCompletedSysPubMsgBody(podId = msg.podId, messageKey = msg.key,
       code = msg.key, presentation)
@@ -209,7 +209,7 @@ object MsgBuilder {
     val header = BbbClientMsgHeader(PresentationPageCountErrorSysPubMsg.NAME, msg.meetingId, msg.authzToken)
 
     val body = PresentationPageCountErrorSysPubMsgBody(podId = msg.podId, messageKey = msg.key,
-      code = msg.key, msg.presId, 0, 0, msg.filename)
+      code = msg.key, msg.presId, 0, 0, msg.filename, msg.temporaryPresentationId)
     val req = PresentationPageCountErrorSysPubMsg(header, body)
     BbbCommonEnvCoreMsg(envelope, req)
   }
@@ -220,7 +220,7 @@ object MsgBuilder {
     val header = BbbClientMsgHeader(PresentationPageCountErrorSysPubMsg.NAME, msg.meetingId, msg.authzToken)
 
     val body = PresentationPageCountErrorSysPubMsgBody(podId = msg.podId, messageKey = msg.key,
-      code = msg.key, msg.presId, msg.numPages.intValue(), msg.maxNumPages.intValue(), msg.filename)
+      code = msg.key, msg.presId, msg.numPages.intValue(), msg.maxNumPages.intValue(), msg.filename, msg.temporaryPresentationId)
     val req = PresentationPageCountErrorSysPubMsg(header, body)
     BbbCommonEnvCoreMsg(envelope, req)
   }
@@ -244,9 +244,11 @@ object MsgBuilder {
     val body = PresentationConversionRequestReceivedSysMsgBody(
       podId = msg.podId,
       presentationId = msg.presId,
+      temporaryPresentationId = msg.temporaryPresentationId,
       current = msg.current,
       presName = msg.filename,
       downloadable = msg.downloadable,
+      removable = msg.removable,
       authzToken = msg.authzToken
     )
     val req = PresentationConversionRequestReceivedSysMsg(header, body)
@@ -264,6 +266,7 @@ object MsgBuilder {
       current = msg.current,
       presName = msg.filename,
       downloadable = msg.downloadable,
+      removable = msg.removable,
       numPages = msg.numPages,
       authzToken = msg.authzToken
     )
@@ -307,6 +310,20 @@ object MsgBuilder {
       code = msg.key, presentationName = msg.filename, presentationToken = msg.authzToken, fileSize = msg.uploadedFileSize.intValue(), maxFileSize = msg.maxUploadFileSize)
 
     val req = PresentationUploadedFileTooLargeErrorSysPubMsg(header, body)
+    BbbCommonEnvCoreMsg(envelope, req)
+  }
+
+  def buildPresentationUploadedFileTimedoutErrorSysMsg(msg: UploadFileTimedoutMessage): BbbCommonEnvCoreMsg = {
+    val routing = collection.immutable.HashMap("sender" -> "bbb-web")
+    val envelope = BbbCoreEnvelope(PresentationUploadedFileTimeoutErrorSysPubMsg.NAME, routing)
+    val header = BbbClientMsgHeader(PresentationUploadedFileTimeoutErrorSysPubMsg.NAME, msg.meetingId, "not-used")
+
+    val body = PresentationUploadedFileTimeoutErrorSysPubMsgBody(podId = msg.podId, presentationName = msg.filename,
+      page = msg.page, meetingId = msg.meetingId, messageKey = msg.messageKey,
+      temporaryPresentationId = msg.temporaryPresentationId, presentationId = msg.presentationId,
+      maxNumberOfAttempts = msg.maxNumberOfAttempts)
+
+    val req = PresentationUploadedFileTimeoutErrorSysPubMsg(header, body)
     BbbCommonEnvCoreMsg(envelope, req)
   }
 

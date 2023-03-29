@@ -41,10 +41,6 @@ class FromAkkaAppsMsgSenderActor(msgSender: MessageSender)
       case SyncGetVoiceUsersRespMsg.NAME       => sendToHTML5InstanceIdChannel(msg, json)
 
       // Sent to FreeSWITCH
-      case ScreenshareStartRtmpBroadcastVoiceConfMsg.NAME =>
-        msgSender.send(toVoiceConfRedisChannel, json)
-      case ScreenshareStopRtmpBroadcastVoiceConfMsg.NAME =>
-        msgSender.send(toVoiceConfRedisChannel, json)
       case EjectAllFromVoiceConfMsg.NAME =>
         msgSender.send(toVoiceConfRedisChannel, json)
       case GetUsersInVoiceConfSysMsg.NAME =>
@@ -52,6 +48,14 @@ class FromAkkaAppsMsgSenderActor(msgSender: MessageSender)
       case EjectUserFromVoiceConfSysMsg.NAME =>
         msgSender.send(toVoiceConfRedisChannel, json)
       case MuteUserInVoiceConfSysMsg.NAME =>
+        msgSender.send(toVoiceConfRedisChannel, json)
+      case DeafUserInVoiceConfSysMsg.NAME =>
+        msgSender.send(toVoiceConfRedisChannel, json)
+      case HoldUserInVoiceConfSysMsg.NAME =>
+        msgSender.send(toVoiceConfRedisChannel, json)
+      case PlaySoundInVoiceConfSysMsg.NAME =>
+        msgSender.send(toVoiceConfRedisChannel, json)
+      case StopSoundInVoiceConfSysMsg.NAME =>
         msgSender.send(toVoiceConfRedisChannel, json)
       case StartRecordingVoiceConfSysMsg.NAME =>
         msgSender.send(toVoiceConfRedisChannel, json)
@@ -114,8 +118,6 @@ class FromAkkaAppsMsgSenderActor(msgSender: MessageSender)
       case UpdateBreakoutUsersEvtMsg.NAME =>
         msgSender.send(fromAkkaAppsPresRedisChannel, json)
       case BreakoutRoomsListEvtMsg.NAME =>
-        msgSender.send(fromAkkaAppsPresRedisChannel, json)
-      case BreakoutRoomJoinURLEvtMsg.NAME =>
         msgSender.send(fromAkkaAppsPresRedisChannel, json)
       case BreakoutRoomsTimeRemainingUpdateEvtMsg.NAME =>
         msgSender.send(fromAkkaAppsPresRedisChannel, json)

@@ -2,6 +2,7 @@ import React from 'react';
 import { withTracker } from 'meteor/react-meteor-data';
 import PropTypes from 'prop-types';
 import WhiteboardOverlayService from './service';
+import WhiteboardToolbarService from '../whiteboard-toolbar/service';
 import WhiteboardOverlay from './component';
 import WhiteboardService from '../service';
 import Meetings from '/imports/api/meetings';
@@ -34,9 +35,12 @@ const WhiteboardOverlayContainer = (props) => {
 };
 
 export default withTracker(() => ({
+  undoAnnotation: WhiteboardToolbarService.undoAnnotation,
   clearPreview: WhiteboardOverlayService.clearPreview,
   contextMenuHandler: WhiteboardOverlayService.contextMenuHandler,
   sendAnnotation: WhiteboardOverlayService.sendAnnotation,
+  sendLiveSyncPreviewAnnotation: WhiteboardOverlayService.sendLiveSyncPreviewAnnotation,
+  addAnnotationToDiscardedList: WhiteboardOverlayService.addAnnotationToDiscardedList,
   setTextShapeActiveId: WhiteboardOverlayService.setTextShapeActiveId,
   resetTextShapeSession: WhiteboardOverlayService.resetTextShapeSession,
   drawSettings: WhiteboardOverlayService.getWhiteboardToolbarValues(),

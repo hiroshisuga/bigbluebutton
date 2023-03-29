@@ -3,12 +3,11 @@ import logger from '/imports/startup/client/logger';
 import Auth from '/imports/ui/services/auth';
 import { defineMessages, injectIntl } from 'react-intl';
 import PropTypes from 'prop-types';
-import Button from '/imports/ui/components/button/component';
-import ButtonEmoji from '/imports/ui/components/button/button-emoji/ButtonEmoji';
-import BBBMenu from '/imports/ui/components/menu/component';
+import Button from '/imports/ui/components/common/button/component';
+import BBBMenu from '/imports/ui/components/common/menu/component';
 import withShortcutHelper from '/imports/ui/components/shortcut-help/service';
 
-import { styles } from '../styles';
+import Styled from './styles';
 
 const AUDIO_INPUT = 'audioinput';
 const AUDIO_OUTPUT = 'audiooutput';
@@ -221,12 +220,16 @@ class InputStreamLiveSelector extends Component {
         dividerTop: (!renderSeparator),
       },
     ];
+
+    const customStyles = { fontWeight: 'bold' };
+    const disableDeviceStyles = { pointerEvents: 'none' };
+
     const deviceList = (listLength > 0)
       ? list.map((device) => (
         {
           key: `${device.deviceId}-${deviceKind}`,
           label: InputStreamLiveSelector.truncateDeviceName(device.label),
-          className: (device.deviceId === currentDeviceId) ? styles.selectedDevice : '',
+          customStyles: (device.deviceId === currentDeviceId) ? customStyles : null,
           iconRight: (device.deviceId === currentDeviceId) ? 'check' : null,
           onClick: () => this.onDeviceListClick(device.deviceId, deviceKind, callback),
         }
@@ -237,7 +240,7 @@ class InputStreamLiveSelector extends Component {
           label: listLength < 0
             ? intl.formatMessage(intlMessages.loading)
             : intl.formatMessage(intlMessages.noDeviceFound),
-          className: styles.disableDeviceSelection,
+          customStyles: disableDeviceStyles,
         },
       ];
     return listTitle.concat(deviceList);
@@ -260,6 +263,7 @@ class InputStreamLiveSelector extends Component {
       currentInputDeviceId,
       currentOutputDeviceId,
       isListenOnly,
+      isRTL,
     } = this.props;
 
     const inputDeviceList = !isListenOnly
@@ -301,16 +305,26 @@ class InputStreamLiveSelector extends Component {
                 handleLeaveAudio();
               }}
             />
-            <ButtonEmoji
-              className={styles.audioDropdown}
+            <Styled.AudioDropdown
               emoji="device_list_selector"
               label={intl.formatMessage(intlMessages.changeAudioDevice)}
               hideLabel
               tabIndex={0}
+              rotate
             />
           </>
         )}
         actions={dropdownListComplete}
+        opts={{
+          id: 'default-dropdown-menu',
+          keepMounted: true,
+          transitionDuration: 0,
+          elevation: 3,
+          getContentAnchorEl: null,
+          fullwidth: 'true',
+          anchorOrigin: { vertical: 'top', horizontal: isRTL ? 'left' : 'right' },
+          transformOrigin: { vertical: 'bottom', horizontal: isRTL ? 'right' : 'left' },
+        }}
       />
     );
   }

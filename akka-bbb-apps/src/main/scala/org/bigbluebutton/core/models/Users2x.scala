@@ -2,6 +2,7 @@ package org.bigbluebutton.core.models
 
 import com.softwaremill.quicklens._
 import org.bigbluebutton.core.util.TimeUtil
+import org.bigbluebutton.core2.message.senders.MsgBuilder
 
 object Users2x {
   def findWithIntId(users: Users2x, intId: String): Option[UserState] = {
@@ -174,7 +175,7 @@ object Users2x {
       newUser
     }
   }
-  
+
   def hasPresenter(users: Users2x): Boolean = {
     findPresenter(users) match {
       case Some(p) => true
@@ -365,6 +366,10 @@ object ClientType {
 
 object SystemUser {
   val ID = "SYSTEM"
+}
+
+object IntIdPrefixType {
+  val DIAL_IN = "v_"
 }
 
 object EjectReasonCode {

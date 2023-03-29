@@ -7,6 +7,7 @@ import { makeCall } from '/imports/ui/services/api';
 import PresentationService from '/imports/ui/components/presentation/service';
 import Meetings from '/imports/api/meetings';
 import logger from '/imports/startup/client/logger';
+import { isEqual } from 'lodash';
 
 const Annotations = new Mongo.Collection(null);
 const UnsentAnnotations = new Mongo.Collection(null);
@@ -19,15 +20,41 @@ const DRAW_NONE = ANNOTATION_CONFIG.status.none;
 
 const ANNOTATION_TYPE_PENCIL = 'pencil';
 const ANNOTATION_TYPE_MARKER = 'marker';
+const ANNOTATION_TYPE_TEXT = 'text';
+const discardedList = [];
+
+>>>>>>> origin/dev2.5.14updated_portal_markerEraser_genupld_isoWB_transl_qlink_fillmovetranslucent_selector_realtime_Xtransl
 
 let annotationsStreamListener = null;
+
+export function addAnnotationToDiscardedList(annotation) {
+  if (!discardedList.includes(annotation)) discardedList.push(annotation);
+}
 
 const clearPreview = (annotation) => {
   UnsentAnnotations.remove({ id: annotation });
 };
 
-function clearFakeAnnotations() {
+const clearFakeAnnotations = () => {
   UnsentAnnotations.remove({});
+  Annotations.remove({ id: /-fake/g });
+}
+
+function handleAddedLiveSyncPreviewAnnotation({
+  meetingId, whiteboardId, userId, annotation,
+}) {
+  const isOwn = Auth.meetingID === meetingId && Auth.userID === userId;
+  const query = addAnnotationQuery(meetingId, whiteboardId, userId, annotation);
+
+  if (!isOwn) {
+    Annotations.upsert(query.selector, query.modifier);
+    return;
+  }
+
+  if (annotation.status === DRAW_END) {
+    Annotations.remove({ id: `${annotation.id}-fake` });
+    Annotations.upsert(query.selector, query.modifier);
+  }
 }
 
 function handleAddedAnnotation({
@@ -66,8 +93,11 @@ function handleRemovedAnnotation({
   if (shapeId) {
     query.id = shapeId;
   }
-
-  Annotations.remove(query);
+  const annotationIsFake = Annotations.remove(query) === 0;
+  if (annotationIsFake) {
+    query.id = { $in: [shapeId, `${shapeId}-fake`] };
+    Annotations.remove(query);
+  }
 }
 
 const moveAndUpdateOneAnnotation = (whiteboardId, shapeId, offset) => {
@@ -173,7 +203,14 @@ export function initAnnotationsStreamListener() {
     annotationsStreamListener.on('moved', handleMovedAnnotation);
 
     annotationsStreamListener.on('added', ({ annotations }) => {
-      annotations.forEach(annotation => handleAddedAnnotation(annotation));
+      annotations.forEach((annotation) => {
+        const tool = annotation.annotation.annotationType;
+        if (tool === ANNOTATION_TYPE_TEXT && !discardedList.includes(annotation.id)) {
+          handleAddedLiveSyncPreviewAnnotation(annotation);
+        } else {
+          handleAddedAnnotation(annotation);
+        }
+      });
     });
   });
 }
@@ -226,7 +263,7 @@ const proccessAnnotationsQueue = async () => {
 
   const annotations = annotationsQueue.splice(0, queueSize);
 
-  const isAnnotationSent = await makeCall('sendBulkAnnotations', annotations);
+  const isAnnotationSent = await makeCall('sendBulkAnnotations', annotations.filter(({ id }) => !discardedList.includes(id)));
 
   if (!isAnnotationSent) {
     // undo splice
@@ -372,6 +409,33 @@ const sendAnnotation = (annotation, synchronizeWBUpdate) => {
     );
     UnsentAnnotations.upsert(queryFake.selector, queryFake.modifier);
   }
+};
+
+const sendLiveSyncPreviewAnnotation = (annotation) => {
+  // Prevent sending annotations while disconnected
+  if (!Meteor.status().connected) return;
+
+  annotationsQueue.push(annotation);
+  if (!annotationsSenderIsRunning) setTimeout(proccessAnnotationsQueue, annotationsBufferTimeMin);
+
+  // skip optimistic for draw end since the smoothing is done in akka
+  if (annotation.status === DRAW_END) return;
+
+  const { position, ...relevantAnotation } = annotation;
+  const queryFake = addAnnotationQuery(
+    Auth.meetingID, annotation.wbId, Auth.userID,
+    {
+      ...relevantAnotation,
+      id: `${annotation.id}-fake`,
+      position: Number.MAX_SAFE_INTEGER,
+      annotationInfo: {
+        ...annotation.annotationInfo,
+        color: increaseBrightness(annotation.annotationInfo.color, 40),
+      },
+    },
+  );
+
+  Annotations.upsert(queryFake.selector, queryFake.modifier);
 };
 
 WhiteboardMultiUser.find({ meetingId: Auth.meetingID }).observeChanges({
@@ -527,6 +591,7 @@ export {
   Annotations,
   UnsentAnnotations,
   sendAnnotation,
+  sendLiveSyncPreviewAnnotation,
   clearPreview,
   getMultiUser,
   getMultiUserSize,
@@ -548,4 +613,5 @@ export {
   isHePresenter,
   hasAccessToWhiteboard,
   moveAndUpdateOneAnnotation,
+  clearFakeAnnotations,
 };

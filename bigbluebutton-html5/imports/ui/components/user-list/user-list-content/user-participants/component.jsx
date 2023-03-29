@@ -1,11 +1,9 @@
 import React, { Component } from 'react';
 import { defineMessages } from 'react-intl';
 import PropTypes from 'prop-types';
-import { styles } from '/imports/ui/components/user-list/user-list-content/styles';
-import _ from 'lodash';
+import Styled from './styles';
 import { findDOMNode } from 'react-dom';
 import {
-  List,
   AutoSizer,
   CellMeasurer,
   CellMeasurerCache,
@@ -13,13 +11,14 @@ import {
 import UserListItemContainer from './user-list-item/container';
 import UserOptionsContainer from './user-options/container';
 import Settings from '/imports/ui/services/settings';
+import { injectIntl } from 'react-intl';
 
 const propTypes = {
   compact: PropTypes.bool,
   intl: PropTypes.shape({
     formatMessage: PropTypes.func.isRequired,
   }).isRequired,
-  currentUser: PropTypes.shape({}).isRequired,
+  currentUser: PropTypes.shape({}),
   users: PropTypes.arrayOf(PropTypes.shape({})).isRequired,
   setEmojiStatus: PropTypes.func.isRequired,
   clearAllEmojiStatus: PropTypes.func.isRequired,
@@ -29,6 +28,7 @@ const propTypes = {
 
 const defaultProps = {
   compact: false,
+  currentUser: null,
 };
 
 const intlMessages = defineMessages({
@@ -39,6 +39,7 @@ const intlMessages = defineMessages({
 });
 
 const ROLE_MODERATOR = Meteor.settings.public.user.role_moderator;
+const SKELETON_COUNT = 10;
 
 class UserParticipants extends Component {
   constructor() {
@@ -80,12 +81,12 @@ class UserParticipants extends Component {
         this.handleClickSelectedUser,
       );
     }
+
+    window.addEventListener('beforeunload', () => Session.set('dropdownOpenUserId', null));
   }
 
-  shouldComponentUpdate(nextProps, nextState) {
-    const isPropsEqual = _.isEqual(this.props, nextProps);
-    const isStateEqual = _.isEqual(this.state, nextState);
-    return !isPropsEqual || !isStateEqual;
+  shouldComponentUpdate(nextProps) {
+    return nextProps.isReady;
   }
 
   selectEl(el) {
@@ -127,6 +128,8 @@ class UserParticipants extends Component {
       requestUserInformation,
       currentUser,
       meetingIsBreakout,
+      lockSettingsProps,
+      isThisMeetingLocked,
     } = this.props;
     const { scrollArea } = this.state;
     const user = users[index];
@@ -143,7 +146,7 @@ class UserParticipants extends Component {
         <span
           style={style}
           key={key}
-          id={`user-${user.userId}`}
+          id={`user-${user?.userId || ''}`}
         >
           <UserListItemContainer
             {...{
@@ -154,6 +157,8 @@ class UserParticipants extends Component {
               meetingIsBreakout,
               scrollArea,
               isRTL,
+              lockSettingsProps,
+              isThisMeetingLocked,
             }}
             user={user}
             getScrollContainerRef={this.getScrollContainerRef}
@@ -194,18 +199,16 @@ class UserParticipants extends Component {
     const { isOpen, scrollArea } = this.state;
 
     return (
-      <div className={styles.userListColumn}>
+      <Styled.UserListColumn data-test="userList">
         {
           !compact
             ? (
-              <div className={styles.container}>
-                <h2 className={styles.smallTitle}>
+              <Styled.Container>
+                <Styled.SmallTitle>
                   {intl.formatMessage(intlMessages.usersTitle)}
-                  &nbsp;(
-                  {users.length}
-                  )
-                </h2>
-                {currentUser.role === ROLE_MODERATOR
+                  {users.length > 0 ? ` (${users.length})` : null}
+                </Styled.SmallTitle>
+                {currentUser?.role === ROLE_MODERATOR
                   ? (
                     <UserOptionsContainer {...{
                       users,
@@ -216,15 +219,14 @@ class UserParticipants extends Component {
                   ) : null
                 }
 
-              </div>
+              </Styled.Container>
             )
-            : <hr className={styles.separator} />
+            : <Styled.Separator />
         }
-        <div
+        <Styled.VirtualizedScrollableList
           id={'user-list-virtualized-scroll'}
           aria-label="Users list"
           role="region"
-          className={styles.virtulizedScrollableList}
           tabIndex={0}
           ref={(ref) => {
             this.refScrollContainer = ref;
@@ -233,7 +235,7 @@ class UserParticipants extends Component {
           <span id="participants-destination" />
           <AutoSizer>
             {({ height, width }) => (
-              <List
+              <Styled.VirtualizedList
                 {...{
                   isOpen,
                   users,
@@ -249,18 +251,17 @@ class UserParticipants extends Component {
                 }}
                 rowHeight={this.cache.rowHeight}
                 rowRenderer={this.rowRenderer}
-                rowCount={users.length}
+                rowCount={users.length || SKELETON_COUNT}
                 height={height - 1}
                 width={width - 1}
-                className={styles.scrollStyle}
                 overscanRowCount={30}
                 deferredMeasurementCache={this.cache}
                 tabIndex={-1}
               />
             )}
           </AutoSizer>
-        </div>
-      </div>
+        </Styled.VirtualizedScrollableList>
+      </Styled.UserListColumn>
     );
   }
 }
@@ -268,4 +269,4 @@ class UserParticipants extends Component {
 UserParticipants.propTypes = propTypes;
 UserParticipants.defaultProps = defaultProps;
 
-export default UserParticipants;
+export default injectIntl(UserParticipants);

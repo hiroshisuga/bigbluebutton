@@ -4,14 +4,14 @@ import PropTypes from 'prop-types';
 import { defineMessages } from 'react-intl';
 import Button from '/imports/ui/components/button/component';
 import MediaUploadContainer from '/imports/ui/components/upload/media/container';
-import { withModalMounter } from '/imports/ui/components/modal/service';
+import { withModalMounter } from '/imports/ui/components/common/modal/service';
 import withShortcutHelper from '/imports/ui/components/shortcut-help/service';
 import ExternalVideoModal from '/imports/ui/components/external-video-player/modal/container';
-import RandomUserSelectContainer from '/imports/ui/components/modal/random-user/container';
-import BBBMenu from '/imports/ui/components/menu/component';
-import cx from 'classnames';
-import { styles } from '../styles';
+import RandomUserSelectContainer from '/imports/ui/components/common/modal/random-user/container';
+import BBBMenu from '/imports/ui/components/common/menu/component';
+import Styled from './styles'
 import { PANELS, ACTIONS } from '../../layout/enums';
+import { colorPrimary } from '/imports/ui/stylesheets/styled-components/palette';
 
 const propTypes = {
   amIPresenter: PropTypes.bool.isRequired,
@@ -25,6 +25,7 @@ const propTypes = {
   allowExternalVideo: PropTypes.bool.isRequired,
   isMediaUploadEnabled: PropTypes.bool.isRequired,
   stopExternalVideoShare: PropTypes.func.isRequired,
+  isMobile: PropTypes.bool.isRequired,
 };
 
 const defaultProps = {
@@ -157,7 +158,7 @@ class ActionsDropdown extends PureComponent {
     if (amIPresenter && !hidePresentation) {
       actions.push({
         icon: "presentation",
-        dataTest: "uploadPresentation",
+        dataTest: "managePresentations",
         label: formatMessage(presentationLabel),
         key: this.presentationItemId,
         onClick: handlePresentationClick,
@@ -204,6 +205,7 @@ class ActionsDropdown extends PureComponent {
           : intl.formatMessage(intlMessages.stopExternalVideoLabel),
         key: "external-video",
         onClick: isSharingVideo ? stopExternalVideoShare : this.handleExternalVideoClick,
+        dataTest: "shareExternalVideo",
       })
     }
 
@@ -213,6 +215,7 @@ class ActionsDropdown extends PureComponent {
         label: intl.formatMessage(intlMessages.selectRandUserLabel),
         key: this.selectUserRandId,
         onClick: () => mountModal(<RandomUserSelectContainer isSelectedUser={false} />),
+        dataTest: "selectRandomUser",
       })
     }
 
@@ -244,13 +247,11 @@ class ActionsDropdown extends PureComponent {
     const presentationItemElements = presentations
       .sort((a, b) => (a.name.localeCompare(b.name)))
       .map((p) => {
-        const itemStyles = {};
-        itemStyles[styles.presentationItem] = true;
-        itemStyles[styles.isCurrent] = p.current;
+        const customStyles = { color: colorPrimary };
 
         return (
           {
-            className: cx(itemStyles),
+            customStyles: p.current ? customStyles : null,
             icon: "file",
             iconRight: p.current ? 'check' : null,
             label: p.name,
@@ -284,6 +285,8 @@ class ActionsDropdown extends PureComponent {
       shortcuts: OPEN_ACTIONS_AK,
       isMeteorConnected,
       isDropdownOpen,
+      isMobile,
+      isRTL,
     } = this.props;
 
     const availableActions = this.getAvailableActions();
@@ -296,16 +299,18 @@ class ActionsDropdown extends PureComponent {
       || !isMeteorConnected) {
       return null;
     }
+    const customStyles = { top: '-1rem' };
 
     return (
       <BBBMenu
-        classes={[styles.offsetBottom]}
+        customStyles={!isMobile ? customStyles : null}
         accessKey={OPEN_ACTIONS_AK}
         trigger={
-          <Button
-            className={isDropdownOpen ? styles.hideDropdownButton : ''}
+          <Styled.HideDropdownButton
+            open={isDropdownOpen}
             hideLabel
             aria-label={intl.formatMessage(intlMessages.actionsLabel)}
+            data-test="actionsButton"
             label={intl.formatMessage(intlMessages.actionsLabel)}
             icon="plus"
             color="primary"
@@ -322,8 +327,8 @@ class ActionsDropdown extends PureComponent {
           elevation: 3,
           getContentAnchorEl: null,
           fullwidth: "true",
-          anchorOrigin: { vertical: 'top', horizontal: 'left' },
-          transformorigin: { vertical: 'top', horizontal: 'left' },
+          anchorOrigin: { vertical: 'top', horizontal: isRTL ? 'right' : 'left' },
+          transformOrigin: { vertical: 'bottom', horizontal: isRTL ? 'right' : 'left' },
         }}
       />
     );

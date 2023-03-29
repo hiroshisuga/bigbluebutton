@@ -3,16 +3,13 @@ import PropTypes from 'prop-types';
 import { defineMessages, injectIntl } from 'react-intl';
 import deviceInfo from '/imports/utils/deviceInfo';
 import injectWbResizeEvent from '/imports/ui/components/presentation/resize-wrapper/component';
-import Button from '/imports/ui/components/button/component';
 import { HUNDRED_PERCENT, MAX_PERCENT, STEP } from '/imports/utils/slideCalcUtils';
-import cx from 'classnames';
-import { styles } from './styles.scss';
+import Styled from './styles';
 import ZoomTool from './zoom-tool/component';
 import FullscreenButtonContainer from '../../fullscreen-button/container';
-import TooltipContainer from '/imports/ui/components/tooltip/container';
-import QuickPollDropdownContainer from '/imports/ui/components/actions-bar/quick-poll-dropdown/container';
 import QuickLinksDropdown from './quick-links-dropdown/component';
 import FullscreenService from '/imports/ui/components/fullscreen-button/service';
+import TooltipContainer from '/imports/ui/components/common/tooltip/container';
 import KEY_CODES from '/imports/utils/keyCodes';
 
 const intlMessages = defineMessages({
@@ -83,6 +80,17 @@ const intlMessages = defineMessages({
   mergePresentationDesc: {
     id: 'app.presentation.presentationToolbar.mergePresentationDesc',
     description: 'merge the detached presentation area label',
+  toolbarMultiUserOn: {
+    id: 'app.whiteboard.toolbar.multiUserOn',
+    description: 'Whiteboard toolbar turn multi-user on menu',
+  },
+  toolbarMultiUserOff: {
+    id: 'app.whiteboard.toolbar.multiUserOff',
+    description: 'Whiteboard toolbar turn multi-user off menu',
+  },
+  pan: {
+    id: 'app.whiteboard.toolbar.tools.hand',
+    description: 'presentation toolbar pan label',
   },
 });
 
@@ -95,10 +103,11 @@ class PresentationToolbar extends PureComponent {
     this.handleSkipToSlideChange = this.handleSkipToSlideChange.bind(this);
     this.change = this.change.bind(this);
     this.renderAriaDescs = this.renderAriaDescs.bind(this);
-    this.switchSlide = this.switchSlide.bind(this);
     this.nextSlideHandler = this.nextSlideHandler.bind(this);
     this.previousSlideHandler = this.previousSlideHandler.bind(this);
     this.fullscreenToggleHandler = this.fullscreenToggleHandler.bind(this);
+    this.switchSlide = this.switchSlide.bind(this);
+    this.handleSwitchWhiteboardMode = this.handleSwitchWhiteboardMode.bind(this);
   }
 
   componentDidMount() {
@@ -109,6 +118,68 @@ class PresentationToolbar extends PureComponent {
   componentWillUnmount() {
     const { presentationWindow } = this.props;
     presentationWindow.document.removeEventListener('keydown', this.switchSlide);
+  }
+
+  handleSkipToSlideChange(event) {
+    const {
+      skipToSlide,
+      podId,
+    } = this.props;
+    const requestedSlideNum = Number.parseInt(event.target.value, 10);
+
+    if (event) event.currentTarget.blur();
+    skipToSlide(requestedSlideNum, podId);
+  }
+
+  handleSwitchWhiteboardMode() {
+    const {
+      multiUser,
+      whiteboardId,
+      removeWhiteboardGlobalAccess,
+      addWhiteboardGlobalAccess,
+    } = this.props;
+    if (multiUser) {
+      return removeWhiteboardGlobalAccess(whiteboardId);
+    }
+    return addWhiteboardGlobalAccess(whiteboardId);
+  }
+
+  fullscreenToggleHandler() {
+    const {
+      fullscreenElementId,
+      isFullscreen,
+      layoutContextDispatch,
+      fullscreenAction,
+      fullscreenRef,
+      handleToggleFullScreen,
+    } = this.props;
+
+    handleToggleFullScreen(fullscreenRef);
+    const newElement = isFullscreen ? '' : fullscreenElementId;
+
+    layoutContextDispatch({
+      type: fullscreenAction,
+      value: {
+        element: newElement,
+        group: '',
+      },
+    });
+  }
+
+  nextSlideHandler(event) {
+    const {
+      nextSlide, currentSlideNum, numberOfSlides, podId,
+    } = this.props;
+
+    if (event) event.currentTarget.blur();
+    nextSlide(currentSlideNum, numberOfSlides, podId);
+  }
+
+  previousSlideHandler(event) {
+    const { previousSlide, currentSlideNum, podId } = this.props;
+
+    if (event) event.currentTarget.blur();
+    previousSlide(currentSlideNum, podId);
   }
 
   switchSlide(event) {
@@ -136,59 +207,6 @@ class PresentationToolbar extends PureComponent {
         default:
       }
     }
-  }
-
-  handleSkipToSlideChange(event) {
-    const {
-      skipToSlide,
-      podId,
-    } = this.props;
-    const requestedSlideNum = Number.parseInt(event.target.value, 10);
-
-    if (event) event.currentTarget.blur();
-    skipToSlide(requestedSlideNum, podId);
-  }
-
-  nextSlideHandler(event) {
-    const {
-      nextSlide,
-      currentSlideNum,
-      numberOfSlides,
-      podId,
-    } = this.props;
-
-    if (event) event.currentTarget.blur();
-    nextSlide(currentSlideNum, numberOfSlides, podId);
-  }
-
-  previousSlideHandler(event) {
-    const {
-      previousSlide,
-      currentSlideNum,
-      podId,
-    } = this.props;
-
-    if (event) event.currentTarget.blur();
-    previousSlide(currentSlideNum, podId);
-  }
-
-  fullscreenToggleHandler() {
-    const {
-      fullscreenElementId,
-      isFullscreen,
-      layoutContextDispatch,
-      fullscreenAction,
-    } = this.props;
-
-    const newElement = isFullscreen ? '' : fullscreenElementId;
-
-    layoutContextDispatch({
-      type: fullscreenAction,
-      value: {
-        element: newElement,
-        group: '',
-      },
-    });
   }
 
   change(value) {
@@ -231,15 +249,11 @@ class PresentationToolbar extends PureComponent {
     const { intl } = this.props;
     const optionList = [];
     for (let i = 1; i <= numberOfSlides; i += 1) {
-      optionList.push((
-        <option
-          value={i}
-          key={i}
-        >
-          {
-            intl.formatMessage(intlMessages.goToSlide, { 0: i })
-          }
-        </option>));
+      optionList.push(
+        <option value={i} key={i}>
+          {intl.formatMessage(intlMessages.goToSlide, { 0: i })}
+        </option>
+      );
     }
 
     return optionList;
@@ -277,40 +291,40 @@ class PresentationToolbar extends PureComponent {
 
     const prevSlideAriaLabel = startOfSlides
       ? intl.formatMessage(intlMessages.previousSlideLabel)
-      : `${intl.formatMessage(intlMessages.previousSlideLabel)} (${currentSlideNum <= 1 ? '' : (currentSlideNum - 1)})`;
+      : `${intl.formatMessage(intlMessages.previousSlideLabel)} (${
+        currentSlideNum <= 1 ? '' : currentSlideNum - 1
+      })`;
 
     const nextSlideAriaLabel = endOfSlides
       ? intl.formatMessage(intlMessages.nextSlideLabel)
-      : `${intl.formatMessage(intlMessages.nextSlideLabel)} (${currentSlideNum >= 1 ? (currentSlideNum + 1) : ''})`;
+      : `${intl.formatMessage(intlMessages.nextSlideLabel)} (${
+        currentSlideNum >= 1 ? currentSlideNum + 1 : ''
+      })`;
 
     return (
-      <div id="presentationToolbarWrapper"
-        className={styles.presentationToolbarWrapper}
+      <Styled.PresentationToolbarWrapper
+        id="presentationToolbarWrapper"
         style={
           {
             width: toolbarWidth,
           }
         }>
         {this.renderAriaDescs()}
-        {
-          <div>
-            {isPollingEnabled
-              ? (
-                <QuickPollDropdownContainer
-                  {...{
-                    currentSlidHasContent,
-                    intl,
-                    amIPresenter,
-                    parseCurrentSlideContent,
-                    startPoll,
-                    currentSlide,
-                  }}
-                  className={styles.presentationBtn}
-                />
-              ) : null
-            }
-          </div>
-        }
+        <div>
+          {isPollingEnabled ? (
+            <Styled.QuickPollButton
+              {...{
+                currentSlidHasContent,
+                intl,
+                amIPresenter,
+                parseCurrentSlideContent,
+                startPoll,
+                currentSlide,
+              }}
+            />
+          ) : null}
+        </div>
+
         {
           <div>
           {
@@ -350,25 +364,27 @@ class PresentationToolbar extends PureComponent {
             />
           </div>
         }
-        {
-          <div className={styles.presentationSlideControls}>
-            <Button
-              role="button"
-              aria-label={prevSlideAriaLabel}
-              aria-describedby={startOfSlides ? 'noPrevSlideDesc' : 'prevSlideDesc'}
-              disabled={startOfSlides || !isMeteorConnected}
-              color="default"
-              icon="left_arrow"
-              size="md"
-              onClick={this.previousSlideHandler}
-              label={intl.formatMessage(intlMessages.previousSlideLabel)}
-              hideLabel
-              className={cx(styles.prevSlide, styles.presentationBtn)}
-              data-test="prevSlide"
-            />
+
+        <Styled.PresentationSlideControls>
+          <Styled.PrevSlideButton
+            role="button"
+            aria-label={prevSlideAriaLabel}
+            aria-describedby={
+                startOfSlides ? 'noPrevSlideDesc' : 'prevSlideDesc'
+              }
+            disabled={startOfSlides || !isMeteorConnected}
+            color="light"
+            circle
+            icon="left_arrow"
+            size="md"
+            onClick={this.previousSlideHandler}
+            label={intl.formatMessage(intlMessages.previousSlideLabel)}
+            hideLabel
+            data-test="prevSlide"
+          />
 
             <TooltipContainer title={intl.formatMessage(intlMessages.selectLabel)}>
-              <select
+              <Styled.SkipSlideSelect
                 id="skipSlide"
                 aria-label={intl.formatMessage(intlMessages.skipSlideLabel)}
                 aria-describedby="skipSlideDesc"
@@ -377,13 +393,12 @@ class PresentationToolbar extends PureComponent {
                 disabled={!isMeteorConnected}
                 value={currentSlideNum}
                 onChange={this.handleSkipToSlideChange}
-                className={styles.skipSlideSelect}
                 data-test="skipSlide"
               >
                 {this.renderSkipSlideOpts(numberOfSlides)}
-              </select>
+              </Styled.SkipSlideSelect>
             </TooltipContainer>
-            <Button
+            <Styled.NextSlideButton
               role="button"
               aria-label={nextSlideAriaLabel}
               aria-describedby={endOfSlides ? 'noNextSlideDesc' : 'nextSlideDesc'}
@@ -394,13 +409,10 @@ class PresentationToolbar extends PureComponent {
               onClick={this.nextSlideHandler}
               label={intl.formatMessage(intlMessages.nextSlideLabel)}
               hideLabel
-              className={cx(styles.skipSlide, styles.presentationBtn)}
               data-test="nextSlide"
             />
-          </div>
-        }
-        {
-          <div className={styles.presentationZoomControls}>
+          </Styled.PresentationSlideControls>
+          <Styled.PresentationZoomControls>
             {
               !isMobile
                 ? (
@@ -417,10 +429,15 @@ class PresentationToolbar extends PureComponent {
                 )
                 : null
             }
+<<<<<<< HEAD
         {!isPresentationDetached
           ?
             <Button
+=======
+            <Styled.FitToWidthButton
+>>>>>>> origin/dev2.5.14updated_portal_markerEraser_genupld_isoWB_transl_qlink_fillmovetranslucent_selector_realtime_Xtransl
               role="button"
+              data-test="fitToWidthButton"
               aria-describedby={fitToWidth ? 'fitPageDesc' : 'fitWidthDesc'}
               aria-label={fitToWidth
                 ? `${intl.formatMessage(intlMessages.presentationLabel)} ${intl.formatMessage(intlMessages.fitToPage)}`
@@ -437,13 +454,17 @@ class PresentationToolbar extends PureComponent {
                 : intl.formatMessage(intlMessages.fitToWidth)
               }
               hideLabel
-              className={cx(styles.fitToWidth, styles.presentationBtn)}
             />
+<<<<<<< HEAD
           : null
         }
           </div>
         }
       </div>
+=======
+          </Styled.PresentationZoomControls>
+      </Styled.PresentationToolbarWrapper>
+>>>>>>> origin/dev2.5.14updated_portal_markerEraser_genupld_isoWB_transl_qlink_fillmovetranslucent_selector_realtime_Xtransl
     );
   }
 }

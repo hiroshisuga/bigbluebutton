@@ -1,10 +1,9 @@
-import PresentationPods from '/imports/api/presentation-pods';
 import Presentations from '/imports/api/presentations';
 import { Slides, SlidePositions } from '/imports/api/slides';
-import Auth from '/imports/ui/services/auth';
 import ReactPlayer from 'react-player';
-import PollService from '/imports/ui/components/poll/service';
 import WhiteboardService, { Annotations } from '/imports/ui/components/whiteboard/service';
+import PollService from '/imports/ui/components/poll/service';
+import { safeMatch } from '/imports/utils/string-utils';
 
 const isUrlValid = url => ReactPlayer.canPlay(url);
 const POLL_SETTINGS = Meteor.settings.public.poll;
@@ -313,6 +312,32 @@ const parseCurrentSlideContent = (yesValue, noValue, abstentionValue, trueValue,
   if (optionsPoll) optionsPollStrings = optionsPoll.map(opt => `${opt.replace(/^[^.)]{1,2}[.)]/,'').replace(/^\s+/, '')}`);
   if (optionsPoll) optionsPoll = optionsPoll.map(opt => `\r${opt.replace(/[.)].*/,'')}.`);
 
+  const questionRegex = /.*?\?/gm;
+  const question = safeMatch(questionRegex, content, '');
+
+  const doubleQuestionRegex = /\?{2}/gm;
+  const doubleQuestion = safeMatch(doubleQuestionRegex, content, false);
+
+  const yesNoPatt = /.*(yes\/no|no\/yes).*/gm;
+  const hasYN = safeMatch(yesNoPatt, content, false);
+
+  const pollRegex = /[1-9A-Ia-i][.)].*/g;
+//  let optionsPoll = safeMatch(pollRegex, content, []);
+  const optionsWithLabels = [];
+
+  if (hasYN) {
+//    optionsPoll = ['yes', 'no'];
+  }
+
+  if (optionsPoll) {
+    optionsPoll = optionsPoll.map((opt) => {
+      const MAX_CHAR_LIMIT = 30;
+      const formattedOpt = opt.substring(0, MAX_CHAR_LIMIT);
+      optionsWithLabels.push(formattedOpt);
+      return `\r${opt[0]}.`;
+    });
+  }
+
   optionsPoll.reduce((acc, currentValue) => {
     const lastElement = acc[acc.length - 1];
 
@@ -364,6 +389,7 @@ const parseCurrentSlideContent = (yesValue, noValue, abstentionValue, trueValue,
     return poll;
   }).filter(({
     options,
+<<<<<<< HEAD
   }) => options.length > 1 && options.length < 99).forEach((poll) => {
     //if (poll.options.length <= 5 || MAX_CUSTOM_FIELDS <= 5) {
     //  const maxAnswer = poll.options.length > MAX_CUSTOM_FIELDS
@@ -374,12 +400,35 @@ const parseCurrentSlideContent = (yesValue, noValue, abstentionValue, trueValue,
     //    poll,
     //  });
     //} else {
+=======
+  }) => options.length > 1 && options.length < 10).forEach((p) => {
+    const poll = p;
+    if (doubleQuestion) poll.multiResp = true;
+    if (poll.options.length <= 5 || MAX_CUSTOM_FIELDS <= 5) {
+      const maxAnswer = poll.options.length > MAX_CUSTOM_FIELDS
+        ? MAX_CUSTOM_FIELDS
+        : poll.options.length;
+      quickPollOptions.push({
+        type: `${pollTypes.Letter}${maxAnswer}`,
+        poll,
+      });
+    } else {
+>>>>>>> origin/dev2.5.14updated_portal_markerEraser_genupld_isoWB_transl_qlink_fillmovetranslucent_selector_realtime_Xtransl
       quickPollOptions.push({
         type: pollTypes.Custom,
         poll,
       });
     //}
   });
+
+  if (question.length > 0 && optionsPoll.length === 0 && !doubleQuestion && !hasYN) {
+    quickPollOptions.push({
+      type: 'R-',
+      poll: {
+        question: question[0],
+      },
+    });
+  }
 
   if (quickPollOptions.length > 0) {
     content = content.replace(new RegExp(pollRegex), '');
@@ -403,28 +452,22 @@ const parseCurrentSlideContent = (yesValue, noValue, abstentionValue, trueValue,
     type: pollTypes.TrueFalse,
     poll,
   }));
-  
+
+  const pollQuestion = (question?.length > 0 && question[0]?.replace(/ *\([^)]*\) */g, '')) || '';
+
   return {
     slideId: currentSlide.id,
     quickPollOptions,
+    optionsWithLabels,
+    pollQuestion,
     videoUrls,
     urls,
   };
 };
 
-const isPresenter = (podId) => {
-  const selector = {
-    meetingId: Auth.meetingID,
-    podId,
-  };
-  const pod = PresentationPods.findOne(selector);
-  return pod?.currentPresenterId === Auth.userID;
-};
-
 export default {
   getCurrentSlide,
   getSlidePosition,
-  isPresenter,
   isPresentationDownloadable,
   downloadPresentationUri,
   currentSlidHasContent,

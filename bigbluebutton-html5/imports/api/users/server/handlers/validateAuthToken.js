@@ -4,6 +4,7 @@ import Users from '/imports/api/users';
 import userJoin from './userJoin';
 import pendingAuthenticationsStore from '../store/pendingAuthentications';
 import createDummyUser from '../modifiers/createDummyUser';
+import updateUserConnectionId from '../modifiers/updateUserConnectionId';
 import ClientConnections from '/imports/startup/server/ClientConnections';
 
 import upsertValidationState from '/imports/api/auth-token-validation/server/modifiers/upsertValidationState';
@@ -37,7 +38,6 @@ export default function handleValidateAuthToken({ body }, meetingId) {
   check(reasonCode, String);
 
   const pendingAuths = pendingAuthenticationsStore.take(meetingId, userId, authToken);
-
   Logger.info(`PendingAuths length [${pendingAuths.length}]`);
   if (pendingAuths.length === 0) return;
 
@@ -82,6 +82,8 @@ export default function handleValidateAuthToken({ body }, meetingId) {
 
       if (!User) {
         createDummyUser(meetingId, userId, authToken);
+      }else{
+        updateUserConnectionId(meetingId, userId, methodInvocationObject.connection.id);
       }
 
       ClientConnections.add(sessionId, methodInvocationObject.connection);

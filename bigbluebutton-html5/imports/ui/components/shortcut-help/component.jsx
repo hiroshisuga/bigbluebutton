@@ -3,10 +3,11 @@ import PropTypes from 'prop-types';
 import { defineMessages, injectIntl } from 'react-intl';
 import browserInfo from '/imports/utils/browserInfo';
 import deviceInfo from '/imports/utils/deviceInfo';
-import Modal from '/imports/ui/components/modal/simple/component';
+import Modal from '/imports/ui/components/common/modal/simple/component';
 import _ from 'lodash';
-import { styles } from './styles';
+import Styled from './styles';
 import withShortcutHelper from './service';
+import { isChatEnabled } from '/imports/ui/services/features';
 
 const intlMessages = defineMessages({
   title: {
@@ -97,10 +98,23 @@ const intlMessages = defineMessages({
     id: 'app.shortcut-help.previousSlideDesc',
     description: 'describes the previous slide shortcut',
   },
+  togglePanKey: {
+    id: 'app.shortcut-help.togglePanKey',
+    description: 'describes the toggle pan shortcut key',
+  },
+  toggleFullscreenKey: {
+    id: 'app.shortcut-help.toggleFullscreenKey',
+    description: 'describes the toggle full-screen shortcut key',
+  },
+  nextSlideKey: {
+    id: 'app.shortcut-help.nextSlideKey',
+    description: 'describes the next slide shortcut key',
+  },
+  previousSlideKey: {
+    id: 'app.shortcut-help.previousSlideKey',
+    description: 'describes the previous slide shortcut key',
+  },
 });
-
-const CHAT_CONFIG = Meteor.settings.public.chat;
-const CHAT_ENABLED = CHAT_CONFIG.enabled;
 
 const ShortcutHelpComponent = (props) => {
   const { intl, shortcuts } = props;
@@ -134,40 +148,40 @@ const ShortcutHelpComponent = (props) => {
   }
 
   const shortcutItems = shortcuts.map((shortcut) => {
-    if (!CHAT_ENABLED && shortcut.descId.indexOf('Chat') !== -1) return null;
+    if (!isChatEnabled() && shortcut.descId.indexOf('Chat') !== -1) return null;
     return (
       <tr key={_.uniqueId('hotkey-item-')}>
-        <td className={styles.keyCell}>{`${accessMod} + ${shortcut.accesskey}`}</td>
-        <td className={styles.descCell}>{`${intl.formatMessage(intlMessages[`${shortcut.descId.toLowerCase()}`])}`}</td>
+        <Styled.KeyCell>{`${accessMod} + ${shortcut.accesskey}`}</Styled.KeyCell>
+        <Styled.DescCell>{`${intl.formatMessage(intlMessages[`${shortcut.descId.toLowerCase()}`])}`}</Styled.DescCell>
       </tr>
     );
   });
 
   shortcutItems.push((
     <tr key={_.uniqueId('hotkey-item-')}>
-      <td className={styles.keyCell}>Spacebar</td>
-      <td className={styles.descCell}>{intl.formatMessage(intlMessages.togglePan)}</td>
+      <Styled.KeyCell>{intl.formatMessage(intlMessages.togglePanKey)}</Styled.KeyCell>
+      <Styled.DescCell>{intl.formatMessage(intlMessages.togglePan)}</Styled.DescCell>
     </tr>
   ));
 
   shortcutItems.push((
     <tr key={_.uniqueId('hotkey-item-')}>
-      <td className={styles.keyCell}>Enter</td>
-      <td className={styles.descCell}>{intl.formatMessage(intlMessages.toggleFullscreen)}</td>
+      <Styled.KeyCell>{intl.formatMessage(intlMessages.toggleFullscreenKey)}</Styled.KeyCell>
+      <Styled.DescCell>{intl.formatMessage(intlMessages.toggleFullscreen)}</Styled.DescCell>
     </tr>
   ));
 
   shortcutItems.push((
     <tr key={_.uniqueId('hotkey-item-')}>
-      <td className={styles.keyCell}>Right Arrow</td>
-      <td className={styles.descCell}>{intl.formatMessage(intlMessages.nextSlideDesc)}</td>
+      <Styled.KeyCell>{intl.formatMessage(intlMessages.nextSlideKey)}</Styled.KeyCell>
+      <Styled.DescCell>{intl.formatMessage(intlMessages.nextSlideDesc)}</Styled.DescCell>
     </tr>
   ));
 
   shortcutItems.push((
     <tr key={_.uniqueId('hotkey-item-')}>
-      <td className={styles.keyCell}>Left Arrow</td>
-      <td className={styles.descCell}>{intl.formatMessage(intlMessages.previousSlideDesc)}</td>
+      <Styled.KeyCell>{intl.formatMessage(intlMessages.previousSlideKey)}</Styled.KeyCell>
+      <Styled.DescCell>{intl.formatMessage(intlMessages.previousSlideDesc)}</Styled.DescCell>
     </tr>
   ));
 
@@ -182,7 +196,7 @@ const ShortcutHelpComponent = (props) => {
       {!accessMod ? <p>{intl.formatMessage(intlMessages.accessKeyNotAvailable)}</p>
         : (
           <span>
-            <table className={styles.shortcutTable}>
+            <Styled.ShortcutTable>
               <tbody>
                 <tr>
                   <th>{intl.formatMessage(intlMessages.comboLabel)}</th>
@@ -190,7 +204,7 @@ const ShortcutHelpComponent = (props) => {
                 </tr>
                 {shortcutItems}
               </tbody>
-            </table>
+            </Styled.ShortcutTable>
           </span>
         )
       }

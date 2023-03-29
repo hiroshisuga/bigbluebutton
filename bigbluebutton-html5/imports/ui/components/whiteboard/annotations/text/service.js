@@ -1,6 +1,4 @@
 import Storage from '/imports/ui/services/storage/session';
-import Users from '/imports/api/users';
-import Auth from '/imports/ui/services/auth';
 
 const DRAW_SETTINGS = 'drawSettings';
 
@@ -28,10 +26,10 @@ const setTextShapeOffset = (offset) => {
   }
 };
   
-const isPresenter = () => {
-  const currentUser = Users.findOne({ userId: Auth.userID }, { fields: { presenter: 1 } });
-  return currentUser ? currentUser.presenter : false;
-};
+//const isPresenter = () => {
+//  const currentUser = Users.findOne({ userId: Auth.userID }, { fields: { presenter: 1 } });
+//  return currentUser ? currentUser.presenter : false;
+//};
 
 const activeTextShapeId = () => {
   const drawSettings = Storage.getItem(DRAW_SETTINGS);
@@ -42,6 +40,6 @@ export default {
   setTextShapeValue,
   activeTextShapeId,
   setTextShapeOffset,
-  isPresenter,
+//  isPresenter,
   resetTextShapeActiveId,
 };

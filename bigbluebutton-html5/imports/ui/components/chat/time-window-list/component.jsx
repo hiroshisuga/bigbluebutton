@@ -3,11 +3,11 @@ import { findDOMNode } from 'react-dom';
 import PropTypes from 'prop-types';
 import { defineMessages, injectIntl } from 'react-intl';
 import _ from 'lodash';
-import Button from '/imports/ui/components/button/component';
-import { List, AutoSizer,CellMeasurer, CellMeasurerCache } from 'react-virtualized';
-import { styles } from './styles';
+import { AutoSizer,CellMeasurer, CellMeasurerCache } from 'react-virtualized';
+import Styled from './styles';
 import ChatLogger from '/imports/ui/components/chat/chat-logger/ChatLogger';
 import TimeWindowChatItem from './time-window-chat-item/container';
+import { convertRemToPixels } from '/imports/utils/dom-utils';
 
 const CHAT_CONFIG = Meteor.settings.public.chat;
 const SYSTEM_CHAT_TYPE = CHAT_CONFIG.type_system;
@@ -55,6 +55,7 @@ class TimeWindowList extends PureComponent {
     this.userScrolledBack = false;
     this.handleScrollUpdate = _.debounce(this.handleScrollUpdate.bind(this), 150);
     this.rowRender = this.rowRender.bind(this);
+    this.forceCacheUpdate = this.forceCacheUpdate.bind(this);
     this.systemMessagesResized = {};
 
     this.state = {
@@ -183,6 +184,13 @@ class TimeWindowList extends PureComponent {
     }
   }
 
+  forceCacheUpdate(index) {
+    if (index >= 0) {
+      this.cache.clear(index);
+      this.listRef.recomputeRowHeights(index);
+    }
+  }
+
   rowRender({
     index,
     parent,
@@ -220,6 +228,9 @@ class TimeWindowList extends PureComponent {
             scrollArea={scrollArea}
             dispatch={dispatch}
             chatId={chatId}
+            height={style.height}
+            index={index}
+            forceCacheUpdate={this.forceCacheUpdate}
           />
         </span>
       </CellMeasurer>
@@ -236,9 +247,8 @@ class TimeWindowList extends PureComponent {
 
     if (count && userScrolledBack) {
       return (
-        <Button
+        <Styled.UnreadButton
           aria-hidden="true"
-          className={styles.unreadButton}
           color="primary"
           size="sm"
           key="unread-messages"
@@ -262,6 +272,7 @@ class TimeWindowList extends PureComponent {
   render() {
     const {
       timeWindowsValues,
+      width,
     } = this.props;
     const {
       scrollArea,
@@ -276,9 +287,11 @@ class TimeWindowList extends PureComponent {
       && !userScrolledBack
     );
 
+    const paddingValue = convertRemToPixels(2);
+
     return (
       [
-        <div
+        <Styled.MessageListWrapper
           onMouseDown={() => {
             this.setState({
               userScrolledBack: true,
@@ -292,20 +305,19 @@ class TimeWindowList extends PureComponent {
               this.userScrolledBack = true
             }
           }}
-          className={styles.messageListWrapper}
           key="chat-list"
           data-test="chatMessages"
           aria-live="polite"
           ref={node => this.messageListWrapper = node}
         >
-          <AutoSizer>
-            {({ height, width }) => {
+          <AutoSizer disableWidth>
+            {({ height }) => {
               if (width !== this.lastWidth) {
                 this.lastWidth = width;
                 this.cache.clearAll();
               }
               return (
-                <List
+                <Styled.MessageList
                   ref={(ref) => {
                     if (ref !== null) {
                       this.listRef = ref;
@@ -317,11 +329,10 @@ class TimeWindowList extends PureComponent {
                   }}
                   isScrolling
                   rowHeight={this.cache.rowHeight}
-                  className={styles.messageList}
                   rowRenderer={this.rowRender}
                   rowCount={timeWindowsValues.length}
                   height={height}
-                  width={width}
+                  width={width - paddingValue}
                   overscanRowCount={0}
                   deferredMeasurementCache={this.cache}
                   scrollToIndex={shouldAutoScroll ? scrollPosition : undefined}
@@ -340,7 +351,7 @@ class TimeWindowList extends PureComponent {
               );
             }}
           </AutoSizer>
-        </div>,
+        </Styled.MessageListWrapper>,
         this.renderUnreadNotification(),
       ]
     );

@@ -3,7 +3,7 @@ import { withTracker } from 'meteor/react-meteor-data';
 import PropTypes from 'prop-types';
 import { IntlProvider } from 'react-intl';
 import Settings from '/imports/ui/services/settings';
-import LoadingScreen from '/imports/ui/components/loading-screen/component';
+import LoadingScreen from '/imports/ui/components/common/loading-screen/component';
 import getFromUserSettings from '/imports/ui/services/users-settings';
 import _ from 'lodash';
 import { Session } from 'meteor/session';
@@ -16,6 +16,8 @@ const propTypes = {
 };
 
 const DEFAULT_LANGUAGE = Meteor.settings.public.app.defaultSettings.application.fallbackLocale;
+const CLIENT_VERSION = Meteor.settings.public.app.html5ClientBuild;
+const FALLBACK_ON_EMPTY_STRING = Meteor.settings.public.app.fallbackOnEmptyLocaleString;
 
 const RTL_LANGUAGES = ['ar', 'dv', 'fa', 'he'];
 const LARGE_FONT_LANGUAGES = ['te', 'km'];
@@ -73,7 +75,7 @@ class IntlStartup extends Component {
         })
         .then(({ normalizedLocale, regionDefaultLocale }) => {
           const fetchFallbackMessages = new Promise((resolve, reject) => {
-            fetch(`${localesPath}/${DEFAULT_LANGUAGE}.json`)
+            fetch(`${localesPath}/${DEFAULT_LANGUAGE}.json?v=${CLIENT_VERSION}`)
               .then((response) => {
                 if (!response.ok) {
                   return reject();
@@ -86,7 +88,7 @@ class IntlStartup extends Component {
             if (!regionDefaultLocale) {
               return resolve(false);
             }
-            fetch(`${localesPath}/${regionDefaultLocale}.json`)
+            fetch(`${localesPath}/${regionDefaultLocale}.json?v=${CLIENT_VERSION}`)
               .then((response) => {
                 if (!response.ok) {
                   return resolve(false);
@@ -104,7 +106,7 @@ class IntlStartup extends Component {
             if (!normalizedLocale || normalizedLocale === DEFAULT_LANGUAGE || normalizedLocale === regionDefaultLocale) {
               return resolve(false);
             }
-            fetch(`${localesPath}/${normalizedLocale}.json`)
+            fetch(`${localesPath}/${normalizedLocale}.json?v=${CLIENT_VERSION}`)
               .then((response) => {
                 if (!response.ok) {
                   return resolve(false);
@@ -162,7 +164,7 @@ class IntlStartup extends Component {
 
         {normalizedLocale
           && (
-          <IntlProvider locale={normalizedLocale} messages={messages}>
+          <IntlProvider fallbackOnEmptyString={FALLBACK_ON_EMPTY_STRING} locale={normalizedLocale} messages={messages}>
             {children}
           </IntlProvider>
           )

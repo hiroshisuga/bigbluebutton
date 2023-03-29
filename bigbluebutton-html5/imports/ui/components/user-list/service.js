@@ -1,7 +1,7 @@
 import Users from '/imports/api/users';
 import VoiceUsers from '/imports/api/voice-users';
 import GroupChat from '/imports/api/group-chat';
-import Breakouts from '/imports/api/breakouts/';
+import Breakouts from '/imports/api/breakouts';
 import Meetings from '/imports/api/meetings';
 import Auth from '/imports/ui/services/auth';
 import Storage from '/imports/ui/services/storage/session';
@@ -14,6 +14,7 @@ import VideoService from '/imports/ui/components/video-provider/service';
 import logger from '/imports/startup/client/logger';
 import WhiteboardService from '/imports/ui/components/whiteboard/service';
 import { Session } from 'meteor/session';
+import { getDateString } from '/imports/utils/string-utils';
 
 const CHAT_CONFIG = Meteor.settings.public.chat;
 const PUBLIC_CHAT_ID = CHAT_CONFIG.public_id;
@@ -30,9 +31,9 @@ const STARTED_CHAT_LIST_KEY = 'startedChatList';
 
 const CUSTOM_LOGO_URL_KEY = 'CustomLogoUrl';
 
-export const setCustomLogoUrl = path => Storage.setItem(CUSTOM_LOGO_URL_KEY, path);
+export const setCustomLogoUrl = (path) => Storage.setItem(CUSTOM_LOGO_URL_KEY, path);
 
-export const setModeratorOnlyMessage = msg => Storage.setItem('ModeratorOnlyMessage', msg);
+export const setModeratorOnlyMessage = (msg) => Storage.setItem('ModeratorOnlyMessage', msg);
 
 const getCustomLogoUrl = () => Storage.getItem(CUSTOM_LOGO_URL_KEY);
 
@@ -212,6 +213,31 @@ const getUsers = () => {
   return addIsSharingWebcam(addWhiteboardAccess(users)).sort(sortUsers);
 };
 
+const formatUsers = (contextUsers, videoUsers, whiteboardUsers) => {
+  let users = contextUsers.filter((user) => user.loggedOut === false && user.left === false);
+
+  const currentUser = Users.findOne({ userId: Auth.userID }, { fields: { role: 1, locked: 1 } });
+  if (currentUser && currentUser.role === ROLE_VIEWER && currentUser.locked) {
+    const meeting = Meetings.findOne({ meetingId: Auth.meetingID },
+      { fields: { 'lockSettingsProps.hideUserList': 1 } });
+    if (meeting && meeting.lockSettingsProps && meeting.lockSettingsProps.hideUserList) {
+      const moderatorOrCurrentUser = (u) => u.role === ROLE_MODERATOR || u.userId === Auth.userID;
+      users = users.filter(moderatorOrCurrentUser);
+    }
+  }
+
+  return users.map((user) => {
+    const isSharingWebcam = videoUsers?.includes(user.userId);
+    const whiteboardAccess = whiteboardUsers?.includes(user.userId);
+
+    return {
+      ...user,
+      isSharingWebcam,
+      whiteboardAccess,
+    };
+  }).sort(sortUsers);
+};
+
 const getUserCount = () => Users.find({ meetingId: Auth.meetingID }).count();
 
 const hasBreakoutRoom = () => Breakouts.find({ parentMeetingId: Auth.meetingID },
@@ -304,13 +330,15 @@ const isMeetingLocked = (id) => {
   let isLocked = false;
 
   if (meeting.lockSettingsProps !== undefined) {
-    const {lockSettingsProps:lockSettings, usersProp} = meeting;
+    const { lockSettingsProps: lockSettings, usersProp } = meeting;
 
     if (lockSettings.disableCam
       || lockSettings.disableMic
       || lockSettings.disablePrivateChat
       || lockSettings.disablePublicChat
-      || lockSettings.disableNote
+      || lockSettings.disableNotes
+      || lockSettings.hideUserList
+      || lockSettings.hideViewersCursor
       || usersProp.webcamsOnlyForModerator) {
       isLocked = true;
     }
@@ -446,7 +474,7 @@ const assignPresenter = (userId) => { makeCall('assignPresenter', userId); };
 
 const removeUser = (userId, banUser) => {
   if (isVoiceOnlyUser(userId)) {
-    makeCall('ejectUserFromVoice', userId);
+    makeCall('ejectUserFromVoice', userId, banUser);
   } else {
     makeCall('removeUser', userId, banUser);
   }
@@ -600,13 +628,11 @@ const sortUsersByLastName = (a, b) => {
   return sortUsersByName(aUser, bUser);
 };
 
-const isUserPresenter = (userId) => {
+const isUserPresenter = (userId = Auth.userID) => {
   const user = Users.findOne({ userId },
     { fields: { presenter: 1 } });
   return user ? user.presenter : false;
 };
-
-const amIPresenter = () => isUserPresenter(Auth.userID);
 
 export const getUserNamesLink = (docTitle, fnSortedLabel, lnSortedLabel) => {
   const mimeType = 'text/plain';
@@ -637,13 +663,10 @@ export const getUserNamesLink = (docTitle, fnSortedLabel, lnSortedLabel) => {
   const link = document.createElement('a');
   const meeting = Meetings.findOne({ meetingId: Auth.meetingID },
     { fields: { 'meetingProp.name': 1 } });
-  const date = new Date();
-  const time = `${date.getHours()}-${date.getMinutes()}`;
-  const dateString = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}_${time}`;
-  link.setAttribute('download', `bbb-${meeting.meetingProp.name}[users-list]_${dateString}.txt`);
+  link.setAttribute('download', `bbb-${meeting.meetingProp.name}[users-list]_${getDateString()}.txt`);
   link.setAttribute(
     'href',
-    `data: ${mimeType} ;charset=utf-16,${encodeURIComponent(namesListsString)}`,
+    `data: ${mimeType};charset=utf-16,${encodeURIComponent(namesListsString)}`,
   );
   return link;
 };
@@ -660,6 +683,7 @@ export default {
   muteAllExceptPresenter,
   changeRole,
   getUsers,
+  formatUsers,
   getActiveChats,
   getAvailableActions,
   curatedVoiceUser,
@@ -677,7 +701,6 @@ export default {
   requestUserInformation,
   focusFirstDropDownItem,
   isUserPresenter,
-  amIPresenter,
   getUsersProp,
   getUserCount,
   sortUsersByCurrent,

@@ -6,19 +6,21 @@ import UnreadMessages from '/imports/ui/services/unread-messages';
 import Storage from '/imports/ui/services/storage/session';
 import { makeCall } from '/imports/ui/services/api';
 import _ from 'lodash';
+import { stripTags, unescapeHtml } from '/imports/utils/string-utils';
 import { meetingIsBreakout } from '/imports/ui/components/app/service';
 import { defineMessages } from 'react-intl';
 import PollService from '/imports/ui/components/poll/service';
 
 const CHAT_CONFIG = Meteor.settings.public.chat;
 const GROUPING_MESSAGES_WINDOW = CHAT_CONFIG.grouping_messages_window;
+const CHAT_EMPHASIZE_TEXT = CHAT_CONFIG.moderatorChatEmphasized;
 
 const SYSTEM_CHAT_TYPE = CHAT_CONFIG.type_system;
 
 const PUBLIC_CHAT_ID = CHAT_CONFIG.public_id;
 const PUBLIC_GROUP_CHAT_ID = CHAT_CONFIG.public_group_id;
 
-const PUBLIC_CHAT_CLEAR = CHAT_CONFIG.chat_clear;
+const PUBLIC_CHAT_CLEAR = CHAT_CONFIG.system_messages_keys.chat_clear;
 const CHAT_POLL_RESULTS_MESSAGE = CHAT_CONFIG.system_messages_keys.chat_poll_result;
 
 const ROLE_MODERATOR = Meteor.settings.public.user.role_moderator;
@@ -79,8 +81,8 @@ const mapGroupMessage = (message) => {
     const mappedSender = {
       avatar: sender?.avatar,
       color: message.color,
-      isModerator: sender?.role === ROLE_MODERATOR,
-      name: sender.name,
+      isModerator: message.senderRole === ROLE_MODERATOR,
+      name: message.senderName,
       isOnline: !!sender,
     };
 
@@ -178,7 +180,7 @@ const sendGroupMessage = (message, idChatOpen) => {
 
   let destinationChatId = PUBLIC_GROUP_CHAT_ID;
 
-  const { fullname: senderName, userID: senderUserId } = Auth;
+  const { userID: senderUserId } = Auth;
   const receiverId = { id: chatID };
 
   if (!isPublicChat) {
@@ -192,15 +194,14 @@ const sendGroupMessage = (message, idChatOpen) => {
     }
   }
 
-  const userAvatarColor = Users.findOne({ userId: senderUserId }, { fields: { color: 1 } });
-
   const payload = {
-    color: userAvatarColor?.color || '0',
     correlationId: `${senderUserId}-${Date.now()}`,
     sender: {
       id: senderUserId,
-      name: senderName,
+      name: '',
+      role: '',
     },
+    chatEmphasizedText: CHAT_EMPHASIZE_TEXT,
     message,
   };
 
@@ -253,17 +254,13 @@ const removeFromClosedChatsSession = (idChatOpen) => {
   }
 };
 
-// We decode to prevent HTML5 escaped characters.
 const htmlDecode = (input) => {
-  const e = document.createElement('div');
-  e.innerHTML = input;
-  const messages = Array.from(e.childNodes);
-  const message = messages.map((chatMessage) => chatMessage.textContent);
-  return message.join('');
+  const replacedBRs = input.replaceAll('<br/>', '\n');
+  return unescapeHtml(stripTags(replacedBRs));
 };
 
 // Export the chat as [Hour:Min] user: message
-const exportChat = (timeWindowList, users, intl) => {
+const exportChat = (timeWindowList, intl) => {
   const messageList = timeWindowList.reduce((acc, timeWindow) => {
     const msgs = timeWindow.content.map((message) => {
       const date = new Date(message.time);
@@ -277,10 +274,10 @@ const exportChat = (timeWindowList, users, intl) => {
 
       let userName = message.id.startsWith(SYSTEM_CHAT_TYPE)
         ? ''
-        : `${users[timeWindow.sender].name}: `;
+        : `${timeWindow.senderName}: `;
       let messageText = '';
       if (message.text === PUBLIC_CHAT_CLEAR) {
-        message.text = intl.formatMessage(intlMessages.publicChatClear);
+        messageText = intl.formatMessage(intlMessages.publicChatClear);
       } else if (message.id.includes(CHAT_POLL_RESULTS_MESSAGE)) {
         userName = `${intl.formatMessage(intlMessages.pollResult)}:\n`;
         const { pollResultData } = timeWindow.extra;

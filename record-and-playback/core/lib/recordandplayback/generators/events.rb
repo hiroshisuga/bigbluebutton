@@ -49,7 +49,7 @@ module BigBlueButton
       BigBlueButton.logger.info("Task: Getting meeting metadata")
       doc = Nokogiri::XML(File.open(events_xml))
       metadata = {}
-      doc.xpath("//metadata").each do |e|
+      doc.xpath("recording/metadata").each do |e|
         e.keys.each do |k|
           metadata[k] = e.attribute(k)
         end
@@ -61,7 +61,7 @@ module BigBlueButton
       BigBlueButton.logger.info("Task: Getting notes id")
       notes_id = 'undefined'
       cc_token = '_cc_'
-      events.xpath("/recording/event[@eventname='AddPadEvent']").each do |pad_event|
+      events.xpath("/recording/event[@eventname='AddPadEvent' or @eventname='PadCreatedEvent']").each do |pad_event|
         pad_id = pad_event.at_xpath('padId').text
         notes_id = pad_id if ! pad_id.include? cc_token
       end
@@ -112,8 +112,60 @@ module BigBlueButton
       start_events
     end
 
+    def self.to_boolean(obj)
+      return obj.to_s.downcase == "true"
+    end
+
+    def self.is_user_moderator(user_id, list_user_info)
+      user_role = list_user_info[user_id]
+      if !user_role.nil?
+        if user_role == "MODERATOR"
+          return true
+        else
+          return false
+        end
+      end
+      return false
+    end
+
+    def self.get_id_from_filename(filename)
+      return filename.split("/")[-1].split("-")[1]
+    end
+
+    def self.extract_filename_from_userId(userId, filenames_list)
+      filename_return = ""
+      filenames_list.each do |filename|
+        if !filename.match(userId).nil?
+          filename_return = filename
+        end
+      end
+      return filename_return
+    end
+
+    def self.process_webcamsOnlyForModerator(list_user_info, active_videos, inactive_videos, webcamsOnlyForModerator)
+      
+      if webcamsOnlyForModerator
+        list_user_info.each do |user_id, user_role|
+          # If the user is a viewer:
+          if !BigBlueButton::Events.is_user_moderator(user_id, list_user_info)
+            filename = BigBlueButton::Events.extract_filename_from_userId(user_id, active_videos)
+            if filename != ""
+              active_videos.delete(filename)
+              inactive_videos << filename
+            end
+          end
+        end
+      else
+        # If the WebcamsOnlyForModerator is false, all previously inactive videos will become active
+        inactive_videos.each do |filename| 
+          active_videos << filename
+        end
+        inactive_videos.clear
+      end
+    end
+
     # Build a webcam EDL
-    def self.create_webcam_edl(events, archive_dir)
+    def self.create_webcam_edl(events, archive_dir, show_moderator_viewpoint)
       recording = events.at_xpath('/recording')
       meeting_id = recording['meeting_id']
       event = events.at_xpath('/recording/event[position()=1]')
@@ -125,57 +177,207 @@ module BigBlueButton
 
       videos = {}
       active_videos = []
+      inactive_videos = []
       video_edl = []
 
       video_edl << {
         :timestamp => 0,
         :areas => { :webcam => [] }
       }
-
-      events.xpath('/recording/event[@module="WEBCAM" or (@module="bbb-webrtc-sfu" and (@eventname="StartWebRTCShareEvent" or @eventname="StopWebRTCShareEvent"))]').each do |event|
-        timestamp = event['timestamp'].to_i - initial_timestamp
-        # Determine the video filename
-        case event['eventname']
-        when 'StartWebcamShareEvent', 'StopWebcamShareEvent'
-          stream = event.at_xpath('stream').text
-          filename = "#{video_dir}/#{stream}.flv"
-        when 'StartWebRTCShareEvent', 'StopWebRTCShareEvent'
-          uri = event.at_xpath('filename').text
-          filename = "#{video_dir}/#{File.basename(uri)}"
+      list_user_info = {}
+      webcamsOnlyForModerator = false
+      if show_moderator_viewpoint
+        events.xpath('/recording/event[@module="WEBCAM" or (@module="bbb-webrtc-sfu" and (@eventname="StartWebRTCShareEvent" or @eventname="StopWebRTCShareEvent"))]').each do |event|
+          timestamp = event['timestamp'].to_i - initial_timestamp
+          # Determine the video filename
+          case event['eventname']
+          when 'StartWebcamShareEvent', 'StopWebcamShareEvent'
+            stream = event.at_xpath('stream').text
+            filename = "#{video_dir}/#{stream}.flv"
+          when 'StartWebRTCShareEvent', 'StopWebRTCShareEvent'
+            uri = event.at_xpath('filename').text
+            filename = "#{video_dir}/#{File.basename(uri)}"
+          end
+          raise "Couldn't determine webcam filename" if filename.nil?
+  
+          # Add the video to the EDL
+          case event['eventname']
+          when 'StartWebcamShareEvent', 'StartWebRTCShareEvent'
+            videos[filename] = { :timestamp => timestamp }
+            active_videos << filename
+  
+            edl_entry = {
+              :timestamp => timestamp,
+              :areas => { :webcam => [] }
+            }
+            active_videos.each do |filename|
+              edl_entry[:areas][:webcam] << {
+                :filename => filename,
+                :timestamp => timestamp - videos[filename][:timestamp]
+              }
+            end
+            video_edl << edl_entry
+          when 'StopWebcamShareEvent', 'StopWebRTCShareEvent'
+            active_videos.delete(filename)
+  
+            edl_entry = {
+              :timestamp => timestamp,
+              :areas => { :webcam => [] }
+            }
+            active_videos.each do |filename|
+              edl_entry[:areas][:webcam] << {
+                :filename => filename,
+                :timestamp => timestamp - videos[filename][:timestamp]
+              }
+            end
+            video_edl << edl_entry
+          end
         end
-        raise "Couldn't determine webcam filename" if filename.nil?
+      else
+        events.xpath('/recording/event[@module="WEBCAM" or (@module="bbb-webrtc-sfu" and (@eventname="StartWebRTCShareEvent" or @eventname="StopWebRTCShareEvent")) or (@module="PARTICIPANT" and (@eventname="ParticipantStatusChangeEvent" or @eventname="ParticipantJoinEvent")) or @eventname="WebcamsOnlyForModeratorEvent" or @eventname="MeetingConfigurationEvent"]').each do |event|
+          timestamp = event['timestamp'].to_i - initial_timestamp
 
-        # Add the video to the EDL
-        case event['eventname']
-        when 'StartWebcamShareEvent', 'StartWebRTCShareEvent'
-          videos[filename] = { :timestamp => timestamp }
-          active_videos << filename
-
-          edl_entry = {
-            :timestamp => timestamp,
-            :areas => { :webcam => [] }
-          }
-          active_videos.each do |filename|
-            edl_entry[:areas][:webcam] << {
-              :filename => filename,
-              :timestamp => timestamp - videos[filename][:timestamp]
-            }
+          # Determine the video filename if event is as the following
+          case event['eventname']
+          when 'StartWebcamShareEvent', 'StopWebcamShareEvent'
+            stream = event.at_xpath('stream').text
+            filename = "#{video_dir}/#{stream}.flv"
+          when 'StartWebRTCShareEvent', 'StopWebRTCShareEvent'
+            uri = event.at_xpath('filename').text
+            filename = "#{video_dir}/#{File.basename(uri)}"
           end
-          video_edl << edl_entry
-        when 'StopWebcamShareEvent', 'StopWebRTCShareEvent'
-          active_videos.delete(filename)
 
-          edl_entry = {
-            :timestamp => timestamp,
-            :areas => { :webcam => [] }
-          }
-          active_videos.each do |filename|
-            edl_entry[:areas][:webcam] << {
-              :filename => filename,
-              :timestamp => timestamp - videos[filename][:timestamp]
+          # Add the video to the EDL
+          case event['eventname']
+          when 'StartWebcamShareEvent', 'StartWebRTCShareEvent'
+            userId = BigBlueButton::Events.get_id_from_filename(filename)
+            is_in_forbidden_period = webcamsOnlyForModerator
+
+            if (!is_in_forbidden_period) || (is_in_forbidden_period && BigBlueButton::Events.is_user_moderator(userId, list_user_info))
+              
+              videos[filename] = { :timestamp => timestamp }
+              active_videos << filename
+
+
+              edl_entry = {
+                :timestamp => timestamp,
+                :areas => { :webcam => [] }
+              }
+              active_videos.each do |filename|
+                edl_entry[:areas][:webcam] << {
+                  :filename => filename,
+                  :timestamp => timestamp - videos[filename][:timestamp],
+                  :user_id => BigBlueButton::Events.get_id_from_filename(filename)
+                }
+              end
+              video_edl << edl_entry
+            elsif is_in_forbidden_period && !BigBlueButton::Events.is_user_moderator(userId, list_user_info)
+              inactive_videos << filename
+              videos[filename] = { :timestamp => timestamp }
+            end
+          when 'StopWebcamShareEvent', 'StopWebRTCShareEvent'
+            userId = BigBlueButton::Events.get_id_from_filename(filename)
+            is_in_forbidden_period = webcamsOnlyForModerator
+
+            if (!is_in_forbidden_period) || (is_in_forbidden_period && BigBlueButton::Events.is_user_moderator(userId, list_user_info))
+              active_videos.delete(filename)
+
+              edl_entry = {
+                :timestamp => timestamp,
+                :areas => { :webcam => [] }
+              }
+              active_videos.each do |filename|
+                edl_entry[:areas][:webcam] << {
+                  :filename => filename,
+                  :timestamp => timestamp - videos[filename][:timestamp],
+                  :user_id => BigBlueButton::Events.get_id_from_filename(filename)
+                }
+              end
+              video_edl << edl_entry
+            elsif is_in_forbidden_period && !BigBlueButton::Events.is_user_moderator(userId, list_user_info)
+              inactive_videos.delete(filename)
+            end
+          when "ParticipantJoinEvent"
+            user_id = event.at_xpath('userId').text
+            list_user_info[user_id] = event.at_xpath('role').text
+
+          when "ParticipantStatusChangeEvent"
+            is_in_forbidden_period = webcamsOnlyForModerator
+            userId = ""
+            filename_to_add = ""
+
+            if event.at_xpath('status').text == "role" 
+              userId = event.at_xpath('userId').text
+
+              if is_in_forbidden_period && event.at_xpath('value').text == "MODERATOR"
+                filename_to_add = BigBlueButton::Events.extract_filename_from_userId(userId, inactive_videos)
+                if filename_to_add != ""
+                  inactive_videos.delete(filename_to_add)
+                  active_videos << filename_to_add
+
+                  edl_entry = {
+                    :timestamp => timestamp,
+                    :areas => { :webcam => [] }
+                  }
+                  active_videos.each do |filename|
+                    edl_entry[:areas][:webcam] << {
+                      :filename => filename,
+                      :timestamp => timestamp - videos[filename][:timestamp],
+                      :user_id => userId
+                    }
+                  end
+                  video_edl << edl_entry
+                end
+              elsif is_in_forbidden_period && event.at_xpath('value').text == "VIEWER"
+                filename_to_add = BigBlueButton::Events.extract_filename_from_userId(userId, active_videos)
+                if filename_to_add != ""
+                  active_videos.delete(filename_to_add)
+                  inactive_videos << filename_to_add
+
+                  edl_entry = {
+                    :timestamp => timestamp,
+                    :areas => { :webcam => [] }
+                  }
+                  active_videos.each do |filename|
+                    edl_entry[:areas][:webcam] << {
+                      :filename => filename,
+                      :timestamp => timestamp - videos[filename][:timestamp],
+                      :user_id => userId
+                    }
+                  end
+                  video_edl << edl_entry
+                end
+              end
+              user_id = event.at_xpath('userId').text
+              list_user_info[user_id] = event.at_xpath('value').text
+            end
+
+          when "MeetingConfigurationEvent"
+            webcamsOnlyForModerator = BigBlueButton::Events.to_boolean(event.at_xpath('webcamsOnlyForModerator').text)
+
+          when "WebcamsOnlyForModeratorEvent"
+            webcamsOnlyElement = event.at_xpath("webcamsOnlyForModerator")
+            # Handle typo in some BigBlueButton versions
+            webcamsOnlyElement = event.at_xpath("webacmsOnlyForModerator") if webcamsOnlyElement.nil?
+
+            webcamsOnlyForModerator = BigBlueButton::Events.to_boolean(webcamsOnlyElement.text)
+
+            # Change active and inactive videos.
+            BigBlueButton::Events.process_webcamsOnlyForModerator(list_user_info, active_videos, inactive_videos, webcamsOnlyForModerator)
+            
+            edl_entry = {
+              :timestamp => timestamp,
+              :areas => { :webcam => [] }
             }
+            active_videos.each do |filename|
+              edl_entry[:areas][:webcam] << {
+                :filename => filename,
+                :timestamp => timestamp - videos[filename][:timestamp],
+                :user_id => userId
+              }
+            end
+            video_edl << edl_entry
           end
-          video_edl << edl_entry
         end
       end
 
@@ -483,6 +685,19 @@ module BigBlueButton
       html.to_html
     end
 
+    # Build a map of users name
+    def self.user_name_map(events)
+      map = {}
+
+      events.xpath('/recording/event[@module="PARTICIPANT" and @eventname="ParticipantJoinEvent"]').each do |event|
+        internal_id = event.at_xpath('./userId')&.content
+        user_name = event.at_xpath('./name')&.content
+        map[internal_id] = user_name
+      end
+
+      map
+    end
+
     # Build a map of internal user IDs to anonymized names. This can be used to anonymize users in
     # chat, cursor overlays, etc.
     def self.anonymous_user_map(events, moderators: false)
@@ -529,8 +744,6 @@ module BigBlueButton
     #   sender: The display name of the sender
     #   message: The chat message, with link cleanup already applied
     #   date: The real time of when the message was sent (if available) as a DateTime
-    #   text_color: The RGB color value of the chat message text as an integer (old BBB versions only)
-    #   avatar_color: The color of the user's avatar (initials) box (newer BBB versions only)
     def self.get_chat_events(events, start_time, end_time, bbb_props = {})
       BigBlueButton.logger.info('Getting chat events')
 
@@ -552,7 +765,7 @@ module BigBlueButton
       anonymize_moderators = bbb_props['anonymize_chat_moderators'] if anonymize_moderators.nil?
       anonymize_moderators = anonymize_moderators.to_s.casecmp?('true')
 
-      user_map = anonymize_senders ? anonymous_user_map(events, moderators: anonymize_moderators) : {}
+      user_map = anonymize_senders ? anonymous_user_map(events, moderators: anonymize_moderators) : user_name_map(events);
 
       chats = []
       events.xpath('/recording/event').each do |event|
@@ -565,22 +778,19 @@ module BigBlueButton
 
           date = event.at_xpath('./date')&.content
           date = DateTime.iso8601(date) unless date.nil?
+          sender = event.at_xpath('./sender')&.content
           sender_id = event.at_xpath('./senderId')&.content
-          color = event.at_xpath('./color')&.content
-          if color&.start_with?('#')
-            avatar_color = color
-          else
-            text_color = color.to_i
-          end
+          senderRole = event.at_xpath('./senderRole')&.content
+          chatEmphasizedText = event.at_xpath('./chatEmphasizedText')&.content
 
           chats << {
             in: timestamp - offset,
             out: nil,
             sender_id: sender_id,
-            sender: user_map.fetch(sender_id) { event.at_xpath('./sender').content },
+            sender: sender_id.nil? ? sender : user_map.fetch(sender_id),
+            senderRole: senderRole,
+            chatEmphasizedText: chatEmphasizedText,
             message: linkify(event.at_xpath('./message').content.strip),
-            avatar_color: avatar_color,
-            text_color: text_color,
             date: date,
           }
         when %w[CHAT ClearPublicChatEvent]
@@ -608,7 +818,7 @@ module BigBlueButton
     def self.get_record_status_events(events_xml)
       BigBlueButton.logger.info "Getting record status events"
       rec_events = []
-      events_xml.xpath("//event[@eventname='RecordStatusEvent']").each do |event|
+      events_xml.xpath("recording/event[@eventname='RecordStatusEvent']").each do |event|
         s = { :timestamp => event['timestamp'].to_i }
         rec_events << s
       end
@@ -618,14 +828,14 @@ module BigBlueButton
     def self.get_external_video_events(events_xml)
       BigBlueButton.logger.info "Getting external video events"
       external_videos_events = []
-      events_xml.xpath("//event[@eventname='StartExternalVideoRecordEvent']").each do |event|
+      events_xml.xpath("recording/event[@eventname='StartExternalVideoRecordEvent']").each do |event|
         s = {
           :timestamp => event['timestamp'].to_i,
           :external_video_url => event.at_xpath("externalVideoUrl").text
         }
         external_videos_events << s
       end
-      events_xml.xpath("//event[@eventname='StopExternalVideoRecordEvent']").each do |event|
+      events_xml.xpath("recording/event[@eventname='StopExternalVideoRecordEvent']").each do |event|
         s = { :timestamp => event['timestamp'].to_i }
         external_videos_events << s
       end

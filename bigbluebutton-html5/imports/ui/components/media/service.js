@@ -1,11 +1,11 @@
 import Presentations from '/imports/api/presentations';
 import { isVideoBroadcasting } from '/imports/ui/components/screenshare/service';
 import { getVideoUrl } from '/imports/ui/components/external-video-player/service';
-import Auth from '/imports/ui/services/auth';
-import Users from '/imports/api/users';
 import Settings from '/imports/ui/services/settings';
 import getFromUserSettings from '/imports/ui/services/users-settings';
+import { isExternalVideoEnabled, isScreenSharingEnabled } from '/imports/ui/services/features';
 import { ACTIONS } from '../layout/enums';
+import UserService from '/imports/ui/components/user-list/service';
 
 const LAYOUT_CONFIG = Meteor.settings.public.layout;
 const KURENTO_CONFIG = Meteor.settings.public.kurento;
@@ -21,22 +21,17 @@ const getPresentationInfo = () => {
   };
 };
 
-const isUserPresenter = () => Users.findOne({ userId: Auth.userID },
-  { fields: { presenter: 1 } }).presenter;
-
 function shouldShowWhiteboard() {
   return true;
 }
 
 function shouldShowScreenshare() {
   const { viewScreenshare } = Settings.dataSaving;
-  const enableScreensharing = getFromUserSettings('bbb_enable_screen_sharing', KURENTO_CONFIG.enableScreensharing);
-  return enableScreensharing && viewScreenshare && isVideoBroadcasting();
+  return isScreenSharingEnabled() && (viewScreenshare || UserService.isUserPresenter()) && isVideoBroadcasting();
 }
 
 function shouldShowExternalVideo() {
-  const { enabled: enableExternalVideo } = Meteor.settings.public.externalVideoPlayer;
-  return enableExternalVideo && getVideoUrl();
+  return isExternalVideoEnabled() && getVideoUrl();
 }
 
 function shouldShowOverlay() {
@@ -51,7 +46,7 @@ const swapLayout = {
 const setSwapLayout = (layoutContextDispatch) => {
   const hidePresentation = getFromUserSettings('bbb_hide_presentation', LAYOUT_CONFIG.hidePresentation);
 
-  swapLayout.value = getFromUserSettings('bbb_auto_swap_layout', LAYOUT_CONFIG.autoSwapLayout);
+  swapLayout.value = getFromUserSettings('bbb_auto_swap_layout', LAYOUT_CONFIG.autoSwapLayout) || hidePresentation;
   swapLayout.tracker.changed();
 
   if (!hidePresentation) {
@@ -78,7 +73,7 @@ export const shouldEnableSwapLayout = () => {
     return true;
   }
   return !shouldShowScreenshare() && !shouldShowExternalVideo();
-}
+};
 
 export const getSwapLayout = () => {
   swapLayout.tracker.depend();
@@ -91,7 +86,6 @@ export default {
   shouldShowScreenshare,
   shouldShowExternalVideo,
   shouldShowOverlay,
-  isUserPresenter,
   isVideoBroadcasting,
   toggleSwapLayout,
   shouldEnableSwapLayout,

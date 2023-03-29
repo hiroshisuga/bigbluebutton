@@ -29,6 +29,10 @@ import java.text.DecimalFormatSymbols;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -42,6 +46,8 @@ import org.apache.http.util.EntityUtils;
 import org.bigbluebutton.api.domain.BreakoutRoomsParams;
 import org.bigbluebutton.api.domain.LockSettingsParams;
 import org.bigbluebutton.api.domain.Meeting;
+import org.bigbluebutton.api.domain.Group;
+import org.bigbluebutton.api.service.ServiceUtils;
 import org.bigbluebutton.api.util.ParamsUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,6 +67,8 @@ public class ParamsProcessorUtil {
     private String apiVersion;
     private boolean serviceEnabled = false;
     private String securitySalt;
+    private String supportedChecksumAlgorithms;
+    private String checksumHash;
     private int defaultMaxUsers = 20;
     private String defaultWelcomeMessage;
     private String defaultWelcomeMessageFooter;
@@ -72,7 +80,7 @@ public class ParamsProcessorUtil {
     private int defaultNumDigitsForTelVoice;
     private String defaultHTML5ClientUrl;
     private String defaultGuestWaitURL;
-    private Boolean allowRequestsWithoutSession;
+    private Boolean allowRequestsWithoutSession = false;
     private Boolean useDefaultAvatar = false;
     private String defaultAvatarURL;
     private String defaultGuestPolicy;
@@ -82,17 +90,20 @@ public class ParamsProcessorUtil {
     private boolean disableRecordingDefault;
     private boolean autoStartRecording;
     private boolean allowStartStopRecording;
-    private boolean learningDashboardEnabled;
+    private boolean learningDashboardEnabled = true;
     private int learningDashboardCleanupDelayInMinutes;
     private boolean webcamsOnlyForModerator;
+    private Integer defaultMeetingCameraCap = 0;
+    private Integer defaultUserCameraCap = 0;
     private boolean defaultMuteOnStart = false;
     private boolean defaultAllowModsToUnmuteUsers = false;
     private boolean defaultAllowModsToEjectCameras = false;
+    private String defaultDisabledFeatures;
     private boolean defaultKeepEvents = false;
     private Boolean useDefaultLogo;
     private String defaultLogoURL;
 
-		private boolean defaultBreakoutRoomsEnabled;
+		private boolean defaultBreakoutRoomsEnabled = true;
 		private boolean defaultBreakoutRoomsRecord;
 		private boolean defaultbreakoutRoomsPrivateChatEnabled;
 
@@ -100,20 +111,21 @@ public class ParamsProcessorUtil {
 		private boolean defaultLockSettingsDisableMic;
 		private boolean defaultLockSettingsDisablePrivateChat;
 		private boolean defaultLockSettingsDisablePublicChat;
-		private boolean defaultLockSettingsDisableNote;
+		private boolean defaultLockSettingsDisableNotes;
 		private boolean defaultLockSettingsHideUserList;
 	        private boolean defaultLockSettingsHideAnnotations;
 		private boolean defaultLockSettingsLockedLayout;
 		private boolean defaultLockSettingsLockOnJoin;
 		private boolean defaultLockSettingsLockOnJoinConfigurable;
+		private boolean defaultLockSettingsHideViewersCursor;
 
     private Long maxPresentationFileUpload = 30000000L; // 30MB
     private Long maxUploadSize = 900000000L; // 900MB - but probably doesn't matter
     private String uploadDir;
 
     private Integer clientLogoutTimerInMinutes = 0;
-  	private Integer meetingExpireIfNoUserJoinedInMinutes = 5;
-  	private Integer meetingExpireWhenLastUserLeftInMinutes = 1;
+    private Integer defaultMeetingExpireIfNoUserJoinedInMinutes = 5;
+    private Integer defaultMeetingExpireWhenLastUserLeftInMinutes = 1;
   	private Integer userInactivityInspectTimerInMinutes = 120;
   	private Integer userInactivityThresholdInMinutes = 30;
     private Integer userActivitySignResponseDelayInMinutes = 5;
@@ -253,12 +265,6 @@ public class ParamsProcessorUtil {
     }
 
 		private BreakoutRoomsParams processBreakoutRoomsParams(Map<String, String> params) {
-			Boolean breakoutRoomsEnabled = defaultBreakoutRoomsEnabled;
-			String breakoutRoomsEnabledParam = params.get(ApiParams.BREAKOUT_ROOMS_ENABLED);
-			if (!StringUtils.isEmpty(breakoutRoomsEnabledParam)) {
-				breakoutRoomsEnabled = Boolean.parseBoolean(breakoutRoomsEnabledParam);
-			}
-
 			Boolean breakoutRoomsRecord = defaultBreakoutRoomsRecord;
 			String breakoutRoomsRecordParam = params.get(ApiParams.BREAKOUT_ROOMS_RECORD);
 			if (!StringUtils.isEmpty(breakoutRoomsRecordParam)) {
@@ -271,9 +277,7 @@ public class ParamsProcessorUtil {
 				breakoutRoomsPrivateChatEnabled = Boolean.parseBoolean(breakoutRoomsPrivateChatEnabledParam);
 			}
 
-			return new BreakoutRoomsParams(breakoutRoomsEnabled,
-							breakoutRoomsRecord,
-							breakoutRoomsPrivateChatEnabled);
+			return new BreakoutRoomsParams(breakoutRoomsRecord, breakoutRoomsPrivateChatEnabled);
 		}
 
 		private LockSettingsParams processLockSettingsParams(Map<String, String> params) {
@@ -301,10 +305,17 @@ public class ParamsProcessorUtil {
 				lockSettingsDisablePublicChat = Boolean.parseBoolean(lockSettingsDisablePublicChatParam);
 			}
 
-			Boolean lockSettingsDisableNote = defaultLockSettingsDisableNote;
-			String lockSettingsDisableNoteParam = params.get(ApiParams.LOCK_SETTINGS_DISABLE_NOTE);
-			if (!StringUtils.isEmpty(lockSettingsDisableNoteParam)) {
-				lockSettingsDisableNote = Boolean.parseBoolean(lockSettingsDisableNoteParam);
+			Boolean lockSettingsDisableNotes = defaultLockSettingsDisableNotes;
+			String lockSettingsDisableNotesParam = params.get(ApiParams.LOCK_SETTINGS_DISABLE_NOTES);
+			if (!StringUtils.isEmpty(lockSettingsDisableNotesParam)) {
+				lockSettingsDisableNotes = Boolean.parseBoolean(lockSettingsDisableNotesParam);
+			} else {
+				// To be removed after deprecation period
+				lockSettingsDisableNotesParam = params.get(ApiParams.DEPRECATED_LOCK_SETTINGS_DISABLE_NOTES);
+				if (!StringUtils.isEmpty(lockSettingsDisableNotesParam)) {
+					log.warn("[DEPRECATION] use lockSettingsDisableNotes instead of lockSettingsDisableNote");
+					lockSettingsDisableNotes = Boolean.parseBoolean(lockSettingsDisableNotesParam);
+				}
 			}
 
 			Boolean lockSettingsHideUserList = defaultLockSettingsHideUserList;
@@ -337,17 +348,59 @@ public class ParamsProcessorUtil {
 				lockSettingsLockOnJoinConfigurable = Boolean.parseBoolean(lockSettingsLockOnJoinConfigurableParam);
 			}
 
+			Boolean lockSettingsHideViewersCursor = defaultLockSettingsHideViewersCursor;
+			String lockSettingsHideViewersCursorParam = params.get(ApiParams.LOCK_SETTINGS_HIDE_VIEWERS_CURSOR);
+			if (!StringUtils.isEmpty(lockSettingsHideViewersCursorParam)) {
+                lockSettingsHideViewersCursor = Boolean.parseBoolean(lockSettingsHideViewersCursorParam);
+			}
+
 			return new LockSettingsParams(lockSettingsDisableCam,
 							lockSettingsDisableMic,
 							lockSettingsDisablePrivateChat,
 							lockSettingsDisablePublicChat,
-							lockSettingsDisableNote,
+							lockSettingsDisableNotes,
 							lockSettingsHideUserList,
 						        lockSettingsHideAnnotations,
 							lockSettingsLockedLayout,
 							lockSettingsLockOnJoin,
-							lockSettingsLockOnJoinConfigurable);
+							lockSettingsLockOnJoinConfigurable,
+                            lockSettingsHideViewersCursor);
 		}
+
+    private ArrayList<Group> processGroupsParams(Map<String, String> params) {
+        ArrayList<Group> groups = new ArrayList<Group>();
+
+        String groupsParam = params.get(ApiParams.GROUPS);
+        if (!StringUtils.isEmpty(groupsParam)) {
+            JsonElement groupParamsJson = new Gson().fromJson(groupsParam, JsonElement.class);
+
+            if(groupParamsJson != null && groupParamsJson.isJsonArray()) {
+                JsonArray groupsJson = groupParamsJson.getAsJsonArray();
+                for (JsonElement groupJson : groupsJson) {
+                    if(groupJson.isJsonObject()) {
+                        JsonObject groupJsonObj = groupJson.getAsJsonObject();
+                        if(groupJsonObj.has("id")) {
+                            String groupId = groupJsonObj.get("id").getAsString();
+                            String groupName = "";
+                            if(groupJsonObj.has("name")) {
+                                groupName = groupJsonObj.get("name").getAsString();
+                            }
+
+                            Vector<String> groupUsers = new Vector<>();
+                            if(groupJsonObj.has("roster") && groupJsonObj.get("roster").isJsonArray()) {
+                                for (JsonElement userExtId : groupJsonObj.get("roster").getAsJsonArray()) {
+                                    groupUsers.add(userExtId.getAsString());
+                                }
+                            }
+                            groups.add(new Group(groupId,groupName,groupUsers));
+                        }
+                    }
+                }
+            }
+        }
+
+        return groups;
+    }
 
     public Meeting processCreateParams(Map<String, String> params) {
 
@@ -433,23 +486,42 @@ public class ParamsProcessorUtil {
             }
         }
 
-        boolean learningDashboardEn = false;
+        // Check Disabled Features
+        ArrayList<String> listOfDisabledFeatures=new ArrayList(Arrays.asList(defaultDisabledFeatures.split(",")));
+        if (!StringUtils.isEmpty(params.get(ApiParams.DISABLED_FEATURES))) {
+            String disabledFeaturesParam = params.get(ApiParams.DISABLED_FEATURES);
+            listOfDisabledFeatures.addAll(Arrays.asList(disabledFeaturesParam.split(",")));
+        }
+        listOfDisabledFeatures.removeAll(Arrays.asList("", null));
+        listOfDisabledFeatures.replaceAll(String::trim);
+        listOfDisabledFeatures = new ArrayList<>(new HashSet<>(listOfDisabledFeatures));
+
+        // Check if VirtualBackgrounds is disabled
+        if (!StringUtils.isEmpty(params.get(ApiParams.VIRTUAL_BACKGROUNDS_DISABLED))) {
+            boolean virtualBackgroundsDisabled = Boolean.valueOf(params.get(ApiParams.VIRTUAL_BACKGROUNDS_DISABLED));
+            if(virtualBackgroundsDisabled == true && !listOfDisabledFeatures.contains("virtualBackgrounds")) {
+                log.warn("[DEPRECATION] use disabledFeatures=virtualBackgrounds instead of virtualBackgroundsDisabled=true");
+                listOfDisabledFeatures.add("virtualBackgrounds");
+            }
+        }
+
+        boolean learningDashboardEn = learningDashboardEnabled;
+        if (!StringUtils.isEmpty(params.get(ApiParams.LEARNING_DASHBOARD_ENABLED))) {
+            try {
+                learningDashboardEn = Boolean.parseBoolean(params.get(ApiParams.LEARNING_DASHBOARD_ENABLED));
+            } catch (Exception ex) {
+                log.warn("Invalid param [learningDashboardEnabled] for meeting=[{}]",internalMeetingId);
+            }
+        }
+        if(learningDashboardEn == false && !listOfDisabledFeatures.contains("learningDashboard")) {
+            log.warn("[DEPRECATION] use disabledFeatures=learningDashboard instead of learningDashboardEnabled=false");
+            listOfDisabledFeatures.add("learningDashboard");
+        }
+
         int learningDashboardCleanupMins = 0;
 
         // Learning Dashboard not allowed for Breakout Rooms
         if(!isBreakout) {
-            learningDashboardEn = learningDashboardEnabled;
-            if (!StringUtils.isEmpty(params.get(ApiParams.LEARNING_DASHBOARD_ENABLED))) {
-                try {
-                    learningDashboardEn = Boolean.parseBoolean(params
-                            .get(ApiParams.LEARNING_DASHBOARD_ENABLED));
-                } catch (Exception ex) {
-                    log.warn(
-                            "Invalid param [learningDashboardEnabled] for meeting=[{}]",
-                            internalMeetingId);
-                }
-            }
-
             learningDashboardCleanupMins = learningDashboardCleanupDelayInMinutes;
             if (!StringUtils.isEmpty(params.get(ApiParams.LEARNING_DASHBOARD_CLEANUP_DELAY_IN_MINUTES))) {
                 try {
@@ -463,10 +535,9 @@ public class ParamsProcessorUtil {
             }
         }
 
-
         //Generate token to access Activity Report
         String learningDashboardAccessToken = "";
-        if(learningDashboardEn == true) {
+        if(listOfDisabledFeatures.contains("learningDashboard") == false) {
             learningDashboardAccessToken = RandomStringUtils.randomAlphanumeric(12).toLowerCase();
         }
 
@@ -479,6 +550,44 @@ public class ParamsProcessorUtil {
                 log.warn(
                         "Invalid param [webcamsOnlyForModerator] for meeting=[{}]",
                         internalMeetingId);
+            }
+        }
+
+        Integer meetingCameraCap = defaultMeetingCameraCap;
+        if (!StringUtils.isEmpty(params.get(ApiParams.MEETING_CAMERA_CAP))) {
+            try {
+                Integer meetingCameraCapParam = Integer.parseInt(params.get(ApiParams.MEETING_CAMERA_CAP));
+                if (meetingCameraCapParam >= 0) meetingCameraCap = meetingCameraCapParam;
+            } catch (NumberFormatException e) {
+                log.warn("Invalid param [meetingCameraCap] for meeting=[{}]", internalMeetingId);
+            }
+        }
+
+        Integer userCameraCap = defaultUserCameraCap;
+        if (!StringUtils.isEmpty(params.get(ApiParams.USER_CAMERA_CAP))) {
+            try {
+                Integer userCameraCapParam = Integer.parseInt(params.get(ApiParams.USER_CAMERA_CAP));
+                if (userCameraCapParam >= 0) userCameraCap = userCameraCapParam;
+            } catch (NumberFormatException e) {
+                log.warn("Invalid param [userCameraCap] for meeting=[{}]", internalMeetingId);
+            }
+        }
+
+        Integer meetingExpireIfNoUserJoinedInMinutes = defaultMeetingExpireIfNoUserJoinedInMinutes;
+        if (!StringUtils.isEmpty(params.get(ApiParams.MEETING_EXPIRE_IF_NO_USER_JOINED_IN_MINUTES))) {
+            try {
+                meetingExpireIfNoUserJoinedInMinutes = Integer.parseInt(params.get(ApiParams.MEETING_EXPIRE_IF_NO_USER_JOINED_IN_MINUTES));
+            } catch (NumberFormatException e) {
+                log.warn("Invalid param [meetingExpireIfNoUserJoinedInMinutes] for meeting=[{}]", internalMeetingId);
+            }
+        }
+
+        Integer meetingExpireWhenLastUserLeftInMinutes = defaultMeetingExpireWhenLastUserLeftInMinutes;
+        if (!StringUtils.isEmpty(params.get(ApiParams.MEETING_EXPIRE_WHEN_LAST_USER_LEFT_IN_MINUTES))) {
+            try {
+                meetingExpireWhenLastUserLeftInMinutes = Integer.parseInt(params.get(ApiParams.MEETING_EXPIRE_WHEN_LAST_USER_LEFT_IN_MINUTES));
+            } catch (NumberFormatException e) {
+                log.warn("Invalid param [meetingExpireWhenLastUserLeftInMinutes] for meeting=[{}]", internalMeetingId);
             }
         }
 
@@ -507,8 +616,20 @@ public class ParamsProcessorUtil {
 
         String meetingLayout = defaultMeetingLayout;
 
+        ArrayList<Group> groups = processGroupsParams(params);
+
         if (!StringUtils.isEmpty(params.get(ApiParams.MEETING_LAYOUT))) {
             meetingLayout = params.get(ApiParams.MEETING_LAYOUT);
+        }
+
+        Boolean breakoutRoomsEnabled = defaultBreakoutRoomsEnabled;
+        String breakoutRoomsEnabledParam = params.get(ApiParams.BREAKOUT_ROOMS_ENABLED);
+        if (!StringUtils.isEmpty(breakoutRoomsEnabledParam)) {
+            breakoutRoomsEnabled = Boolean.parseBoolean(breakoutRoomsEnabledParam);
+        }
+        if(breakoutRoomsEnabled == false && !listOfDisabledFeatures.contains("breakoutRooms")) {
+            log.warn("[DEPRECATION] use disabledFeatures=breakoutRooms instead of breakoutRoomsEnabled=false");
+            listOfDisabledFeatures.add("breakoutRooms");
         }
 
         BreakoutRoomsParams breakoutParams = processBreakoutRoomsParams(params);
@@ -530,7 +651,7 @@ public class ParamsProcessorUtil {
         String parentMeetingId = "";
         if (isBreakout) {
             internalMeetingId = params.get(ApiParams.MEETING_ID);
-            parentMeetingId = params.get(ApiParams.PARENT_MEETING_ID);
+            parentMeetingId = ServiceUtils.findMeetingFromMeetingID(params.get(ApiParams.PARENT_MEETING_ID)).getInternalId();
             // We rebuild the the external meeting using the has of the parent
             // meeting, the shared timestamp and the sequence number
             String timeStamp = StringUtils.substringAfter(internalMeetingId, "-");
@@ -557,19 +678,23 @@ public class ParamsProcessorUtil {
                 .withAutoStartRecording(autoStartRec)
                 .withAllowStartStopRecording(allowStartStoptRec)
                 .withWebcamsOnlyForModerator(webcamsOnlyForMod)
+                .withMeetingCameraCap(meetingCameraCap)
+                .withUserCameraCap(userCameraCap)
                 .withMetadata(meetingInfo)
                 .withWelcomeMessageTemplate(welcomeMessageTemplate)
                 .withWelcomeMessage(welcomeMessage).isBreakout(isBreakout)
                 .withGuestPolicy(guestPolicy)
                 .withAuthenticatedGuest(authenticatedGuest)
+                .withAllowRequestsWithoutSession(allowRequestsWithoutSession)
                 .withMeetingLayout(meetingLayout)
 				.withBreakoutRoomsParams(breakoutParams)
 				.withLockSettingsParams(lockSettingsParams)
 				.withAllowDuplicateExtUserid(defaultAllowDuplicateExtUserid)
                 .withHTML5InstanceId(html5InstanceId)
-                .withLearningDashboardEnabled(learningDashboardEn)
                 .withLearningDashboardCleanupDelayInMinutes(learningDashboardCleanupMins)
                 .withLearningDashboardAccessToken(learningDashboardAccessToken)
+                .withGroups(groups)
+                .withDisabledFeatures(listOfDisabledFeatures)
                 .build();
 
         if (!StringUtils.isEmpty(params.get(ApiParams.MODERATOR_ONLY_MESSAGE))) {
@@ -633,6 +758,10 @@ public class ParamsProcessorUtil {
             allowModsToUnmuteUsers = Boolean.parseBoolean(params.get(ApiParams.ALLOW_MODS_TO_UNMUTE_USERS));
         }
         meeting.setAllowModsToUnmuteUsers(allowModsToUnmuteUsers);
+
+        if (!StringUtils.isEmpty(params.get(ApiParams.ALLOW_REQUESTS_WITHOUT_SESSION))) {
+            meeting.setAllowRequestsWithoutSession(Boolean.parseBoolean(params.get(ApiParams.ALLOW_REQUESTS_WITHOUT_SESSION)));
+        }
 
     Boolean allowModsToEjectCameras = defaultAllowModsToEjectCameras;
     if (!StringUtils.isEmpty(params.get(ApiParams.ALLOW_MODS_TO_EJECT_CAMERAS))) {
@@ -701,11 +830,11 @@ public class ParamsProcessorUtil {
 		return DigestUtils.sha1Hex(extMeetingId);
 	}
 
-	public String processPassword(String pass) {
-		return StringUtils.isEmpty(pass) ? RandomStringUtils.randomAlphanumeric(8) : pass;
-	}
+    public String processPassword(String pass) {
+        return StringUtils.isEmpty(pass) ? RandomStringUtils.randomAlphanumeric(8) : pass;
+    }
 
-	public boolean hasChecksumAndQueryString(String checksum, String queryString) {
+    public boolean hasChecksumAndQueryString(String checksum, String queryString) {
 		return (! StringUtils.isEmpty(checksum) && StringUtils.isEmpty(queryString));
 	}
 
@@ -829,11 +958,39 @@ public class ParamsProcessorUtil {
 		log.info("CHECKSUM={} length={}", checksum, checksum.length());
 
 		String data = apiCall + queryString + securitySalt;
-		String cs = DigestUtils.sha1Hex(data);
-		if (checksum.length() == 64) {
-			cs = DigestUtils.sha256Hex(data);
-			log.info("SHA256 {}", cs);
-		}
+
+		int checksumLength = checksum.length();
+        String cs = null;
+
+        switch(checksumLength) {
+            case 40:
+                if(supportedChecksumAlgorithms.contains("sha1")) {
+                    cs = DigestUtils.sha1Hex(data);
+                    log.info("SHA1 {}", cs);
+                }
+                break;
+            case 64:
+                if(supportedChecksumAlgorithms.contains("sha256")) {
+                    cs = DigestUtils.sha256Hex(data);
+                    log.info("SHA256 {}", cs);
+                }
+                break;
+            case 96:
+                if(supportedChecksumAlgorithms.contains("sha384")) {
+                    cs = DigestUtils.sha384Hex(data);
+                    log.info("SHA384 {}", cs);
+                }
+                break;
+            case 128:
+                if(supportedChecksumAlgorithms.contains("sha512")) {
+                    cs = DigestUtils.sha512Hex(data);
+                    log.info("SHA512 {}", cs);
+                }
+                break;
+            default:
+                log.info("No algorithm could be found that matches the provided checksum length");
+        }
+
 		if (cs == null || !cs.equals(checksum)) {
 			log.info("query string after checksum removed: [{}]", queryString);
 			log.info("checksumError: query string checksum failed. our: [{}], client: [{}]", cs, checksum);
@@ -919,6 +1076,10 @@ public class ParamsProcessorUtil {
 		this.securitySalt = securitySalt;
 	}
 
+    public void setSupportedChecksumAlgorithms(String supportedChecksumAlgorithms) { this.supportedChecksumAlgorithms = supportedChecksumAlgorithms; }
+
+	public void setChecksumHash(String checksumHash) { this.checksumHash = checksumHash; }
+
 	public void setDefaultMaxUsers(int defaultMaxUsers) {
 		this.defaultMaxUsers = defaultMaxUsers;
 	}
@@ -995,12 +1156,20 @@ public class ParamsProcessorUtil {
         this.learningDashboardEnabled = learningDashboardEnabled;
     }
 
-    public void setlearningDashboardCleanupDelayInMinutes(int learningDashboardCleanupDelayInMinutes) {
+    public void setLearningDashboardCleanupDelayInMinutes(int learningDashboardCleanupDelayInMinutes) {
         this.learningDashboardCleanupDelayInMinutes = learningDashboardCleanupDelayInMinutes;
     }
 
     public void setWebcamsOnlyForModerator(boolean webcamsOnlyForModerator) {
         this.webcamsOnlyForModerator = webcamsOnlyForModerator;
+    }
+
+    public void setDefaultMeetingCameraCap(Integer meetingCameraCap) {
+        this.defaultMeetingCameraCap = meetingCameraCap;
+    }
+
+    public void setDefaultUserCameraCap(Integer userCameraCap) {
+        this.defaultUserCameraCap = userCameraCap;
     }
 
 	public void setUseDefaultAvatar(Boolean value) {
@@ -1028,15 +1197,11 @@ public class ParamsProcessorUtil {
 	}
 
 	public void setMeetingExpireWhenLastUserLeftInMinutes(Integer value) {
-		meetingExpireWhenLastUserLeftInMinutes = value;
-	}
-
-	public Integer getmeetingExpireWhenLastUserLeftInMinutes() {
-		return meetingExpireWhenLastUserLeftInMinutes;
+        defaultMeetingExpireWhenLastUserLeftInMinutes = value;
 	}
 
 	public void setMeetingExpireIfNoUserJoinedInMinutes(Integer value) {
-		meetingExpireIfNoUserJoinedInMinutes = value;
+        defaultMeetingExpireIfNoUserJoinedInMinutes = value;
 	}
 
 	public Integer getUserInactivityInspectTimerInMinutes() {
@@ -1198,8 +1363,8 @@ public class ParamsProcessorUtil {
 		this.defaultLockSettingsDisablePublicChat = lockSettingsDisablePublicChat;
 	}
 
-	public void setLockSettingsDisableNote(Boolean lockSettingsDisableNote) {
-		this.defaultLockSettingsDisableNote = lockSettingsDisableNote;
+	public void setLockSettingsDisableNotes(Boolean lockSettingsDisableNotes) {
+		this.defaultLockSettingsDisableNotes = lockSettingsDisableNotes;
 	}
 
 	public void setLockSettingsHideUserList(Boolean lockSettingsHideUserList) {
@@ -1222,6 +1387,10 @@ public class ParamsProcessorUtil {
 		this.defaultLockSettingsLockOnJoinConfigurable = lockSettingsLockOnJoinConfigurable;
 	}
 
+	public void setLockSettingsHideViewersCursor(Boolean lockSettingsHideViewersCursor) {
+		this.defaultLockSettingsHideViewersCursor = lockSettingsHideViewersCursor;
+	}
+
 	public void setAllowDuplicateExtUserid(Boolean allow) {
 		this.defaultAllowDuplicateExtUserid = allow;
 	}
@@ -1233,6 +1402,10 @@ public class ParamsProcessorUtil {
   public void setEndWhenNoModeratorDelayInMinutes(Integer value) {
       this.defaultEndWhenNoModeratorDelayInMinutes = value;
   }
+
+  public void setDisabledFeatures(String disabledFeatures) {
+        this.defaultDisabledFeatures = disabledFeatures;
+    }
 
   public void setBbbVersion(String version) {
       this.bbbVersion = this.allowRevealOfBBBVersion ? version : "";

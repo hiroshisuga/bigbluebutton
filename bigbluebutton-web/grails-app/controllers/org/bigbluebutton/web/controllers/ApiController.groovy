@@ -31,6 +31,7 @@ import org.bigbluebutton.api.domain.GuestPolicy
 import org.bigbluebutton.api.domain.Meeting
 import org.bigbluebutton.api.domain.UserSession
 import org.bigbluebutton.api.service.ValidationService
+import org.bigbluebutton.api.service.ServiceUtils
 import org.bigbluebutton.api.util.ParamsUtil
 import org.bigbluebutton.api.util.ResponseBuilder
 import org.bigbluebutton.presentation.PresentationUrlDownloadService
@@ -146,7 +147,7 @@ class ApiController {
 
     if (meetingService.createMeeting(newMeeting)) {
       // See if the request came with pre-uploading of presentation.
-      uploadDocuments(newMeeting);  //
+      uploadDocuments(newMeeting, false);  //
       respondWithConference(newMeeting, null, null)
     } else {
       // Translate the external meeting id into an internal meeting id.
@@ -229,16 +230,9 @@ class ApiController {
 
     String fullName = ParamsUtil.stripControlChars(params.fullName)
 
-    String externalMeetingId = params.meetingID
-
     String attPW = params.password
 
-    // Everything is good so far. Translate the external meeting id to an internal meeting id. If
-    // we can't find the meeting, complain.
-    String internalMeetingId = paramsProcessorUtil.convertToInternalMeetingId(externalMeetingId);
-
-    log.info("Retrieving meeting ${internalMeetingId}")
-    Meeting meeting = meetingService.getMeeting(internalMeetingId);
+    Meeting meeting = ServiceUtils.findMeetingFromMeetingID(params.meetingID);
 
     // the createTime mismatch with meeting's createTime, complain
     // In the future, the createTime param will be required
@@ -264,14 +258,56 @@ class ApiController {
 
     // Now determine if this user is a moderator or a viewer.
     String role = null;
-    if (meeting.getModeratorPassword().equals(attPW)) {
-      role = Meeting.ROLE_MODERATOR
-    } else if (meeting.getViewerPassword().equals(attPW)) {
-      role = Meeting.ROLE_ATTENDEE
-    }
 
+    // First Case: send a valid role
     if (!StringUtils.isEmpty(params.role) && roles.containsKey(params.role.toLowerCase())) {
-        role = roles.get(params.role.toLowerCase());
+      role = roles.get(params.role.toLowerCase());
+
+    // Second case: role is not present or valid BUT there is password
+    } else if (attPW != null && !attPW.isEmpty()){
+      // Check if the meeting has passwords
+      if ((meeting.getModeratorPassword() != null && !meeting.getModeratorPassword().isEmpty())
+              && (meeting.getViewerPassword() != null && !meeting.getViewerPassword().isEmpty())){
+        // Check which role does the user belong
+        if (meeting.getModeratorPassword().equals(attPW)) {
+          role = Meeting.ROLE_MODERATOR
+        } else if (meeting.getViewerPassword().equals(attPW)) {
+          role = Meeting.ROLE_ATTENDEE
+        } else {
+          log.debug("Password does not match any of the registered ones");
+          response.addHeader("Cache-Control", "no-cache")
+          withFormat {
+            xml {
+              render(text: responseBuilder.buildError("Params required", "You must enter a valid password",
+                      RESP_CODE_FAILED), contentType: "text/xml")
+            }
+          }
+          return
+        }
+      // In this case, the meeting doesn't have any password registered and there is no role param
+      } else {
+        log.debug("This meeting doesn't have any password");
+        response.addHeader("Cache-Control", "no-cache")
+        withFormat {
+          xml {
+            render(text: responseBuilder.buildError("Params required", "You must send the 'role' parameter, since " +
+                    "this meeting doesn't have any password.", RESP_CODE_FAILED), contentType: "text/xml")
+          }
+        }
+        return
+      }
+
+    // Third case: No valid role + no valid password
+    } else {
+      log.debug("No matching params encountered");
+      response.addHeader("Cache-Control", "no-cache")
+      withFormat {
+        xml {
+          render(text: responseBuilder.buildError("Params required", "You must either send the valid role of the user, or " +
+                  "the password, sould the meeting has one.", RESP_CODE_FAILED), contentType: "text/xml")
+        }
+      }
+      return
     }
 
     // We preprend "w_" to our internal meeting Id to indicate that this is a web user.
@@ -293,7 +329,7 @@ class ApiController {
     }
 
     //Return a Map with the user custom data
-    Map<String, String> userCustomData = paramsProcessorUtil.getUserCustomData(params);
+    Map<String, String> userCustomData = meetingService.getUserCustomData(meeting, externUserID, params);
 
     //Currently, it's associated with the externalUserID
     if (userCustomData.size() > 0)
@@ -322,6 +358,7 @@ class ApiController {
     us.guestStatus = guestStatusVal
     us.logoutUrl = meeting.getLogoutUrl()
     us.defaultLayout = meeting.getMeetingLayout()
+    us.leftGuestLobby = false
 
     if (!StringUtils.isEmpty(params.defaultLayout)) {
       us.defaultLayout = params.defaultLayout;
@@ -366,7 +403,8 @@ class ApiController {
         us.guest,
         us.authed,
         guestStatusVal,
-        us.excludeFromDashboard
+        us.excludeFromDashboard,
+        us.leftGuestLobby
     )
 
     session.setMaxInactiveInterval(SESSION_TIMEOUT);
@@ -467,13 +505,7 @@ class ApiController {
       return
     }
 
-    String externalMeetingId = params.meetingID
-
-    // Everything is good so far. Translate the external meeting id to an internal meeting id. If
-    // we can't find the meeting, complain.
-    String internalMeetingId = paramsProcessorUtil.convertToInternalMeetingId(externalMeetingId);
-    log.info("Retrieving meeting ${internalMeetingId}")
-    Meeting meeting = meetingService.getMeeting(internalMeetingId);
+    Meeting meeting = ServiceUtils.findMeetingFromMeetingID(params.meetingID);
     boolean isRunning = meeting != null && meeting.isRunning();
 
     response.addHeader("Cache-Control", "no-cache")
@@ -504,10 +536,7 @@ class ApiController {
       return
     }
 
-    String externalMeetingId = params.meetingID
-    String internalMeetingId = paramsProcessorUtil.convertToInternalMeetingId(externalMeetingId)
-    log.info("Retrieving meeting ${internalMeetingId}")
-    Meeting meeting = meetingService.getMeeting(internalMeetingId)
+    Meeting meeting = ServiceUtils.findMeetingFromMeetingID(params.meetingID);
 
     Map<String, Object> logData = new HashMap<String, Object>();
     logData.put("meetingid", meeting.getInternalId());
@@ -551,10 +580,7 @@ class ApiController {
       return
     }
 
-    String externalMeetingId = params.meetingID
-    String internalMeetingId = paramsProcessorUtil.convertToInternalMeetingId(externalMeetingId);
-    log.info("Retrieving meeting ${internalMeetingId}")
-    Meeting meeting = meetingService.getMeeting(internalMeetingId);
+    Meeting meeting = ServiceUtils.findMeetingFromMeetingID(params.meetingID);
 
     withFormat {
       xml {
@@ -677,9 +703,7 @@ class ApiController {
     }
 
 
-    // Translate the external meeting id into an internal meeting id.
-    String internalMeetingId = paramsProcessorUtil.convertToInternalMeetingId(params.meetingID);
-    Meeting meeting = meetingService.getMeeting(internalMeetingId);
+    Meeting meeting = ServiceUtils.findMeetingFromMeetingID(params.meetingID);
 
     String pollXML = params.pollXML
 
@@ -733,7 +757,6 @@ class ApiController {
             request.getParameterMap(),
             request.getQueryString()
     )
-
     if(!(validationResponse == null)) {
       msgKey = validationResponse.getKey()
       msgValue = validationResponse.getValue()
@@ -746,7 +769,8 @@ class ApiController {
     Meeting meeting = meetingService.getMeeting(us.meetingID)
     String status = us.guestStatus
     destURL = us.clientUrl
-    String lobbyMsg = meeting.getGuestLobbyMessage()
+    String posInWaitingQueue = meeting.getWaitingPositionsInWaitingQueue(us.internalUserId)
+    String lobbyMsg = meeting.getGuestLobbyMessage(us.internalUserId)
 
     Boolean redirectClient = true
     if (!StringUtils.isEmpty(params.redirect)) {
@@ -792,6 +816,14 @@ class ApiController {
         break
     }
 
+    if(meeting.didGuestUserLeaveGuestLobby(us.internalUserId)){
+      destURL = meeting.getLogoutUrl()
+      msgKey = "guestInvalid"
+      msgValue = "Invalid user"
+      status = GuestPolicy.DENY
+      redirectClient = false
+    }
+
     if (redirectClient) {
       // User may join the meeting
       redirect(url: destURL)
@@ -811,6 +843,7 @@ class ApiController {
             guestStatus status
             lobbyMessage lobbyMsg
             url destURL
+            positionInWaitingQueue posInWaitingQueue
           }
           render(contentType: "application/json", text: builder.toPrettyString())
         }
@@ -837,7 +870,6 @@ class ApiController {
             request.getParameterMap(),
             request.getQueryString(),
     )
-
     if(!(validationResponse == null)) {
       respMessage = validationResponse.getValue()
       reject = true
@@ -853,6 +885,7 @@ class ApiController {
           reject = true
           respMessage = "The maximum number of participants allowed for this meeting has been reached."
         } else {
+          log.info("User ${us.internalUserId} has entered")
           meeting.userEntered(us.internalUserId)
         }
       }
@@ -948,7 +981,6 @@ class ApiController {
             avatarURL us.avatarURL
             if (meeting.breakoutRoomsParams != null) {
               breakoutRooms {
-                enabled meeting.breakoutRoomsParams.enabled
                 record meeting.breakoutRoomsParams.record
                 privateChatEnabled meeting.breakoutRoomsParams.privateChatEnabled
               }
@@ -1097,6 +1129,48 @@ class ApiController {
     }
   }
 
+  /*************************************************
+   * INSERT_DOCUMENT API
+   *************************************************/
+
+  def insertDocument = {
+    String API_CALL = 'insertDocument'
+    log.debug CONTROLLER_NAME + "#${API_CALL}"
+
+    Map.Entry<String, String> validationResponse = validateRequest(
+            ValidationService.ApiCall.INSERT_DOCUMENT,
+            request.getParameterMap(),
+            request.getQueryString()
+    )
+
+    if(!(validationResponse == null)) {
+      invalid(validationResponse.getKey(), validationResponse.getValue())
+      return
+    }
+
+    Meeting meeting = ServiceUtils.findMeetingFromMeetingID(params.meetingID);
+
+    if (meeting != null){
+      uploadDocuments(meeting, true);
+      withFormat {
+        xml {
+          render(text: responseBuilder.buildInsertDocumentResponse("Presentation is being uploaded", RESP_CODE_SUCCESS)
+                  , contentType: "text/xml")
+        }
+      }
+    }else {
+      log.warn("Meeting with externalID ${externalMeetingId} and internalID ${internalMeetingId} " +
+              "doesn't exist.")
+      withFormat {
+        xml {
+          render(text: responseBuilder.buildInsertDocumentResponse(
+                  "The meeting with id \"${externalMeetingId}\" doesn't exist.", RESP_CODE_FAILED),
+                  contentType: "text/xml")
+        }
+      }
+    }
+  }
+
   /***********************************************
    * LEARNING DASHBOARD DATA
    ***********************************************/
@@ -1151,7 +1225,7 @@ class ApiController {
         respMessage = "Meeting not found"
       }
 
-      if(meeting.getLearningDashboardEnabled() == false) {
+      if(meeting.getDisabledFeatures().contains("learningDashboard") == true) {
         reject = true
         respMessage = "Learning Dashboard disabled for this meeting"
       }
@@ -1211,7 +1285,7 @@ class ApiController {
     }
   }
 
-  def uploadDocuments(conf) { //
+  def uploadDocuments(conf, isFromInsertAPI) { //
     log.debug("ApiController#uploadDocuments(${conf.getInternalId()})");
 
     //sanitizeInput
@@ -1219,44 +1293,108 @@ class ApiController {
       key, value -> params[key] = sanitizeInput(value)
     }
 
+    Boolean preUploadedPresentationOverrideDefault=true
+    if (!isFromInsertAPI) {
+      String[] po = request.getParameterMap().get("preUploadedPresentationOverrideDefault")
+      if (po == null) preUploadedPresentationOverrideDefault = presentationService.preUploadedPresentationOverrideDefault.toBoolean()
+      else preUploadedPresentationOverrideDefault = po[0].toBoolean()
+    }
+
+    Boolean isDefaultPresentationUsed = false;
     String requestBody = request.inputStream == null ? null : request.inputStream.text;
     requestBody = StringUtils.isEmpty(requestBody) ? null : requestBody;
+    Boolean isDefaultPresentationCurrent = false;
+    def listOfPresentation = []
+    def presentationListHasCurrent = false
 
+    // This part of the code is responsible for organize the presentations in a certain order
+    // It selects the one that has the current=true, and put it in the 0th place.
+    // Afterwards, the 0th presentation is going to be uploaded first, which spares processing time
     if (requestBody == null) {
-      downloadAndProcessDocument(presentationService.defaultUploadedPresentation, conf.getInternalId(), true /* default presentation */, '');
+      if (isFromInsertAPI){
+        log.warn("Insert Document API called without a payload - ignoring")
+        return;
+      }
+      listOfPresentation << [name: "default", current: true];
     } else {
       def xml = new XmlSlurper().parseText(requestBody);
+      Boolean hasCurrent = false;
       xml.children().each { module ->
         log.debug("module config found: [${module.@name}]");
 
         if ("presentation".equals(module.@name.toString())) {
-          // need to iterate over presentation files and process them
-          Boolean current = true;
-          module.children().each { document ->
-            if (!StringUtils.isEmpty(document.@url.toString())) {
-              def fileName;
-              if (!StringUtils.isEmpty(document.@filename.toString())) {
-                log.debug("user provided filename: [${module.@filename}]");
-                fileName = document.@filename.toString();
-              }
-              downloadAndProcessDocument(document.@url.toString(), conf.getInternalId(), current /* default presentation */, fileName);
-              current = false;
-            } else if (!StringUtils.isEmpty(document.@name.toString())) {
-              def b64 = new Base64()
-              def decodedBytes = b64.decode(document.text().getBytes())
-              processDocumentFromRawBytes(decodedBytes, document.@name.toString(),
-                  conf.getInternalId(), current /* default presentation */);
-              current = false;
+          for (document in module.children()) {
+            if (!StringUtils.isEmpty(document.@current.toString()) && java.lang.Boolean.parseBoolean(
+                    document.@current.toString()) && !hasCurrent) {
+              listOfPresentation.add(0, document)
+              hasCurrent = true;
             } else {
-              log.debug("presentation module config found, but it did not contain url or name attributes");
+              listOfPresentation << document
             }
           }
+          Boolean uploadDefault = !preUploadedPresentationOverrideDefault && !isDefaultPresentationUsed && !isFromInsertAPI;
+          if (uploadDefault) {
+            isDefaultPresentationCurrent = !hasCurrent;
+            hasCurrent = true
+            isDefaultPresentationUsed = true
+            if (isDefaultPresentationCurrent) {
+              listOfPresentation.add(0, [name: "default", current: true])
+            } else {
+              listOfPresentation << [name: "default", current: false];
+            }
+          }
+        }
+      }
+      presentationListHasCurrent = hasCurrent;
+    }
+
+    listOfPresentation.eachWithIndex { document, index ->
+      def Boolean isCurrent = false;
+      def Boolean isRemovable = true;
+      def Boolean isDownloadable = false;
+
+      if (document.name != null && "default".equals(document.name)) {
+        downloadAndProcessDocument(presentationService.defaultUploadedPresentation, conf.getInternalId(), document.current /* default presentation */, '', false, true);
+      } else{
+        // Extracting all properties inside the xml
+        if (!StringUtils.isEmpty(document.@removable.toString())) {
+          isRemovable = java.lang.Boolean.parseBoolean(document.@removable.toString());
+        }
+        if (!StringUtils.isEmpty(document.@downloadable.toString())) {
+          isDownloadable = java.lang.Boolean.parseBoolean(document.@downloadable.toString());
+        }
+        // The array has already been processed to let the first be the current. (This way it is
+        // ensured that only one document is current)
+        if (index == 0 && isFromInsertAPI) {
+          if (presentationListHasCurrent) {
+            isCurrent = true
+          }
+        } else if (index == 0 && !isFromInsertAPI){
+          isCurrent = true
+        }
+
+        // Verifying whether the document is a base64 encoded or a url to download.
+        if (!StringUtils.isEmpty(document.@url.toString())) {
+          def fileName;
+          if (!StringUtils.isEmpty(document.@filename.toString())) {
+            log.debug("user provided filename: [${document.@filename}]");
+            fileName = document.@filename.toString();
+          }
+          downloadAndProcessDocument(document.@url.toString(), conf.getInternalId(), isCurrent /* default presentation */,
+                  fileName, isDownloadable, isRemovable);
+        } else if (!StringUtils.isEmpty(document.@name.toString())) {
+          def b64 = new Base64()
+          def decodedBytes = b64.decode(document.text().getBytes())
+          processDocumentFromRawBytes(decodedBytes, document.@name.toString(),
+                  conf.getInternalId(), isCurrent, isDownloadable, isRemovable/* default presentation */);
+        } else {
+          log.debug("presentation module config found, but it did not contain url or name attributes");
         }
       }
     }
   }
 
-  def processDocumentFromRawBytes(bytes, presOrigFilename, meetingId, current) {
+  def processDocumentFromRawBytes(bytes, presOrigFilename, meetingId, current, isDownloadable, isRemovable) {
     def uploadFailed = false
     def uploadFailReasons = new ArrayList<String>()
 
@@ -1300,14 +1438,23 @@ class ApiController {
               current,
               "preupload-raw-authz-token",
               uploadFailed,
-              uploadFailReasons)
+              uploadFailReasons,
+              isDownloadable,
+              isRemovable
+    )
   }
 
-  def downloadAndProcessDocument(address, meetingId, current, fileName) {
+  def downloadAndProcessDocument(address, meetingId, current, fileName, isDownloadable, isRemovable) {
     log.debug("ApiController#downloadAndProcessDocument(${address}, ${meetingId}, ${fileName})");
     String presOrigFilename;
     if (StringUtils.isEmpty(fileName)) {
-      presOrigFilename = address.tokenize("/")[-1];
+      try {
+        presOrigFilename = URLDecoder.decode(address.tokenize("/")[-1], "UTF-8");
+      } catch (UnsupportedEncodingException e) {
+        log.error "Couldn't decode the uploaded file name.", e
+        invalid("fileNameError", "Cannot decode the uploaded file name")
+        return;
+      }
     } else {
       presOrigFilename = fileName;
     }
@@ -1358,12 +1505,15 @@ class ApiController {
             current,
             "preupload-download-authz-token",
             uploadFailed,
-            uploadFailReasons
+            uploadFailReasons,
+            isDownloadable,
+            isRemovable
     )
   }
 
 
-  def processUploadedFile(podId, meetingId, presId, filename, presFile, current, authzToken, uploadFailed, uploadFailReasons ) {
+  def processUploadedFile(podId, meetingId, presId, filename, presFile, current,
+                          authzToken, uploadFailed, uploadFailReasons, isDownloadable, isRemovable ) {
     def presentationBaseUrl = presentationService.presentationBaseUrl
     // TODO add podId
     UploadedPresentation uploadedPres = new UploadedPresentation(podId,
@@ -1376,6 +1526,12 @@ class ApiController {
             uploadFailed,
             uploadFailReasons)
     uploadedPres.setUploadedFile(presFile);
+    if (isRemovable != null) {
+      uploadedPres.setRemovable(isRemovable);
+    }
+    if (isDownloadable != null && isDownloadable){
+      uploadedPres.setDownloadable();
+    }
     presentationService.processUploadedPresentation(uploadedPres);
   }
 
@@ -1445,7 +1601,7 @@ class ApiController {
     if (!session[token]) {
       log.info("Session for token ${token} not found")
 
-      Boolean allowRequestsWithoutSession = paramsProcessorUtil.getAllowRequestsWithoutSession()
+      Boolean allowRequestsWithoutSession = meetingService.getAllowRequestsWithoutSession(token)
       if (!allowRequestsWithoutSession) {
         log.info("Meeting related to ${token} doesn't allow requests without session")
         return false
@@ -1490,7 +1646,10 @@ class ApiController {
     // Users that are entering the meeting
     int enteredUsers = meeting.getEnteredUsers().size()
 
-    Boolean reachedMax = (joinedUsers + enteredUsers) >= maxParticipants;
+    log.info("Joined users - ${joinedUsers}")
+    log.info("Entered users - ${enteredUsers}")
+
+    Boolean reachedMax = joinedUsers >= maxParticipants;
     if (enabled && !rejoin && !reenter && reachedMax) {
       return true;
     }

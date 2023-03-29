@@ -4,7 +4,6 @@ import Langmap from 'langmap';
 import fs from 'fs';
 import Users from '/imports/api/users';
 import './settings';
-import { lookup as lookupUserAgent } from 'useragent';
 import { check } from 'meteor/check';
 import Logger from './logger';
 import Redis from './redis';
@@ -35,12 +34,42 @@ process.on('uncaughtException', (err) => {
   process.exit(1);
 });
 
+const formatMemoryUsage = (data) => `${Math.round(data / 1024 / 1024 * 100) / 100} MB`
+
+const serverHealth = () => {
+  const memoryData = process.memoryUsage();
+  const memoryUsage = {
+    rss: formatMemoryUsage(memoryData.rss),
+    heapTotal: formatMemoryUsage(memoryData.heapTotal),
+    heapUsed: formatMemoryUsage(memoryData.heapUsed),
+    external: formatMemoryUsage(memoryData.external),
+  }
+
+  const cpuData = process.cpuUsage();
+  const cpuUsage = {
+    system: formatMemoryUsage(cpuData.system),
+    user: formatMemoryUsage(cpuData.user),
+  }
+
+  Logger.info('Server health', {memoryUsage, cpuUsage});
+};
+
 Meteor.startup(() => {
   const APP_CONFIG = Meteor.settings.public.app;
   const CDN_URL = APP_CONFIG.cdn;
   const instanceId = parseInt(process.env.INSTANCE_ID, 10) || 1;
 
   Logger.warn(`Started bbb-html5 process with instanceId=${instanceId}`);
+
+  const LOG_CONFIG = Meteor.settings.private.serverLog;
+  const { healthChecker } = LOG_CONFIG;
+  const { enable: enableHealthCheck, intervalMs: healthCheckInterval } = healthChecker;
+
+  if (enableHealthCheck) {
+    Meteor.setInterval(() => {
+      serverHealth();
+    }, healthCheckInterval);
+  }
 
   const { customHeartbeat } = APP_CONFIG;
 
@@ -144,7 +173,8 @@ Meteor.startup(() => {
   Meteor.onMessage(event => {
     const { method } = event;
     if (method) {
-      PrometheusAgent.increment(METRIC_NAMES.METEOR_METHODS, { methodName: method });
+      const methodName = method.includes('stream-cursor') ? 'stream-cursor' : method;
+      PrometheusAgent.increment(METRIC_NAMES.METEOR_METHODS, { methodName });
     }
   });
 
@@ -301,20 +331,6 @@ WebApp.connectHandlers.use('/feedback', (req, res) => {
     };
     Logger.info('FEEDBACK LOG:', feedback);
   }));
-});
-
-WebApp.connectHandlers.use('/useragent', (req, res) => {
-  const userAgent = req.headers['user-agent'];
-  let response = 'No user agent found in header';
-  if (userAgent) {
-    response = lookupUserAgent(userAgent).toString();
-  }
-
-  Logger.info(`The requesting user agent is ${response}`);
-
-  // res.setHeader('Content-Type', 'application/json');
-  res.writeHead(200);
-  res.end(response);
 });
 
 WebApp.connectHandlers.use('/guestWait', (req, res) => {

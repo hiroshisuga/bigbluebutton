@@ -14,20 +14,33 @@ function getSvgOuterHtml() {
   return document.querySelector('svg g g g').outerHTML;
 }
 
-async function uploadPresentation(test, fileName, uploadTimeout = ELEMENT_WAIT_LONGER_TIME) {
+async function uploadSinglePresentation(test, fileName, uploadTimeout = ELEMENT_WAIT_LONGER_TIME) {
   await test.waitAndClick(e.actions);
-  await test.waitAndClick(e.uploadPresentation);
+  await test.waitAndClick(e.managePresentations);
   await test.waitForSelector(e.fileUpload);
 
-  await test.page.setInputFiles(e.fileUpload, path.join(__dirname, `../media/${fileName}`));
-  await test.hasText('body', 'To be uploaded ...');
+  await test.page.setInputFiles(e.fileUpload, path.join(__dirname, `../core/media/${fileName}`));
+  await test.hasText('body', e.statingUploadPresentationToast);
 
-  await test.waitAndClick(e.upload);
-  await test.hasText('body', 'Converting file');
+  await test.waitAndClick(e.confirmManagePresentation);
+  await test.hasText(e.presentationStatusInfo, e.convertingPresentationFileToast, uploadTimeout);
+  await test.hasText(e.smallToastMsg, e.presentationUploadedToast, uploadTimeout);
+}
 
-  await test.hasText('body', 'Current presentation', uploadTimeout);
+async function uploadMultiplePresentations(test, fileNames, uploadTimeout = ELEMENT_WAIT_LONGER_TIME) {
+  await test.waitAndClick(e.actions);
+  await test.waitAndClick(e.managePresentations);
+  await test.waitForSelector(e.fileUpload);
+
+  await test.page.setInputFiles(e.fileUpload, fileNames.map(function(fileName) { return path.join(__dirname, `../core/media/${fileName}`); }));
+  await test.hasText('body', e.statingUploadPresentationToast);
+
+  await test.waitAndClick(e.confirmManagePresentation);
+  await test.hasText(e.presentationStatusInfo, [e.convertingPresentationFileToast], uploadTimeout);
+  await test.hasText(e.smallToastMsg, e.presentationUploadedToast, uploadTimeout);
 }
 
 exports.checkSvgIndex = checkSvgIndex;
 exports.getSvgOuterHtml = getSvgOuterHtml;
-exports.uploadPresentation = uploadPresentation;
+exports.uploadSinglePresentation = uploadSinglePresentation;
+exports.uploadMultiplePresentations = uploadMultiplePresentations;

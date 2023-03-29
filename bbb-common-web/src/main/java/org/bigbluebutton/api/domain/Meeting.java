@@ -49,11 +49,11 @@ public class Meeting {
 	private boolean forciblyEnded = false;
 	private String telVoice;
 	private String webVoice;
-	private String moderatorPass;
-	private String viewerPass;
-	private Boolean learningDashboardEnabled;
+	private String moderatorPass = "";
+	private String viewerPass = "";
 	private int learningDashboardCleanupDelayInMinutes;
 	private String learningDashboardAccessToken;
+	private ArrayList<String> disabledFeatures;
 	private String welcomeMsgTemplate;
 	private String welcomeMsg;
 	private String modOnlyMessage = "";
@@ -67,14 +67,17 @@ public class Meeting {
 	private boolean allowStartStopRecording = false;
 	private boolean haveRecordingMarks = false;
 	private boolean webcamsOnlyForModerator = false;
+	private Integer meetingCameraCap = 0;
+	private Integer userCameraCap = 0;
 	private String dialNumber;
 	private String defaultAvatarURL;
 	private String guestPolicy = GuestPolicy.ASK_MODERATOR;
 	private String guestLobbyMessage = "";
+	private Map<String,String> usersWithGuestLobbyMessages;
 	private Boolean authenticatedGuest = false;
 	private String meetingLayout = MeetingLayout.SMART_LAYOUT;
 	private boolean userHasJoined = false;
-	private Map<String, String> pads;
+	private Map<String, String> guestUsersWithPositionInWaitingLine;
 	private Map<String, String> metadata;
 	private Map<String, Object> userCustomData;
 	private final ConcurrentMap<String, User> users;
@@ -82,10 +85,12 @@ public class Meeting {
 	private final ConcurrentMap<String, Long> enteredUsers;
 	private final Boolean isBreakout;
 	private final List<String> breakoutRooms = new ArrayList<>();
+	private ArrayList<Group> groups = new ArrayList<Group>();
 	private String customLogoURL = "";
 	private String customCopyright = "";
 	private Boolean muteOnStart = false;
 	private Boolean allowModsToUnmuteUsers = false;
+	private Boolean allowRequestsWithoutSession = false;
 	private Boolean allowModsToEjectCameras = false;
 	private Boolean meetingKeepEvents;
 
@@ -113,9 +118,17 @@ public class Meeting {
         name = builder.name;
         extMeetingId = builder.externalId;
         intMeetingId = builder.internalId;
-        viewerPass = builder.viewerPass;
-        moderatorPass = builder.moderatorPass;
-		learningDashboardEnabled = builder.learningDashboardEnabled;
+		disabledFeatures = builder.disabledFeatures;
+		if (builder.viewerPass == null){
+			viewerPass = "";
+		} else {
+			viewerPass = builder.viewerPass;
+		}
+		if (builder.moderatorPass == null){
+			moderatorPass = "";
+		} else {
+			moderatorPass = builder.moderatorPass;
+		}
 		learningDashboardCleanupDelayInMinutes = builder.learningDashboardCleanupDelayInMinutes;
 		learningDashboardAccessToken = builder.learningDashboardAccessToken;
         maxUsers = builder.maxUsers;
@@ -128,6 +141,8 @@ public class Meeting {
         autoStartRecording = builder.autoStartRecording;
         allowStartStopRecording = builder.allowStartStopRecording;
         webcamsOnlyForModerator = builder.webcamsOnlyForModerator;
+        meetingCameraCap = builder.meetingCameraCap;
+        userCameraCap = builder.userCameraCap;
         duration = builder.duration;
         webVoice = builder.webVoice;
         telVoice = builder.telVoice;
@@ -139,22 +154,18 @@ public class Meeting {
         isBreakout = builder.isBreakout;
         guestPolicy = builder.guestPolicy;
         authenticatedGuest = builder.authenticatedGuest;
-				meetingLayout = builder.meetingLayout;
+		meetingLayout = builder.meetingLayout;
+        allowRequestsWithoutSession = builder.allowRequestsWithoutSession;
         breakoutRoomsParams = builder.breakoutRoomsParams;
         lockSettingsParams = builder.lockSettingsParams;
         allowDuplicateExtUserid = builder.allowDuplicateExtUserid;
         endWhenNoModerator = builder.endWhenNoModerator;
         endWhenNoModeratorDelayInMinutes = builder.endWhenNoModeratorDelayInMinutes;
         html5InstanceId = builder.html5InstanceId;
-
-        /*
-         * A pad is a pair of padId and readOnlyId that represents
-         * valid etherpads instances for this meeting. They can be:
-         *  - shared notes
-         *  - closed captions
-         */
-        pads = new HashMap<>();
+		groups = builder.groups;
+		guestUsersWithPositionInWaitingLine = new HashMap<>();
         userCustomData = new HashMap<>();
+		usersWithGuestLobbyMessages = new HashMap<>();
 
         users = new ConcurrentHashMap<>();
         registeredUsers = new ConcurrentHashMap<>();
@@ -179,10 +190,6 @@ public class Meeting {
 		uploadedFiles.put(uploadId, uploadedFile);
 	}
 	
-	public Map<String, String> getPads() {
-		return pads;
-	}
-
 	public Map<String, String> getMetadata() {
 		return metadata;
 	}
@@ -200,6 +207,22 @@ public class Meeting {
 		if (ruser != null) {
 			ruser.updateGuestWaitedOn();
 		}
+	}
+
+	public void setLeftGuestLobby(String userId, Boolean bool) {
+		RegisteredUser ruser = registeredUsers.get(userId);
+		if (ruser != null) {
+			ruser.setLeftGuestLobby(bool);
+		}
+	}
+
+	public Boolean didGuestUserLeaveGuestLobby(String userId) {
+		RegisteredUser ruser = registeredUsers.get(userId);
+
+		if (ruser != null) {
+			return ruser.getLeftGuestLobby();
+		}
+		return true;
 	}
 
 	public void setGuestStatusWithId(String userId, String guestStatus) {
@@ -260,6 +283,10 @@ public class Meeting {
 	public int getHtml5InstanceId() { return html5InstanceId; }
 
     public void setHtml5InstanceId(int instanceId) { html5InstanceId = instanceId; }
+
+	public ArrayList<Group> getGroups() { return groups; }
+
+	public void setGroups(ArrayList<Group> groups) { this.groups = groups; }
 
     public long getStartTime() {
 		return startTime;
@@ -369,16 +396,16 @@ public class Meeting {
 		return viewerPass;
 	}
 
-	public Boolean getLearningDashboardEnabled() {
-		return learningDashboardEnabled;
-	}
-
 	public int getLearningDashboardCleanupDelayInMinutes() {
 		return learningDashboardCleanupDelayInMinutes;
 	}
 
 	public String getLearningDashboardAccessToken() {
 		return learningDashboardAccessToken;
+	}
+
+	public ArrayList<String> getDisabledFeatures() {
+		return disabledFeatures;
 	}
 
   public String getWelcomeMessageTemplate() {
@@ -393,6 +420,14 @@ public class Meeting {
 		return defaultAvatarURL;
 	}
 
+	public void setWaitingPositionsInWaitingQueue(HashMap<String, String> guestUsersWithPositionInWaitingLine) {
+		this.guestUsersWithPositionInWaitingLine = guestUsersWithPositionInWaitingLine;
+	}
+
+	public String getWaitingPositionsInWaitingQueue(String userId) {
+		return guestUsersWithPositionInWaitingLine.get(userId);
+	}
+
 	public void setGuestPolicy(String policy) {
 		guestPolicy = policy;
 	}
@@ -405,8 +440,15 @@ public class Meeting {
 		guestLobbyMessage = message;
 	}
 
-	public String getGuestLobbyMessage() {
+	public String getGuestLobbyMessage(String guestId) {
+		if (usersWithGuestLobbyMessages.containsKey(guestId) && usersWithGuestLobbyMessages.get(guestId) != "") {
+			return usersWithGuestLobbyMessages.get(guestId);
+		}
 		return guestLobbyMessage;
+	}
+
+	public void setPrivateGuestLobbyMessage(String guestId, String message) {
+		usersWithGuestLobbyMessages.put(guestId, message);
 	}
 
 	public void setAuthenticatedGuest(Boolean authGuest) {
@@ -507,6 +549,14 @@ public class Meeting {
         return webcamsOnlyForModerator;
     }
 
+    public Integer getMeetingCameraCap() {
+        return meetingCameraCap;
+    }
+
+    public Integer getUserCameraCap() {
+        return userCameraCap;
+    }
+
 	public boolean hasUserJoined() {
 		return userHasJoined;
 	}
@@ -549,6 +599,14 @@ public class Meeting {
 
 	public Boolean getAllowModsToUnmuteUsers() {
 		return allowModsToUnmuteUsers;
+	}
+
+	public void setAllowRequestsWithoutSession(Boolean value) {
+		allowRequestsWithoutSession = value;
+	}
+
+	public Boolean getAllowRequestsWithoutSession() {
+		return allowRequestsWithoutSession;
 	}
 
   public void setAllowModsToEjectCameras(Boolean value) {
@@ -646,14 +704,6 @@ public class Meeting {
         return sum;
     }
 
-	public void addPad(String padId, String readOnlyId) {
-		pads.put(padId, readOnlyId);
-	}
-
-	public Boolean hasPad(String id) {
-		return pads.containsKey(id) || pads.containsValue(id);
-	}
-
 	public void addUserCustomData(String userID, Map<String, String> data) {
 		userCustomData.put(userID, data);
 	}
@@ -662,7 +712,7 @@ public class Meeting {
 		meetingExpireWhenLastUserLeftInMinutes = value;
 	}
 
-	public Integer getmeetingExpireWhenLastUserLeftInMinutes() {
+	public Integer getMeetingExpireWhenLastUserLeftInMinutes() {
 		return meetingExpireWhenLastUserLeftInMinutes;
 	}
 
@@ -775,11 +825,13 @@ public class Meeting {
     	private boolean autoStartRecording;
         private boolean allowStartStopRecording;
         private boolean webcamsOnlyForModerator;
+        private Integer meetingCameraCap;
+        private Integer userCameraCap;
     	private String moderatorPass;
     	private String viewerPass;
-    	private Boolean learningDashboardEnabled;
     	private int learningDashboardCleanupDelayInMinutes;
     	private String learningDashboardAccessToken;
+		private ArrayList<String> disabledFeatures;
     	private int duration;
     	private String webVoice;
     	private String telVoice;
@@ -796,13 +848,15 @@ public class Meeting {
     	private boolean isBreakout;
     	private String guestPolicy;
     	private Boolean authenticatedGuest;
-			private String meetingLayout;
+    	private Boolean allowRequestsWithoutSession;
+		private String meetingLayout;
     	private BreakoutRoomsParams breakoutRoomsParams;
     	private LockSettingsParams lockSettingsParams;
 		private Boolean allowDuplicateExtUserid;
 		private Boolean endWhenNoModerator;
 		private Integer endWhenNoModeratorDelayInMinutes;
 		private int html5InstanceId;
+		private ArrayList<Group> groups;
 
     	public Builder(String externalId, String internalId, long createTime) {
     		this.externalId = externalId;
@@ -845,6 +899,16 @@ public class Meeting {
             return this;
         }
 
+        public Builder withMeetingCameraCap(Integer cap) {
+            this.meetingCameraCap = cap;
+            return this;
+        }
+
+        public Builder withUserCameraCap(Integer cap) {
+            this.userCameraCap = cap;
+            return this;
+        }
+
     	public Builder withWebVoice(String w) {
     		this.webVoice = w;
     		return this;
@@ -869,11 +933,6 @@ public class Meeting {
 	    	this.viewerPass = p;
 	    	return this;
 	    }
-    	
-    	public Builder withLearningDashboardEnabled(Boolean e) {
-	    	this.learningDashboardEnabled = e;
-	    	return this;
-	    }
 
     	public Builder withLearningDashboardCleanupDelayInMinutes(int m) {
 	    	this.learningDashboardCleanupDelayInMinutes = m;
@@ -884,6 +943,11 @@ public class Meeting {
 	    	this.learningDashboardAccessToken = t;
 	    	return this;
 	    }
+
+		public Builder withDisabledFeatures(ArrayList<String> list) {
+			this.disabledFeatures = list;
+			return this;
+		}
 
     	public Builder withWelcomeMessage(String w) {
     		welcomeMsg = w;
@@ -940,6 +1004,11 @@ public class Meeting {
     		return this;
     	}
 
+    	public Builder withAllowRequestsWithoutSession(Boolean value) {
+    		allowRequestsWithoutSession = value;
+    		return this;
+    	}
+
 			public Builder withMeetingLayout(String layout) {
 				meetingLayout = layout;
 				return this;
@@ -975,7 +1044,12 @@ public class Meeting {
     		return this;
 		}
 
-    	public Meeting build() {
+		public Builder withGroups(ArrayList<Group> groups) {
+			this.groups = groups;
+			return this;
+		}
+
+		public Meeting build() {
     		return new Meeting(this);
     	}
     }

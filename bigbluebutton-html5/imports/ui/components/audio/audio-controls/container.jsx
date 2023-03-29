@@ -1,8 +1,7 @@
 import React from 'react';
 import { withTracker } from 'meteor/react-meteor-data';
-import { withModalMounter } from '/imports/ui/components/modal/service';
+import { withModalMounter } from '/imports/ui/components/common/modal/service';
 import AudioManager from '/imports/ui/services/audio-manager';
-import { makeCall } from '/imports/ui/services/api';
 import lockContextContainer from '/imports/ui/components/lock-viewers/context/container';
 import { withUsersConsumer } from '/imports/ui/components/components-data/users-context/context';
 import logger from '/imports/startup/client/logger';
@@ -15,6 +14,7 @@ import {
   setUserSelectedMicrophone,
   setUserSelectedListenOnly,
 } from '../audio-modal/service';
+import { layoutSelect } from '/imports/ui/components/layout/context';
 
 import Service from '../service';
 import AppService from '/imports/ui/components/app/service';
@@ -26,29 +26,8 @@ const AudioControlsContainer = (props) => {
   const {
     users, lockSettings, userLocks, children, ...newProps
   } = props;
-  return <AudioControls {...newProps} />;
-};
-
-const processToggleMuteFromOutside = (e) => {
-  switch (e.data) {
-    case 'c_mute': {
-      makeCall('toggleVoice');
-      break;
-    }
-    case 'get_audio_joined_status': {
-      const audioJoinedState = AudioManager.isConnected ? 'joinedAudio' : 'notInAudio';
-      this.window.parent.postMessage({ response: audioJoinedState }, '*');
-      break;
-    }
-    case 'c_mute_status': {
-      const muteState = AudioManager.isMuted ? 'selfMuted' : 'selfUnmuted';
-      this.window.parent.postMessage({ response: muteState }, '*');
-      break;
-    }
-    default: {
-      // console.log(e.data);
-    }
-  }
+  const isRTL = layoutSelect((i) => i.isRTL);
+  return <AudioControls {...{ ...newProps, isRTL }} />;
 };
 
 const handleLeaveAudio = () => {
@@ -64,7 +43,7 @@ const handleLeaveAudio = () => {
     Storage.setItem('getEchoTest', true);
   }
 
-  Service.exitAudio();
+  Service.forceExitAudio();
   logger.info({
     logCode: 'audiocontrols_leave_audio',
     extraInfo: { logType: 'user_action' },
@@ -100,7 +79,6 @@ export default withUsersConsumer(
       }
 
       return ({
-        processToggleMuteFromOutside: (arg) => processToggleMuteFromOutside(arg),
         showMute: isConnected() && !isListenOnly() && !isEchoTest() && !userLocks.userMic,
         muted: isConnected() && !isListenOnly() && isMuted(),
         inAudio: isConnected() && !isEchoTest(),

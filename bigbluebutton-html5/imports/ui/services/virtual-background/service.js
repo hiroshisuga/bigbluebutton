@@ -1,6 +1,8 @@
 import deviceInfo from '/imports/utils/deviceInfo';
 import browserInfo from '/imports/utils/browserInfo';
 import { createVirtualBackgroundService } from '/imports/ui/services/virtual-background';
+import Meetings from '/imports/api/meetings';
+import Auth from '/imports/ui/services/auth';
 
 const BLUR_FILENAME = 'blur.jpg';
 const EFFECT_TYPES = {
@@ -32,7 +34,6 @@ const MODELS = {
 };
 
 const {
-  enabled: VIRTUAL_BACKGROUND_ENABLED = true,
   thumbnailsPath: THUMBNAILS_PATH = '/resources/images/virtual-backgrounds/thumbnails/',
   fileNames: IMAGE_NAMES = ['home.jpg', 'coffeeshop.jpg', 'board.jpg'],
   storedOnBBB: IS_STORED_ON_BBB = true,
@@ -83,12 +84,8 @@ const getSessionVirtualBackgroundInfoWithDefault = (deviceId) => {
   };
 }
 
-const isVirtualBackgroundEnabled = () => {
-  return VIRTUAL_BACKGROUND_ENABLED;
-}
-
 const isVirtualBackgroundSupported = () => {
-  return !(deviceInfo.isIOS || browserInfo.isSafari);
+  return !(deviceInfo.isIos || browserInfo.isSafari);
 }
 
 const getVirtualBgImagePath = () => {
@@ -108,7 +105,6 @@ export {
   setSessionVirtualBackgroundInfo,
   getSessionVirtualBackgroundInfo,
   getSessionVirtualBackgroundInfoWithDefault,
-  isVirtualBackgroundEnabled,
   isVirtualBackgroundSupported,
   createVirtualBackgroundStream,
   getVirtualBackgroundThumbnail,

@@ -101,11 +101,13 @@ class RedisRecorderActor(
       case m: VoiceRecordingStartedEvtMsg           => handleVoiceRecordingStartedEvtMsg(m)
       case m: VoiceRecordingStoppedEvtMsg           => handleVoiceRecordingStoppedEvtMsg(m)
 
+      case m: AudioFloorChangedEvtMsg               => handleAudioFloorChangedEvtMsg(m)
+
       // Caption
       case m: EditCaptionHistoryEvtMsg              => handleEditCaptionHistoryEvtMsg(m)
 
-      // Pad
-      case m: AddPadEvtMsg                          => handleAddPadEvtMsg(m)
+      // Pads
+      case m: PadCreatedRespMsg                     => handlePadCreatedRespMsg(m)
 
       // Screenshare
       case m: ScreenshareRtmpBroadcastStartedEvtMsg => handleScreenshareRtmpBroadcastStartedEvtMsg(m)
@@ -117,6 +119,7 @@ class RedisRecorderActor(
       case m: RecordStatusResetSysMsg               => handleRecordStatusResetSysMsg(m)
       case m: WebcamsOnlyForModeratorChangedEvtMsg  => handleWebcamsOnlyForModeratorChangedEvtMsg(m)
       case m: MeetingEndingEvtMsg                   => handleEndAndKickAllSysMsg(m)
+      case m: MeetingCreatedEvtMsg                  => handleStarterConfigurations(m)
 
       // Upload
       case m: FileUploadedEvtMsg                    => handleFileUploadedEvtMsg(m)
@@ -143,10 +146,12 @@ class RedisRecorderActor(
     if (msg.body.chatId == GroupChatApp.MAIN_PUBLIC_CHAT) {
       val ev = new PublicChatRecordEvent()
       ev.setMeetingId(msg.header.meetingId)
-      ev.setSender(msg.body.msg.sender.name)
       ev.setSenderId(msg.body.msg.sender.id)
       ev.setMessage(msg.body.msg.message)
-      ev.setColor(msg.body.msg.color)
+      ev.setSenderRole(msg.body.msg.sender.role)
+
+      val isModerator = msg.body.msg.sender.role == "MODERATOR"
+      ev.setChatEmphasizedText(msg.body.msg.chatEmphasizedText && isModerator)
 
       record(msg.header.meetingId, ev.toMap.asJava)
     }
@@ -483,20 +488,31 @@ class RedisRecorderActor(
     record(msg.header.meetingId, ev.toMap.asJava)
   }
 
+  private def handleAudioFloorChangedEvtMsg(msg: AudioFloorChangedEvtMsg) {
+    val ev = new AudioFloorChangedRecordEvent()
+    ev.setMeetingId(msg.header.meetingId)
+    ev.setBridge(msg.body.voiceConf)
+    ev.setParticipant(msg.body.intId)
+    ev.setFloor(msg.body.floor)
+    ev.setLastFloorTime(msg.body.lastFloorTime)
+
+    record(msg.header.meetingId, ev.toMap.asJava)
+  }
+
   private def handleEditCaptionHistoryEvtMsg(msg: EditCaptionHistoryEvtMsg) {
     val ev = new EditCaptionHistoryRecordEvent()
     ev.setMeetingId(msg.header.meetingId)
     ev.setStartIndex(msg.body.startIndex)
     ev.setEndIndex(msg.body.endIndex)
+    ev.setName(msg.body.name)
     ev.setLocale(msg.body.locale)
-    ev.setLocaleCode(msg.body.localeCode)
     ev.setText(msg.body.text)
 
     record(msg.header.meetingId, ev.toMap.asJava)
   }
 
-  private def handleAddPadEvtMsg(msg: AddPadEvtMsg) {
-    val ev = new AddPadRecordEvent()
+  private def handlePadCreatedRespMsg(msg: PadCreatedRespMsg) {
+    val ev = new PadCreatedRecordEvent()
     ev.setMeetingId(msg.header.meetingId)
     ev.setPadId(msg.body.padId)
 
@@ -656,6 +672,12 @@ class RedisRecorderActor(
       healthzService.sendRecordingDBStatusMessage(System.currentTimeMillis())
     else
       log.error("recording database is not available.")
+  }
+
+  private def handleStarterConfigurations(msg: MeetingCreatedEvtMsg): Unit = {
+    val ev = new MeetingConfigurationEvent()
+    ev.setWebcamsOnlyForModerator(msg.body.props.usersProp.webcamsOnlyForModerator)
+    record(msg.body.props.meetingProp.intId, ev.toMap().asJava)
   }
 
 }

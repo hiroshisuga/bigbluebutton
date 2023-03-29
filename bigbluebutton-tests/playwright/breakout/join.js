@@ -2,6 +2,7 @@ const { Create } = require('./create');
 const utilScreenShare = require('../screenshare/util');
 const e = require('../core/elements');
 const { ELEMENT_WAIT_LONGER_TIME } = require('../core/constants');
+const { getSettings } = require('../core/settings');
 
 class Join extends Create {
   constructor(browser, context) {
@@ -22,18 +23,18 @@ class Join extends Create {
     const breakoutUserPage = await this.userPage.getLastTargetPage(this.context);
     await breakoutUserPage.bringToFront();
 
-    await breakoutUserPage.hasElement(e.presentationPlaceholder);
     if (!shouldJoinAudio) await breakoutUserPage.closeAudioModal();
+    await breakoutUserPage.waitForSelector(e.presentationTitle);
     return breakoutUserPage;
   }
 
   async joinAndShareWebcam() {
     const breakoutPage = await this.joinRoom();
 
-    const parsedSettings = await this.userPage.getSettingsYaml();
-    const videoPreviewTimeout = parseInt(parsedSettings.public.kurento.gUMTimeout);
+    const { videoPreviewTimeout } = getSettings();
     await breakoutPage.shareWebcam(true, videoPreviewTimeout);
     await breakoutPage.hasElement(e.presentationPlaceholder);
+    await breakoutPage.waitForSelector(e.presentationTitle);
   }
 
   async joinAndShareScreen() {

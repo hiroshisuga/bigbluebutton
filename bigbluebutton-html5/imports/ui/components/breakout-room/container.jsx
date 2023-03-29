@@ -4,20 +4,35 @@ import AudioService from '/imports/ui/components/audio/service';
 import AudioManager from '/imports/ui/services/audio-manager';
 import BreakoutComponent from './component';
 import Service from './service';
-import LayoutContext from '../layout/context';
+import { layoutDispatch, layoutSelect } from '../layout/context';
+import Auth from '/imports/ui/services/auth';
+import { UsersContext } from '/imports/ui/components/components-data/users-context/context';
+import {
+  didUserSelectedMicrophone,
+  didUserSelectedListenOnly,
+} from '/imports/ui/components/audio/audio-modal/service';
+import { makeCall } from '/imports/ui/services/api';
 
 const BreakoutContainer = (props) => {
-  const layoutContext = useContext(LayoutContext);
-  const { layoutContextDispatch } = layoutContext;
-  return <BreakoutComponent {...{ layoutContextDispatch, ...props }} />;
+  const layoutContextDispatch = layoutDispatch();
+  const usingUsersContext = useContext(UsersContext);
+  const { users } = usingUsersContext;
+  const amIPresenter = users[Auth.meetingID][Auth.userID].presenter;
+  const isRTL = layoutSelect((i) => i.isRTL);
+
+  return <BreakoutComponent
+    amIPresenter={amIPresenter}
+    {...{ layoutContextDispatch, isRTL, ...props }}
+  />;
 };
 
 export default withTracker((props) => {
   const {
     endAllBreakouts,
     requestJoinURL,
-    extendBreakoutsTime,
-    isExtendTimeHigherThanMeetingRemaining,
+    setBreakoutsTime,
+    sendMessageToAllBreakouts,
+    isNewTimeHigherThanMeetingRemaining,
     findBreakouts,
     getBreakoutRoomUrl,
     transferUserToMeeting,
@@ -36,13 +51,38 @@ export default withTracker((props) => {
     getBreakoutAudioTransferStatus,
   } = AudioService;
 
+  const logUserCouldNotRejoinAudio = () => {
+    logger.warn({
+      logCode: 'mainroom_audio_rejoin',
+      extraInfo: { logType: 'user_action' },
+    }, 'leaving breakout room couldn\'t rejoin audio in the main room');
+  };
+
+  const rejoinAudio = () => {
+    if (didUserSelectedMicrophone()) {
+      AudioManager.joinMicrophone().then(() => {
+        makeCall('toggleVoice', null, true).catch(() => {
+          AudioManager.forceExitAudio();
+          logUserCouldNotRejoinAudio();
+        });
+      }).catch(() => {
+        logUserCouldNotRejoinAudio();
+      });
+    } else if (didUserSelectedListenOnly()) {
+      AudioManager.joinListenOnly().catch(() => {
+        logUserCouldNotRejoinAudio();
+      });
+    }
+  };
+
   return {
     ...props,
     breakoutRooms,
     endAllBreakouts,
     requestJoinURL,
-    extendBreakoutsTime,
-    isExtendTimeHigherThanMeetingRemaining,
+    setBreakoutsTime,
+    sendMessageToAllBreakouts,
+    isNewTimeHigherThanMeetingRemaining,
     getBreakoutRoomUrl,
     transferUserToMeeting,
     transferToBreakout,
@@ -51,7 +91,8 @@ export default withTracker((props) => {
     amIModerator: amIModerator(),
     isMeteorConnected,
     isUserInBreakoutRoom,
-    exitAudio: () => AudioManager.exitAudio(),
+    forceExitAudio: () => AudioManager.forceExitAudio(),
+    rejoinAudio,
     isReconnecting,
     setBreakoutAudioTransferStatus,
     getBreakoutAudioTransferStatus,

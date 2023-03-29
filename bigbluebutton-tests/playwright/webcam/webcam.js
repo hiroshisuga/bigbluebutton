@@ -10,27 +10,21 @@ class Webcam extends Page {
   }
 
   async share() {
-    const parsedSettings = await this.getSettingsYaml();
-    const videoPreviewTimeout = parseInt(parsedSettings.public.kurento.gUMTimeout);
-    await this.shareWebcam(true, videoPreviewTimeout);
-
+    const { videoPreviewTimeout, skipVideoPreview, skipVideoPreviewOnFirstJoin } = this.settings;
+    await this.shareWebcam(!(skipVideoPreview || skipVideoPreviewOnFirstJoin), videoPreviewTimeout);
     await this.hasElement('video');
   }
 
   async checksContent() {
-    const parsedSettings = await this.getSettingsYaml();
-    const videoPreviewTimeout = parseInt(parsedSettings.public.kurento.gUMTimeout);
-
-    await this.shareWebcam(true, videoPreviewTimeout);
+    const { videoPreviewTimeout, skipVideoPreview, skipVideoPreviewOnFirstJoin } = this.settings;
+    await this.shareWebcam(!(skipVideoPreview || skipVideoPreviewOnFirstJoin), videoPreviewTimeout);
     const respUser = await webcamContentCheck(this);
-
     await expect(respUser).toBeTruthy();
   }
 
   async talkingIndicator() {
     await this.webcamLayoutStart();
-
-    await this.waitForSelector(e.webcamVideo, VIDEO_LOADING_WAIT_TIME);
+    await this.waitForSelector(e.webcamContainer, VIDEO_LOADING_WAIT_TIME);
     await this.waitForSelector(e.leaveVideo, VIDEO_LOADING_WAIT_TIME);
     await this.waitForSelector(e.isTalking);
     await this.hasElement(e.webcamItemTalkingUser);
@@ -38,9 +32,8 @@ class Webcam extends Page {
 
   async webcamLayoutStart() {
     await this.joinMicrophone();
-    const parsedSettings = await this.getSettingsYaml();
-    const videoPreviewTimeout = parseInt(parsedSettings.public.kurento.gUMTimeout);
-    await this.shareWebcam(true, videoPreviewTimeout);
+    const { videoPreviewTimeout, skipVideoPreview, skipVideoPreviewOnFirstJoin } = this.settings;
+    await this.shareWebcam(!(skipVideoPreview || skipVideoPreviewOnFirstJoin), videoPreviewTimeout);
   }
 }
 

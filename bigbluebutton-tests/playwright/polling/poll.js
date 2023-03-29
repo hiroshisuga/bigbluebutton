@@ -1,9 +1,11 @@
-const { expect } = require('@playwright/test');
+const { expect, test } = require('@playwright/test');
 const { MultiUsers } = require('../user/multiusers');
 const e = require('../core/elements');
 const util = require('./util.js');
 const utilPresentation = require('../presentation/util');
 const { ELEMENT_WAIT_LONGER_TIME } = require('../core/constants');
+const { getSettings } = require('../core/settings');
+const { waitAndClearDefaultPresentationNotification } = require('../notifications/util');
 
 class Polling extends MultiUsers {
   constructor(browser, context) {
@@ -12,7 +14,6 @@ class Polling extends MultiUsers {
   }
 
   async createPoll() {
-    await this.modPage.waitForSelector(e.whiteboard, ELEMENT_WAIT_LONGER_TIME);
     await util.startPoll(this.modPage);
     await this.modPage.hasElement(e.pollMenuButton);
   }
@@ -27,9 +28,10 @@ class Polling extends MultiUsers {
 
   async quickPoll() {
     await this.modPage.waitForSelector(e.whiteboard, ELEMENT_WAIT_LONGER_TIME);
-    await utilPresentation.uploadPresentation(this.modPage, e.questionSlideFileName);
+    await utilPresentation.uploadSinglePresentation(this.modPage, e.questionSlideFileName);
 
-    await this.modPage.waitAndClick(e.quickPoll);
+    // The slide needs to be uploaded and converted, so wait a bit longer for this step
+    await this.modPage.waitAndClick(e.quickPoll, ELEMENT_WAIT_LONGER_TIME);
     await this.modPage.waitForSelector(e.pollMenuButton);
 
     await this.userPage.hasElement(e.pollingContainer);
@@ -64,6 +66,9 @@ class Polling extends MultiUsers {
   }
 
   async pollResultsOnChat() {
+    const { pollChatMessage } = getSettings();
+    test.fail(!pollChatMessage, 'Poll results on chat is disabled');
+
     await this.modPage.waitForSelector(e.whiteboard, ELEMENT_WAIT_LONGER_TIME);
     await util.startPoll(this.modPage, true);
     await this.modPage.waitAndClick(e.chatButton);
@@ -82,7 +87,7 @@ class Polling extends MultiUsers {
     await this.modPage.waitForSelector(e.whiteboard, ELEMENT_WAIT_LONGER_TIME);
     await util.startPoll(this.modPage);
 
-    await utilPresentation.uploadPresentation(this.modPage, e.questionSlideFileName);
+    await utilPresentation.uploadSinglePresentation(this.modPage, e.questionSlideFileName);
     await this.modPage.waitAndClick(e.publishPollingLabel);
 
     // Check poll results
@@ -133,17 +138,15 @@ class Polling extends MultiUsers {
   }
 
   async typeOnLastChoiceInput() {
-    const allInputs = await this.modPage.getLocator(e.pollOptionItem);
-    const lastInput = allInputs.last();
+    const lastInput = this.modPage.getLocatorByIndex(e.pollOptionItem, -1);
     await lastInput.fill(this.newInputText);
 
   }
 
   async checkLastOptionText() {
     await this.userPage.waitForSelector(e.pollingContainer);
-    const answerOptions = await this.userPage.getLocator(e.pollAnswerOptionBtn);
-    const lastOptionText = await answerOptions.last().textContent();
-    await expect(lastOptionText).toEqual(this.newInputText);
+    const lastOptionText = this.userPage.getLocatorByIndex(e.pollAnswerOptionBtn, -1);
+    await expect(lastOptionText).toHaveText(this.newInputText);
   }
 }
 

@@ -228,11 +228,12 @@ export default class TextDrawListener extends Component {
       }
 
     // second case is when a user finished writing the text and publishes the final result
-    } else if (isRightClick) {
-      this.discardAnnotation();
     } else {
       // publishing the final shape and resetting the state
       this.sendLastMessage();
+      if (isRightClick) {
+        this.discardAnnotation();
+      }
     }
   }
 
@@ -460,6 +461,7 @@ export default class TextDrawListener extends Component {
     const {
       normalizeFont,
       sendAnnotation,
+      sendLiveSyncPreviewAnnotation,
     } = actions;
 
     const {
@@ -491,21 +493,25 @@ export default class TextDrawListener extends Component {
       position: 0,
     };
 
+//    sendLiveSyncPreviewAnnotation(annotation, whiteboardId, synchronizeWBUpdate);
     sendAnnotation(annotation, synchronizeWBUpdate);
   }
 
   discardAnnotation() {
     const {
       actions,
+      whiteboardId,
     } = this.props;
 
     const {
       getCurrentShapeId,
-      clearPreview,
+      undoAnnotation,
+      addAnnotationToDiscardedList,
     } = actions;
 
     this.resetState();
-    clearPreview(getCurrentShapeId());
+    undoAnnotation(whiteboardId);
+    addAnnotationToDiscardedList(getCurrentShapeId());
   }
 
   render() {
@@ -613,9 +619,13 @@ TextDrawListener.propTypes = {
     normalizeFont: PropTypes.func.isRequired,
     // Defines a function which we use to publish a message to the server
     sendAnnotation: PropTypes.func.isRequired,
+    // Defines a function to wich we use to publish a message to the server
+    sendLiveSyncPreviewAnnotation: PropTypes.func.isRequired,
     // Defines a function which resets the current state of the text shape drawing
     resetTextShapeSession: PropTypes.func.isRequired,
     // Defines a function that sets a session value for the current active text shape
     setTextShapeActiveId: PropTypes.func.isRequired,
+    undoAnnotation: PropTypes.func.isRequired,
+    addAnnotationToDiscardedList: PropTypes.func.isRequired,
   }).isRequired,
 };

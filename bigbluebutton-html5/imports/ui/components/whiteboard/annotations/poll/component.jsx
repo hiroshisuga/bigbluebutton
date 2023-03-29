@@ -3,11 +3,12 @@ import PropTypes from 'prop-types';
 import PollService from '/imports/ui/components/poll/service';
 import caseInsensitiveReducer from '/imports/utils/caseInsensitiveReducer';
 import { injectIntl, defineMessages } from 'react-intl';
-import styles from './styles';
+import Styled from './styles';
 import {
   getSwapLayout,
   shouldEnableSwapLayout,
 } from '/imports/ui/components/media/service';
+import browserInfo from '/imports/utils/browserInfo';
 
 const intlMessages = defineMessages({
   pollResultAria: {
@@ -71,6 +72,8 @@ class PollDrawComponent extends Component {
       fontSizeDirection: 1,
 
       reducedResult: [],
+
+      isChromeAutoDarkModeEnabled: browserInfo.isChromeAutoDarkModeEnabled(),
     };
 
     this.pollInitialCalculation = this.pollInitialCalculation.bind(this);
@@ -219,9 +222,8 @@ class PollDrawComponent extends Component {
     // calculating only the parts which have to be done just once and don't require
     // rendering / rerendering the text objects
 
-    // if (!state.initialState) return;
     const { annotation } = this.props;
-    const { points, result, pollType } = annotation;
+    const { points, result, numResponders, pollType } = annotation;
     const { slideWidth, slideHeight, intl } = this.props;
 
     // group duplicated responses and keep track of the number of removed items
@@ -289,11 +291,11 @@ class PollDrawComponent extends Component {
         }
       }
       _tempArray.push(_result.key, `${_result.numVotes}`);
-      if (votesTotal === 0) {
+      if (numResponders === 0) {
         _tempArray.push('0%');
         _tempArray.push(i);
       } else {
-        const percResult = (_result.numVotes / votesTotal) * 100;
+        const percResult = (_result.numVotes / numResponders) * 100;
         _tempArray.push(`${Math.round(percResult)}%`);
         _tempArray.push(i);
       }
@@ -359,6 +361,7 @@ class PollDrawComponent extends Component {
       thickness,
       calculated,
       reducedResult,
+      isChromeAutoDarkModeEnabled,
     } = this.state;
     if (!calculated) return null;
 
@@ -430,7 +433,7 @@ class PollDrawComponent extends Component {
       let color;
       if (barWidth < maxDigitWidth + 8) {
         xNumVotes = xNumVotesMovedRight;
-        color = '#333333';
+        color = isChromeAutoDarkModeEnabled ? '#888888' : '#333333';
       } else {
         xNumVotes = xNumVotesDefault;
         color = 'white';
@@ -483,76 +486,75 @@ class PollDrawComponent extends Component {
           y={innerRect.y}
           width={innerRect.width}
           height={innerRect.height}
-          stroke="#333333"
+          stroke={isChromeAutoDarkModeEnabled ? '#888888' : '#333333'}
           fill={backgroundColor}
           strokeWidth={thickness}
         />
-        {extendedTextArray.map(line => (
-          <text
+        {extendedTextArray.map((line) => (
+          <Styled.OutlineText
             x={line.keyColumn.xLeft}
             y={line.keyColumn.yLeft}
             dy={maxLineHeight / 2}
             key={`${line.key}_key`}
-            fill="#333333"
+            fill={isChromeAutoDarkModeEnabled ? '#888888' : '#333333'}
             fontFamily="Arial"
             fontSize={calcFontSize}
             textAnchor={isRTL ? 'end' : 'start'}
-            className={styles.outline}
+            autoDarkMode={isChromeAutoDarkModeEnabled}
           >
             {line.keyColumn.keyString}
-          </text>
+          </Styled.OutlineText>
         ))}
-        {extendedTextArray.map(line => (
+        {extendedTextArray.map((line) => (
           <rect
             key={`${line.key}_bar`}
             x={line.barColumn.xBar}
             y={line.barColumn.yBar}
             width={line.barColumn.barWidth}
             height={line.barColumn.barHeight}
-            stroke="#333333"
-            fill="#333333"
+            stroke={isChromeAutoDarkModeEnabled ? '#888888' : '#333333'}
+            fill={isChromeAutoDarkModeEnabled ? '#888888' : '#333333'}
             strokeWidth={thickness - 1}
           />
         ))}
         <text
           x={innerRect.x}
           y={innerRect.y}
-          fill="#333333"
+          fill={isChromeAutoDarkModeEnabled ? '#888888' : '#333333'}
           fontFamily="Arial"
           fontSize={calcFontSize}
           textAnchor={isRTL ? 'start' : 'end'}
         >
-          {extendedTextArray.map(line => (
-            <tspan
+          {extendedTextArray.map((line) => (
+            <Styled.OutlineTSpan
               x={line.percentColumn.xRight}
               y={line.percentColumn.yRight}
               dy={maxLineHeight / 2}
               key={`${line.key}_percent`}
-              className={styles.outline}
+              autoDarkMode={isChromeAutoDarkModeEnabled}
             >
               {line.percentColumn.percentString}
-            </tspan>
+            </Styled.OutlineTSpan>
           ))}
         </text>
         <text
           x={innerRect.x}
           y={innerRect.y}
-          fill="#333333"
+          fill={isChromeAutoDarkModeEnabled ? '#888888' : '#333333'}
           fontFamily="Arial"
           fontSize={calcFontSize}
           textAnchor={isRTL ? 'end' : 'start'}
         >
-          {extendedTextArray.map(line => (
-            <tspan
+          {extendedTextArray.map((line) => (
+            <Styled.OutlineTSpan
               x={line.barColumn.xNumVotes + (line.barColumn.barWidth / 2)}
               y={line.barColumn.yNumVotes + (line.barColumn.barHeight / 2)}
               dy={maxLineHeight / 2}
               key={`${line.key}_numVotes`}
               fill={line.barColumn.color}
-              className={styles.outline}
             >
               {line.barColumn.numVotes}
-            </tspan>
+            </Styled.OutlineTSpan>
           ))}
         </text>
       </g>
@@ -616,7 +618,7 @@ class PollDrawComponent extends Component {
     }
     return (
       <g aria-hidden>
-        {textArray.map(line => this.renderLine(line))}
+        {textArray.map((line) => this.renderLine(line))}
         <text
           fontFamily="Arial"
           fontSize={calcFontSize}
@@ -645,7 +647,7 @@ class PollDrawComponent extends Component {
     }
 
     ariaResultLabel = `${intl.formatMessage(intlMessages.pollResultAria)}: `;
-    textArray.map((t, idx) => {
+    textArray.forEach((t, idx) => {
       const pollLine = t.slice(0, -1);
       ariaResultLabel += `${idx > 0 ? ' |' : ''} ${pollLine.join(' | ')}`;
     });
@@ -654,8 +656,7 @@ class PollDrawComponent extends Component {
       <g aria-label={ariaResultLabel} data-test="pollResultAria">
         {prepareToDisplay
           ? this.renderTestStrings()
-          : this.renderPoll()
-        }
+          : this.renderPoll()}
       </g>
     );
   }

@@ -1,23 +1,28 @@
-Learning Dashboard will be accessible through https://yourdomain/learning-dashboard
+Learning Analytics Dashboard will be accessible through https://yourdomain/learning-analytics-dashboard
 
 # Dev Instructions
 
 ## Prepare destination directory
+
 ```
-mkdir /var/bigbluebutton/learning-dashboard
+mkdir -p /var/bigbluebutton/learning-dashboard
 chown bigbluebutton /var/bigbluebutton/learning-dashboard/
 ```
 
 ## Build instructions
+
 ```
-cd bbb-learning-dashboard
-rm -r node_modules
+# verify we are in the bbb-learning-dashboard directory ~/src/bbb-learning-dashboard
+pwd
+
+if [ -d node_modules ]; then rm -r node_modules; fi
 npm install
 npm run build
 cp -r build/* /var/bigbluebutton/learning-dashboard
 ```
 
 ## Update nginx config
+
 ```
-cp bbb-learning-dashboard/learning-dashboard.nginx /etc/bigbluebutton/nginx/
+cp learning-dashboard.nginx /usr/share/bigbluebutton/nginx/
 ```

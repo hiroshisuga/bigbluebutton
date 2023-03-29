@@ -1,6 +1,5 @@
 import React, { Component } from 'react';
 import PropTypes from 'prop-types';
-import RenderInBrowser from 'react-render-in-browser';
 import { getFormattedColor, denormalizeCoord, getStrokeWidth } from '../helpers';
 
 const DRAW_END = Meteor.settings.public.whiteboard.annotations.status.end;
@@ -178,7 +177,7 @@ export default class TextDrawComponent extends Component {
   }
 
   renderViewerTextShape(results) {
-    const { annotation, hidden, selected, slideWidth, isEditable } = this.props;
+    //const { annotation, hidden, selected, slideWidth, isEditable } = this.props;
     const styles = TextDrawComponent.getViewerStyles(results);
 
     return (
