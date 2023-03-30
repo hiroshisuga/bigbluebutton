@@ -116,7 +116,7 @@ const QuickPollDropdown = (props) => {
         itemLabel = options.join('/').replace(/[\n.)]/g, '');
         if (type === _pollTypes.Custom) {
           for (let i = 0; i < options.length; i += 1) {
-            const letterOption = options[i]?.replace(/[\r.)]/g, '').toUpperCase();
+            const letterOption = options[i]?.replace(/[\r.)]/g, '');
             if (letterAnswers.length < MAX_CUSTOM_FIELDS) {
               letterAnswers.push(letterOption);
             } else {
@@ -124,13 +124,14 @@ const QuickPollDropdown = (props) => {
             }
           }
         }
+        itemLabel = options.map(function(item){ return item.slice(0,1); }).slice(0,MAX_CUSTOM_FIELDS).join('/');
       }
 
       // removes any whitespace from the label
       itemLabel = itemLabel?.replace(/\s+/g, '').toUpperCase();
 
       const numChars = {
-        1: 'A', 2: 'B', 3: 'C', 4: 'D', 5: 'E',
+        1: 'A', 2: 'B', 3: 'C', 4: 'D', 5: 'E', 6: 'F', 7: 'G', 8: 'H', 9: 'I',
       };
       itemLabel = itemLabel.split('').map((c) => {
         if (numChars[c]) return numChars[c];
@@ -154,7 +155,7 @@ const QuickPollDropdown = (props) => {
     const sizes = [];
     return pollItemElements.filter((el) => {
       const { label } = el.props;
-      if (label.length === sizes[sizes.length - 1]) return false;
+      //if (label.length === sizes[sizes.length - 1]) return false;
       sizes.push(label.length);
       return el;
     });

@@ -4,8 +4,8 @@ import { getFormattedColor, getStrokeWidth, denormalizeCoord } from '../helpers'
 
 export default class TriangleDrawComponent extends Component {
   shouldComponentUpdate(nextProps) {
-    const { version } = this.props;
-    return version !== nextProps.version;
+    const { version, hidden, selected } = this.props;
+    return version !== nextProps.version || hidden !== nextProps.hidden || selected !== nextProps.selected;
   }
 
   getCoordinates() {
@@ -22,16 +22,32 @@ export default class TriangleDrawComponent extends Component {
     },${denormalizeCoord(points[2], slideWidth)
     },${denormalizeCoord(points[3], slideHeight)
     }Z`;
-
+    
     return path;
+  }
+
+  getBBox() {
+    const { slideWidth, slideHeight, annotation } = this.props;
+    const { points } = annotation;
+
+    const x = denormalizeCoord(Math.min(points[0], points[2]), slideWidth)
+    const y = denormalizeCoord(Math.min(points[1], points[3]), slideHeight)
+    const width = denormalizeCoord(Math.max(points[0], points[2]), slideWidth) - x;
+    const height = denormalizeCoord(Math.max(points[1], points[3]), slideHeight) -y;
+
+    return {x, y, width, height};
   }
 
   render() {
     const path = this.getCoordinates();
-    const { annotation, slideWidth } = this.props;
+    const { annotation, slideWidth, hidden, selected, isEditable } = this.props;
     const { fill } = annotation;
+    const bbox = selected ? this.getBBox() : {x:0, y:0, width:0, height:0};
     return (
+     <g>
+     {hidden ? null :
       <path
+        id={annotation.id}
         style={{ WebkitTapHighlightColor: 'rgba(0, 0, 0, 0)' }}
         fill={ fill ? getFormattedColor(annotation.color) : "none" }
         stroke={getFormattedColor(annotation.color)}
@@ -39,7 +55,21 @@ export default class TriangleDrawComponent extends Component {
         strokeWidth={getStrokeWidth(annotation.thickness, slideWidth)}
         strokeLinejoin="miter"
         data-test="drawnTriangle"
-      />
+      />}
+     {selected &&
+      <rect
+        x={bbox.x}
+        y={bbox.y}
+        width={bbox.width}
+        height={bbox.height}
+        fill= "none"
+        stroke={isEditable ? Meteor.settings.public.whiteboard.selectColor : Meteor.settings.public.whiteboard.selectInertColor}
+        opacity="0.5"
+        strokeWidth={getStrokeWidth(annotation.thickness+1, slideWidth)}
+        style={{ WebkitTapHighlightColor: 'rgba(0, 0, 0, 0)' }}
+        data-test="drawnTriangleSelection"
+      />}
+     </g>
     );
   }
 }

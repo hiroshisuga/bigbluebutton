@@ -59,6 +59,10 @@ const intlMessages = defineMessages({
     id: 'app.lock-viewers.userListLabel',
     description: 'label for user list toggle',
   },
+  isolatedWhiteboardLabel: {
+    id: 'app.lock-viewers.isolatedWhiteboardLabel',
+    description: 'label for isolated whiteboard toggle',
+  },
   ariaModalTitle: {
     id: 'app.lock-viewers.ariaTitle',
     description: 'aria label for modal title',
@@ -359,6 +363,32 @@ class LockViewersComponent extends Component {
               </Styled.Col>
             </Styled.Row>
 
+            <Styled.Row data-test="isolatedWhiteboardItem">
+              <Styled.Col aria-hidden="true">
+                <Styled.FormElement>
+                  <Styled.Label>
+                    {intl.formatMessage(intlMessages.isolatedWhiteboardLabel)}
+                  </Styled.Label>
+                </Styled.FormElement>
+              </Styled.Col>
+              <Styled.Col>
+                <Styled.FormElementRight>
+                  {this.displayLockStatus(lockSettingsProps.hideAnnotations)}
+                  <Toggle
+                    icons={false}
+                    defaultChecked={lockSettingsProps.hideAnnotations}
+                    onChange={() => {
+                      this.toggleLockSettings('hideViewersCursor');
+                    }}
+                    ariaLabel={intl.formatMessage(intlMessages.isolatedWhiteboardLabel)}
+                    showToggleLabel={showToggleLabel}
+                    invertColors={invertColors}
+                    data-test="isolatedWhiteboard"
+                  />
+                </Styled.FormElementRight>
+              </Styled.Col>
+            </Styled.Row>
+
             <Styled.Row data-test="hideViewersCursorItem">
               <Styled.Col aria-hidden="true">
                 <Styled.FormElement>
@@ -389,6 +419,7 @@ class LockViewersComponent extends Component {
         <Styled.Footer>
           <Styled.Actions>
             <Styled.ButtonCancel
+>>>>>>> origin/dev2.5.14updated_portal_markerEraser_genupld_isoWB_transl_qlink_fillmovetranslucent_selector_realtime_Xtransl
               label={intl.formatMessage(intlMessages.buttonCancel)}
               onClick={closeModal}
             />
