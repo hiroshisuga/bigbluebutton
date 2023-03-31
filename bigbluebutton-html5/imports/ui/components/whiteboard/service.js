@@ -23,8 +23,6 @@ const ANNOTATION_TYPE_MARKER = 'marker';
 const ANNOTATION_TYPE_TEXT = 'text';
 const discardedList = [];
 
->>>>>>> origin/dev2.5.14updated_portal_markerEraser_genupld_isoWB_transl_qlink_fillmovetranslucent_selector_realtime_Xtransl
-
 let annotationsStreamListener = null;
 
 export function addAnnotationToDiscardedList(annotation) {
