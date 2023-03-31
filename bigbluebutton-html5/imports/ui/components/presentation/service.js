@@ -389,8 +389,9 @@ const parseCurrentSlideContent = (yesValue, noValue, abstentionValue, trueValue,
     return poll;
   }).filter(({
     options,
-<<<<<<< HEAD
-  }) => options.length > 1 && options.length < 99).forEach((poll) => {
+  }) => options.length > 1 && options.length < 99).forEach((p) => {
+    const poll = p;
+    if (doubleQuestion) poll.multiResp = true;
     //if (poll.options.length <= 5 || MAX_CUSTOM_FIELDS <= 5) {
     //  const maxAnswer = poll.options.length > MAX_CUSTOM_FIELDS
     //    ? MAX_CUSTOM_FIELDS
@@ -400,20 +401,6 @@ const parseCurrentSlideContent = (yesValue, noValue, abstentionValue, trueValue,
     //    poll,
     //  });
     //} else {
-=======
-  }) => options.length > 1 && options.length < 10).forEach((p) => {
-    const poll = p;
-    if (doubleQuestion) poll.multiResp = true;
-    if (poll.options.length <= 5 || MAX_CUSTOM_FIELDS <= 5) {
-      const maxAnswer = poll.options.length > MAX_CUSTOM_FIELDS
-        ? MAX_CUSTOM_FIELDS
-        : poll.options.length;
-      quickPollOptions.push({
-        type: `${pollTypes.Letter}${maxAnswer}`,
-        poll,
-      });
-    } else {
->>>>>>> origin/dev2.5.14updated_portal_markerEraser_genupld_isoWB_transl_qlink_fillmovetranslucent_selector_realtime_Xtransl
       quickPollOptions.push({
         type: pollTypes.Custom,
         poll,
