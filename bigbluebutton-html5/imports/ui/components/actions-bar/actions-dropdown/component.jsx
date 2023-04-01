@@ -2,7 +2,7 @@ import _ from 'lodash';
 import React, { PureComponent } from 'react';
 import PropTypes from 'prop-types';
 import { defineMessages } from 'react-intl';
-import Button from '/imports/ui/components/button/component';
+//import Button from '/imports/ui/components/button/component';
 import MediaUploadContainer from '/imports/ui/components/upload/media/container';
 import { withModalMounter } from '/imports/ui/components/common/modal/service';
 import withShortcutHelper from '/imports/ui/components/shortcut-help/service';
