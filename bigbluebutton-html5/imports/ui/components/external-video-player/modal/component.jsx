@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import { withModalMounter } from '/imports/ui/components/common/modal/service';
-import Icon from '/imports/ui/components/icon/component';
+import Icon from '/imports/ui/components/common/icon/component';
 //import Modal from '/imports/ui/components/modal/simple/component';
 //import Button from '/imports/ui/components/button/component';
 import UploadMediaService from '/imports/ui/components/upload/media/service';
