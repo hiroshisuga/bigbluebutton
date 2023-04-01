@@ -80,6 +80,7 @@ const intlMessages = defineMessages({
   mergePresentationDesc: {
     id: 'app.presentation.presentationToolbar.mergePresentationDesc',
     description: 'merge the detached presentation area label',
+  },
   toolbarMultiUserOn: {
     id: 'app.whiteboard.toolbar.multiUserOn',
     description: 'Whiteboard toolbar turn multi-user on menu',
@@ -429,13 +430,9 @@ class PresentationToolbar extends PureComponent {
                 )
                 : null
             }
-<<<<<<< HEAD
         {!isPresentationDetached
           ?
-            <Button
-=======
             <Styled.FitToWidthButton
->>>>>>> origin/dev2.5.14updated_portal_markerEraser_genupld_isoWB_transl_qlink_fillmovetranslucent_selector_realtime_Xtransl
               role="button"
               data-test="fitToWidthButton"
               aria-describedby={fitToWidth ? 'fitPageDesc' : 'fitWidthDesc'}
@@ -455,16 +452,10 @@ class PresentationToolbar extends PureComponent {
               }
               hideLabel
             />
-<<<<<<< HEAD
           : null
         }
-          </div>
-        }
-      </div>
-=======
           </Styled.PresentationZoomControls>
       </Styled.PresentationToolbarWrapper>
->>>>>>> origin/dev2.5.14updated_portal_markerEraser_genupld_isoWB_transl_qlink_fillmovetranslucent_selector_realtime_Xtransl
     );
   }
 }
