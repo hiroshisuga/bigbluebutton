@@ -111,33 +111,23 @@ class TimeWindowChatItem extends PureComponent {
         ref={element => this.itemRef = element} >
         <Styled.Messages>
           {messages.map((message) => (
-
-          const {
-            id,
-            time,
-            upload,
-          } = message;
-
-          const text = upload ? UploadService.getNotification(upload, intl) : message.text;
-
-          if (text === '') return null;
-          
-              return (
+            message.text !== '' || message.upload
+              ? (
                 <Styled.SystemMessageChatItem
                   border={message.id}
                   key={message.id ? message.id : _.uniqueId('id-')}
-                  text={intlMessages[message.text] ? intl.formatMessage(
-                    intlMessages[message.text],
+                  text={intlMessages[message.upload ? UploadService.getNotification(upload, intl) : message.text] ? intl.formatMessage(
+                    intlMessages[message.upload ? UploadService.getNotification(upload, intl) : message.text],
                     messageValues || {},
-                  ) : message.text}
+                  ) : message.upload ? UploadService.getNotification(upload, intl) : message.text}
                   time={message.time}
                   isSystemMessage={message.id ? true : false}
                   systemMessageType={message.text === CHAT_CLEAR_MESSAGE ? 'chatClearMessageText' : 'chatWelcomeMessageText'}
                   chatAreaId={chatAreaId}
                   handleReadMessage={handleReadMessage}
                 />
-              );
-          })}
+              ) : null
+          ))}
         </Styled.Messages>
       </Styled.Item>
     );
