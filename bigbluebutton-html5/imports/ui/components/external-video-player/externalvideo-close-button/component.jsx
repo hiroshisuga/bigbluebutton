@@ -1,7 +1,8 @@
 import React from 'react';
 import { defineMessages, injectIntl } from 'react-intl';
-import Button from '/imports/ui/components/button/component';
-import { styles } from './styles';
+//import Button from '/imports/ui/components/button/component';
+//import { styles } from './styles';
+import Styled from '../styles';
 import ExternalVideoService from '/imports/ui/components/external-video-player/service';
 
 const intlMessages = defineMessages({
@@ -13,7 +14,7 @@ const intlMessages = defineMessages({
 
 const CloseExternalVideoComponent = ({ intl }) => (
 
-  <Button
+  <Styled.ExternalVideoCloseButton
     role="button"
     aria-labelledby="closeLabel"
     aria-describedby="closeDesc"
