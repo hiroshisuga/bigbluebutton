@@ -6,7 +6,7 @@ import injectWbResizeEvent from '/imports/ui/components/presentation/resize-wrap
 import { HUNDRED_PERCENT, MAX_PERCENT, STEP } from '/imports/utils/slideCalcUtils';
 import Styled from './styles';
 import ZoomTool from './zoom-tool/component';
-import FullscreenButtonContainer from '../../fullscreen-button/container';
+//import FullscreenButtonContainer from '../../fullscreen-button/container';
 import QuickLinksDropdown from './quick-links-dropdown/component';
 import FullscreenService from '/imports/ui/components/fullscreen-button/service';
 import TooltipContainer from '/imports/ui/components/common/tooltip/container';
