@@ -419,7 +419,6 @@ class LockViewersComponent extends Component {
         <Styled.Footer>
           <Styled.Actions>
             <Styled.ButtonCancel
->>>>>>> origin/dev2.5.14updated_portal_markerEraser_genupld_isoWB_transl_qlink_fillmovetranslucent_selector_realtime_Xtransl
               label={intl.formatMessage(intlMessages.buttonCancel)}
               onClick={closeModal}
             />
