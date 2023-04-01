@@ -145,7 +145,7 @@ When you click Apply, BigBlueButton will send prompts to each user to move them 
 
 This release introduces a new recording format that creates a single video file from audio, video, screen share, presentation, and whiteboard marks recorded during the session.  The file format is webm (vp9 video), although configuration options is available to create an mp4 (h264 video) file instead.
 
-Learn more about [how to enable generating MP4 (h264 video) output](https://docs.bigbluebutton.org/admin/customize.html#enable-generating-mp4-h264-video-output)
+Learn more about [how to enable generating MP4 (h264 video) output](https://docs.bigbluebutton.org/administration/customize#enable-generating-mp4-h264-video-output)
 
 #### Change of parameters naming
 
@@ -205,6 +205,7 @@ Under the hood, BigBlueButton 2.6 installs on Ubuntu 20.04 64-bit, and the follo
 
 For full details on what is new in BigBlueButton 2.6, see the release notes. Recent releases:
 
+- [2.6.1](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.6.1)
 - [2.6.0](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.6.0)
 - [rc.9](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.6.0-rc.9)
 - [rc.8](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.6.0-rc.8)

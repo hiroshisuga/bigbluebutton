@@ -9,7 +9,11 @@ import Cursors from './cursors/container';
 import Settings from '/imports/ui/services/settings';
 import logger from '/imports/startup/client/logger';
 import KEY_CODES from '/imports/utils/keyCodes';
-import { presentationMenuHeight } from '/imports/ui/stylesheets/styled-components/general';
+import {
+  presentationMenuHeight,
+  styleMenuOffset,
+  styleMenuOffsetSmall
+} from '/imports/ui/stylesheets/styled-components/general';
 import Styled from './styles';
 import PanToolInjector from './pan-tool-injector/component';
 import {
@@ -66,6 +70,7 @@ export default function Whiteboard(props) {
     hasMultiUserAccess,
     tldrawAPI,
     setTldrawAPI,
+    isIphone,
   } = props;
   const { pages, pageStates } = initDefaultPages(curPres?.pages.length || 1);
   const rDocument = React.useRef({
@@ -242,8 +247,10 @@ export default function Whiteboard(props) {
 
     // update document if the number of pages has changed
     if (currentDoc.id !== whiteboardId && currentDoc?.pages.length !== curPres?.pages.length) {
+      const currentPageShapes = currentDoc?.pages[curPageId]?.shapes;
       currentDoc.id = whiteboardId;
       currentDoc.pages = pages;
+      currentDoc.pages[curPageId].shapes = currentPageShapes;
       currentDoc.pageStates = pageStates;
     }
 
@@ -516,6 +523,8 @@ export default function Whiteboard(props) {
   React.useEffect(() => {
     if (isPresenter && slidePosition && tldrawAPI) {
       tldrawAPI.zoomTo(0);
+      setHistory(null);
+      tldrawAPI.resetHistory();
     }
   }, [curPres?.id]);
 
@@ -641,14 +650,21 @@ export default function Whiteboard(props) {
       newApp.setHoveredId = () => { };
     }
 
-    if (curPageId) {
-      app.changePage(curPageId);
-      setIsMounting(true);
-    }
-
     if (history) {
       app.replaceHistory(history);
     }
+
+    if (curPageId) {
+      app.patchState(
+        {
+         appState: {
+            currentPageId: curPageId,
+          },
+        },
+      );
+      setIsMounting(true);
+    }
+      
   };
 
   const onPatch = (e, t, reason) => {
@@ -873,7 +889,10 @@ export default function Whiteboard(props) {
   };
 
   const onCommand = (app, command) => {
-    setHistory(app.history);
+    const isFirstCommand = command.id === "change_page" && command.before?.appState.currentPageId === "0";
+    if (!isFirstCommand){
+      setHistory(app.history);
+    }
     const changedShapes = command.after?.document?.pages[app.currentPageId]?.shapes;
     if (!isMounting && app.currentPageId !== curPageId) {
       // can happen then the "move to page action" is called, or using undo after changing a page
@@ -910,7 +929,7 @@ export default function Whiteboard(props) {
   const webcams = document.getElementById('cameraDock');
   const dockPos = webcams?.getAttribute('data-position');
 
-  if (currentTool && !isPanning) tldrawAPI?.selectTool(currentTool);
+  if (currentTool && !isPanning && !tldrawAPI?.isForcePanning) tldrawAPI?.selectTool(currentTool);
 
   const editableWB = (
     <Styled.EditableWBWrapper onKeyDown={handleOnKeyDown}>
@@ -989,6 +1008,19 @@ export default function Whiteboard(props) {
     presentationWindow.document.head.appendChild(suppStyle);
   } 
 
+  const menuOffsetValues = {
+    true: {
+      true: `${styleMenuOffsetSmall}`,
+      false: `${styleMenuOffset}`,
+    },
+    false: {
+      true: `-${styleMenuOffsetSmall}`,
+      false: `-${styleMenuOffset}`,
+    },
+  };
+
+  const menuOffset = menuOffsetValues[isRTL][isIphone];
+
   return (
     <>
       <Cursors
@@ -1012,7 +1044,7 @@ export default function Whiteboard(props) {
             isPresenter,
             size,
             darkTheme,
-            isRTL,
+            menuOffset,
           }}
         />
       </Cursors>
@@ -1038,6 +1070,7 @@ export default function Whiteboard(props) {
 
 Whiteboard.propTypes = {
   isPresenter: PropTypes.bool.isRequired,
+  isIphone: PropTypes.bool.isRequired,
   removeShapes: PropTypes.func.isRequired,
   initDefaultPages: PropTypes.func.isRequired,
   persistShape: PropTypes.func.isRequired,
