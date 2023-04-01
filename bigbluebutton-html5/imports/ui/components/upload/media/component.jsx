@@ -2,14 +2,14 @@ import React, { Component } from 'react';
 import { defineMessages, injectIntl } from 'react-intl';
 import cx from 'classnames';
 import _ from 'lodash';
-import Dropzone from 'react-dropzone';
+//import Dropzone from 'react-dropzone';
 import Icon from '/imports/ui/components/common/icon/component';
 import { withModalMounter } from '/imports/ui/components/common/modal/service';
-import Modal from '/imports/ui/components/common/modal/simple/component';
+//import Modal from '/imports/ui/components/common/modal/simple/component';
 import Button from '/imports/ui/components/common/button/component';
 import Service from './service';
 import UploadService from '../service';
-import { styles } from './styles';
+import Styled from './styles';
 
 const intlMessages = defineMessages({
   title: {
@@ -97,23 +97,22 @@ class MediaUpload extends Component {
 
     return (
       <tr key={item.id}>
-        <td className={styles.icon}>
+        <Styled.Icon>
           <Icon iconName="file" />
-        </td>
-        <th className={styles.name}>
+        </Styled.Icon>
+        <Styled.Name>
           <span>{item.filename}</span>
-        </th>
-        <td className={styles.actions}>
-          <Button
-            className={cx(styles.action, styles.remove)}
+        </Styled.Name>
+        <Styled.Actions>
+          <Styled.Button>
             label={intl.formatMessage(intlMessages.remove)}
             aria-label={`${intl.formatMessage(intlMessages.remove)} ${item.filename}`}
             size="sm"
             icon="delete"
             hideLabel
             onClick={() => this.handleRemove(item)}
-          />
-        </td>
+          </Styled.Button>
+        </Styled.Actions>
       </tr>
     );
   }
@@ -123,25 +122,25 @@ class MediaUpload extends Component {
     const { files } = this.state;
 
     if (files.length === 0) return null;
-    
+
     return (
-      <div className={styles.list}>
-        <table className={styles.table}>
+      <Styled.List>
+        <Styled.Table>
           <thead>
             <tr>
-              <th className={styles.hidden}>
+              <Styled.Hidden>
                 {intl.formatMessage(intlMessages.filename)}
-              </th>
-              <th className={styles.hidden}>
+              </Styled.Hidden>
+              <Styled.Hidden>
                 {intl.formatMessage(intlMessages.options)}
-              </th>
+              </Styled.Hidden>
             </tr>
           </thead>
           <tbody>
             {files.map(item => this.renderItem(item))}
           </tbody>
-        </table>
-      </div>
+        </Styled.Table>
+      </Styled.List>
     );
   }
 
@@ -154,40 +153,38 @@ class MediaUpload extends Component {
     const { files } = this.state;
 
     return (
-      <Modal
-        overlayClassName={styles.overlay}
-        className={styles.modal}
+      <Styled.ModalStyle>
         onRequestClose={closeModal}
         hideBorder
         contentLabel={intl.formatMessage(intlMessages.title)}
-      >
-        <header className={styles.header}>
-          <h3 className={styles.title}>
+        /*<Styled.Header>*/
+          /*<Styled.Title>*/
+          <h3>
             {intl.formatMessage(intlMessages.title)}
           </h3>
-        </header>
-        <h4 className={styles.content}>
+          /*</Styled.Title>*/
+        /*</Styled.Header>*/
+        <Styled.Content>
           {intl.formatMessage(intlMessages.note)}
-        </h4>
-        <div className={styles.content}>
+        </Styled.Content>
+        <Styled.Content>
           {this.renderFiles()}
-          <Dropzone
+          <Styled.DropzoneStyle
             multiple
-            className={styles.dropzone}
-            activeClassName={styles.dropzoneActive}
+            /*activeClassName={styles.dropzoneActive}*/
             accept={this.validFiles.map(type => type.extension)}
             maxSize={this.maxSize}
             disablepreview="true"
             onDrop={this.handleOnDrop}
           >
-            <Icon className={styles.dropzoneIcon} iconName="upload" />
-            <p className={styles.dropzoneMessage}>
+            <Icon iconName="upload" />
+            <Styled.DropzoneMessage>
               {intl.formatMessage(intlMessages.message)}
-            </p>
-          </Dropzone>
-        </div>
-        <div className={styles.footer}>
-          <div className={styles.buttons}>
+            </Styled.DropzoneMessage>
+          </Styled.DropzoneStyle>
+        </Styled.Content>
+        <Styled.Footer>
+          <Styled.Buttons>
             <Button
               label={intl.formatMessage(intlMessages.cancel)}
               onClick={closeModal}
@@ -198,9 +195,9 @@ class MediaUpload extends Component {
               onClick={() => this.handleUpload(files)}
               disabled={files.length === 0}
             />
-          </div>
-        </div>
-      </Modal>
+          </Styled.Buttons>
+        </Styled.Footer>
+      </Styled.ModalStyle>
     );
   }
 }
