@@ -8,7 +8,7 @@ import Styled from './styles';
 import ZoomTool from './zoom-tool/component';
 //import FullscreenButtonContainer from '../../fullscreen-button/container';
 import QuickLinksDropdown from './quick-links-dropdown/component';
-import FullscreenService from '/imports/ui/components/fullscreen-button/service';
+import FullscreenService from '/imports/ui/components/common/fullscreen-button/service';
 import TooltipContainer from '/imports/ui/components/common/tooltip/container';
 import KEY_CODES from '/imports/utils/keyCodes';
 
