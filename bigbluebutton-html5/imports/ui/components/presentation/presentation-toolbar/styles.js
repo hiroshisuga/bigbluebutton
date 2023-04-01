@@ -189,6 +189,22 @@ const PresentationZoomControls = styled.div`
   }
 `;
 
+const QuickLinksButton = styled(Button)`
+  border: none !important;
+
+  & > i {
+    font-size: 1.2rem;
+
+    [dir="rtl"] & {
+      -webkit-transform: scale(-1, 1);
+      -moz-transform: scale(-1, 1);
+      -ms-transform: scale(-1, 1);
+      -o-transform: scale(-1, 1);
+      transform: scale(-1, 1);
+    }
+  }
+`;
+
 const DetachWindowButton = styled(Button)`
   border: none !important;
 
