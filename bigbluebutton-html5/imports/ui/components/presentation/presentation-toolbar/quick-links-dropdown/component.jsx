@@ -13,7 +13,7 @@ import DropdownList from '/imports/ui/components/dropdown/list/component';
 import DropdownListItem from '/imports/ui/components/dropdown/list/item/component';
 import DropdownListSeparator from '/imports/ui/components/dropdown/list/separator/component';
 import DropdownListTitle from '/imports/ui/components/dropdown/list/title/component';
-import FullscreenService from '/imports/ui/components/fullscreen-button/service';
+import FullscreenService from '/imports/ui/components/common/fullscreen-button/service';
 import Panopto from '/imports/ui/components/external-video-player/custom-players/panopto';
 import Auth from '/imports/ui/services/auth';
 
