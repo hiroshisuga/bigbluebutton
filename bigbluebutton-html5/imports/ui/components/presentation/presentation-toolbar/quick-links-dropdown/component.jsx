@@ -4,7 +4,8 @@ import { defineMessages } from 'react-intl';
 import _ from 'lodash';
 import { makeCall } from '/imports/ui/services/api';
 //import browser from 'browser-detect';
-import Button from '/imports/ui/components/button/component';
+//import Button from '/imports/ui/components/button/component';
+import Styled from '../styles';
 import Dropdown from '/imports/ui/components/dropdown/component';
 import DropdownTrigger from '/imports/ui/components/dropdown/trigger/component';
 import DropdownContent from '/imports/ui/components/dropdown/content/component';
@@ -131,7 +132,7 @@ const QuickLinksDropdown = (props) => {
   return amIPresenter && ((videoUrls && videoUrls.length) || (urls && urls.length)) ? (
     <Dropdown>
     <DropdownTrigger tabIndex={0}>
-        <Button
+        <Styled.QuickLinksButton
           aria-label={intl.formatMessage(intlMessages.quickLinksLabel)}
           className={styles.presentationBtn}
           color="primary"
