@@ -104,6 +104,7 @@ const TldrawGlobalStyleText = (arg) => {
   }
   #slide-background-shape div {
     pointer-events: none;
+    user-select: none;
   }
   div[dir*="ltr"]:has(button[aria-expanded*="false"][aria-controls*="radix-"]) {
     pointer-events: none;
@@ -243,8 +244,10 @@ const TldrawGlobalStyleText = (arg) => {
   ${ (arg.darkTheme) ? `
     #TD-TopPanel-Undo,
     #TD-TopPanel-Redo,
-    #TD-Styles:focus {
-      border: solid ${borderSize} ${colorWhite} !important;
+    #TD-Styles {
+      &:focus {
+        border: solid ${borderSize} ${colorWhite} !important;
+      }
     }
   ` : ''}
   
