@@ -125,8 +125,8 @@ const TldrawGlobalStyleText = (arg) => {
       width: ${arg.size}px;
     }
     #TD-PrimaryTools button {
-        height: ${arg.size}px;
-        width: ${arg.size}px;
+      height: ${arg.size}px;
+      width: ${arg.size}px;
     }
     #TD-Styles {
       border-width: ${borderSize};
@@ -137,9 +137,16 @@ const TldrawGlobalStyleText = (arg) => {
       height: 92%;
       border-radius: 7px;
     }
+    #TD-TopPanel-Undo:hover,
+    #TD-TopPanel-Redo:hover,
     #TD-Styles:hover {
       border: solid ${borderSize} #ECECEC;
       background-color: #ECECEC;
+    }
+    #TD-TopPanel-Undo > div:hover,
+    #TD-TopPanel-Redo > div:hover,
+    #TD-Styles > div:hover {
+      background-color: var(--colors-hover);
     }
     #TD-Styles:focus {
       border: solid ${borderSize} ${colorBlack};
@@ -241,10 +248,8 @@ const TldrawGlobalStyleText = (arg) => {
   ${ (arg.darkTheme) ? `
     #TD-TopPanel-Undo,
     #TD-TopPanel-Redo,
-    #TD-Styles {
-      &:focus {
-        border: solid ${borderSize} ${colorWhite} !important;
-      }
+    #TD-Styles:focus {
+      border: solid ${borderSize} ${colorWhite} !important;
     }
   ` : ''}
   
