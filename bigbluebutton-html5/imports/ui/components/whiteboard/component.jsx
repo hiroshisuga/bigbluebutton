@@ -993,21 +993,6 @@ export default function Whiteboard(props) {
     }
   }
 
-  if (isPresentationDetached) {
-    // inject styles to the detached window as styled component is not inherited..?
-    const styleId = "supplementedTldrawStyle";
-    const tldgsarg = {hasWBAccess, isPresenter, hideContextMenu: !hasWBAccess && !isPresenter, size, isRTL};
-    const tldgs = Styled.TldrawGlobalStyleText(tldgsarg);
-    const oldElement = presentationWindow.document.getElementById(styleId);
-    if (oldElement) {
-      presentationWindow.document.head.removeChild(oldElement);
-    }
-    const suppStyle = presentationWindow.document.createElement('style');
-    suppStyle.id = styleId;
-    suppStyle.appendChild(presentationWindow.document.createTextNode(tldgs));
-    presentationWindow.document.head.appendChild(suppStyle);
-  } 
-
   const menuOffsetValues = {
     true: {
       true: `${styleMenuOffsetSmall}`,
@@ -1020,6 +1005,21 @@ export default function Whiteboard(props) {
   };
 
   const menuOffset = menuOffsetValues[isRTL][isIphone];
+
+  if (isPresentationDetached) {
+    // inject styles to the detached window as styled component is not inherited..?
+    const styleId = "supplementedTldrawStyle";
+    const tldgsarg = {hasWBAccess, isPresenter, hideContextMenu: !hasWBAccess && !isPresenter, size, isRTL, darkTheme, menuOffset};
+    const tldgs = Styled.TldrawGlobalStyleText(tldgsarg);
+    const oldElement = presentationWindow.document.getElementById(styleId);
+    if (oldElement) {
+      presentationWindow.document.head.removeChild(oldElement);
+    }
+    const suppStyle = presentationWindow.document.createElement('style');
+    suppStyle.id = styleId;
+    suppStyle.appendChild(presentationWindow.document.createTextNode(tldgs));
+    presentationWindow.document.head.appendChild(suppStyle);
+  } 
 
   return (
     <>
