@@ -95,10 +95,12 @@ const TldrawGlobalStyleText = (arg) => {
       display: none;
     }
   ` : ''}
-  #TD-StylesMenu {
-    position: relative;
-    right: ${arg.menuOffset};
-  }
+  ${({ menuOffset }) => `
+    #TD-StylesMenu {
+      position: relative;
+      right: ${menuOffset};
+    }
+  `}
   #TD-PrimaryTools-Image {
     display: none;
   }
