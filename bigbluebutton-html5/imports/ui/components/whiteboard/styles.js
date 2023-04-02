@@ -95,6 +95,10 @@ const TldrawGlobalStyleText = (arg) => {
       display: none;
     }
   ` : ''}
+  #TD-StylesMenu {
+    position: relative;
+    right: ${arg.menuOffset};
+  }
   #TD-PrimaryTools-Image {
     display: none;
   }
@@ -111,25 +115,19 @@ const TldrawGlobalStyleText = (arg) => {
     top: -1px;
   }
   ${ (arg.hasWBAccess || arg.isPresenter) ? `
-    button {
-      background: none;
-    }
     #TD-Tools-Dots {
       height: ${arg.size}px;
       width: ${arg.size}px;
     }
-    #TD-Delete button {
+    #TD-Delete {
+      & button {
         height: ${arg.size}px;
         width: ${arg.size}px;
+      }
     }
     #TD-PrimaryTools button {
         height: ${arg.size}px;
         width: ${arg.size}px;
-    }
-    #TD-PrimaryTools button > div {
-      &:hover:not(:disabled) {
-        background-color: var(--colors-hover);
-      }
     }
     #TD-Styles {
       border-width: ${borderSize};
@@ -139,20 +137,14 @@ const TldrawGlobalStyleText = (arg) => {
     #TD-Styles {
       height: 92%;
       border-radius: 7px;
-    }
-    #TD-TopPanel-Undo:hover,
-    #TD-TopPanel-Redo:hover,
-    #TD-Styles:hover {
-      border: solid ${borderSize} #ECECEC;
-      background-color: #ECECEC;
-    }
-    #TD-TopPanel-Undo > div:hover,
-    #TD-TopPanel-Redo > div:hover,
-    #TD-Styles > div:hover {
-      background-color: var(--colors-hover);
-    }
-    #TD-Styles:focus {
-      border: solid ${borderSize} ${colorBlack};
+
+      &:hover {
+        border: solid ${borderSize} #ECECEC;
+        background-color: #ECECEC;
+      }
+      &:focus {
+        border: solid ${borderSize} ${colorBlack};
+      }
     }
     #TD-Styles,
     #TD-TopPanel-Undo,
