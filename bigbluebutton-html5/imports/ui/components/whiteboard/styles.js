@@ -128,9 +128,6 @@ const TldrawGlobalStyleText = (arg) => {
       height: ${arg.size}px;
       width: ${arg.size}px;
     }
-    #TD-PrimaryTools button > div:hover:not(:disabled) {
-      background-color: var(--colors-hover);
-    }
     #TD-Styles {
       border-width: ${borderSize};
     }
@@ -248,6 +245,15 @@ const TldrawGlobalStyleText = (arg) => {
     }
   ` : ''}
   
+  ${ ((arg.hasWBAccess || arg.isPresenter) && arg.panSelected) ? `
+    [id^="TD-PrimaryTools-"]:hover > div {
+      background-color: var(--colors-hover) !important;
+    }
+    [id^="TD-PrimaryTools-"]:focus > div {
+      background-color: var(--colors-hover) !important;
+    }
+  ` : ''}
+  
   ${ (arg.darkTheme) ? `
     #TD-TopPanel-Undo,
     #TD-TopPanel-Redo,
@@ -261,6 +267,30 @@ const TldrawGlobalStyleText = (arg) => {
       cursor: default !important;
     }
   ` : ''}
+  
+  button[data-test="panButton"] {
+    border: none !important;
+    padding: 0;
+    margin: 0;
+    border-radius: 7px;
+    background-color: ${colorWhite};
+    color: ${toolbarButtonColor};
+  }
+  button[data-test="panButton"] > i {
+    font-size: ${fontSizeLarger} !important;
+    ${ arg.isRTL ? `
+      -webkit-transform: scale(-1, 1);
+      -moz-transform: scale(-1, 1);
+      -ms-transform: scale(-1, 1);
+      -o-transform: scale(-1, 1);
+      transform: scale(-1, 1);
+    ` : '' }
+  }
+  ${ !(arg.panSelected) ? `
+    button[data-test="panButton"]:hover,:focus {
+      background-color: var(--colors-hover) !important;
+    }
+  ` : '' }
   
   `;
 
