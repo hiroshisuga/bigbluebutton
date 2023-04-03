@@ -125,7 +125,7 @@ export default function Whiteboard(props) {
 
     setIsToolLocked(false);
 
-    const panButton = document.querySelector('[data-test="panButton"]');
+    const panButton = presentationWindow.document.querySelector('[data-test="panButton"]');
     if (panBtnClicked) {
       const dataZoom = panButton.getAttribute('data-zoom');
       if ((dataZoom <= HUNDRED_PERCENT && !fitToWidth)) {
@@ -142,7 +142,7 @@ export default function Whiteboard(props) {
   };
 
   React.useEffect(() => {
-    const toolbar = document.getElementById('TD-PrimaryTools');
+    const toolbar = presentationWindow.document.getElementById('TD-PrimaryTools');
     const handleClick = (evt) => {
       toggleOffCheck(evt);
     };
