@@ -184,21 +184,8 @@ const TldrawGlobalStyleText = (arg) => {
     div[data-shape="sticky"] > div > div > div > div {
         text-align: ${ arg.isRTL ? `right` : `left` } ;
     }
-    /*this has been supplemented by temporarily showing sticky before detaching*/
-    /*div[data-shape="sticky"] > div > div > div > div {
-      position: absolute;
-      top: 16px;
-      left: 16px;
-      width: calc(100% - 32px);
-      height: fit-content;
-      font: inherit;
-      pointer-events: none;
-      user-select: none;
-      white-space: pre-wrap;
-      overflow-wrap: break-word;
-      letter-spacing: -0.03em;
-    }*/
-    div[data-shape="sticky"] /*> div > div > div >*/ textarea {
+
+    div[data-shape="sticky"] textarea {
       width: 100%;
       height: 100%;
       border: none;
@@ -217,7 +204,7 @@ const TldrawGlobalStyleText = (arg) => {
       letter-spacing: -0.03em;
     }
     /* for text */
-    div[data-shape="text"] /*> div > div > div > div >*/ textarea {
+    div[data-shape="text"] textarea {
       position: absolute;
       top: 0px;
       left: 0px;
