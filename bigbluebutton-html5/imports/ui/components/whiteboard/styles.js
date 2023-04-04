@@ -274,7 +274,10 @@ const TldrawGlobalStyleText = (arg) => {
     ` : '' }
   }
   ${ !(arg.panSelected) ? `
-    button[data-test="panButton"]:hover,:focus {
+    button[data-test="panButton"]:hover {
+      background-color: var(--colors-hover) !important;
+    }
+    button[data-test="panButton"]:focus {
       background-color: var(--colors-hover) !important;
     }
   ` : '' }
