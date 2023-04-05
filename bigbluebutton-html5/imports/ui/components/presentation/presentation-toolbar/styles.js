@@ -219,6 +219,21 @@ const DetachWindowButton = styled(Button)`
       transform: scale(-1, 1);
     }
   }
+
+  margin-left: ${whiteboardToolbarMargin};
+  margin-right: ${whiteboardToolbarMargin};
+
+  position: relative;
+  color: ${toolbarButtonColor};
+  background-color: ${colorOffWhite};
+  border-radius: 0;
+  box-shadow: none !important;
+  border: 0;
+
+  &:focus {
+    background-color: ${colorOffWhite};
+    border: 0;
+  }
 `;
   
 const FitToWidthButton = styled(Button)`
