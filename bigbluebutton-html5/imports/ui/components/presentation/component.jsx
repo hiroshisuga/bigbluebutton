@@ -1038,7 +1038,7 @@ class Presentation extends PureComponent {
             showSlide && userIsPresenter
               ? (
                 <div
-                  className={styles.presentationToolbar}
+                  className={Styled.presentationToolbar}
                   ref={(ref) => { this.refPresentationToolbar = ref; }}
                   style={pToolbarStyle}
                 >
