@@ -260,5 +260,6 @@ export default {
   NextSlideButton,
   SkipSlideSelect,
   PresentationZoomControls,
+  DetachWindowButton,
   FitToWidthButton,
 };
