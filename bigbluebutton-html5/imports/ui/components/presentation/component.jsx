@@ -1037,13 +1037,16 @@ class Presentation extends PureComponent {
     const pToolbar =
             showSlide && userIsPresenter
               ? (
-                <div
-                  className={Styled.presentationToolbar}
+                <Styled.PresentationToolbar
                   ref={(ref) => { this.refPresentationToolbar = ref; }}
-                  style={pToolbarStyle}
+                  style={
+                    {
+                      width: containerWidth,
+                    }
+                  }
                 >
                   {this.renderPresentationToolbar(svgWidth)}
-                </div>
+                </Styled.PresentationToolbar>
               )
               : null ;
 
