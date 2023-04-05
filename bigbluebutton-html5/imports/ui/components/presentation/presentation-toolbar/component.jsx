@@ -345,7 +345,7 @@ class PresentationToolbar extends PureComponent {
         }
         {
           <div>
-            <Button
+            <Styled.DetachWindowButton
               role="button"
               aria-label={isPresentationDetached
                 ? `${intl.formatMessage(intlMessages.mergePresentationDesc)}`
@@ -361,7 +361,6 @@ class PresentationToolbar extends PureComponent {
                 : `${intl.formatMessage(intlMessages.splitPresentationDesc)}`
               }
               hideLabel
-              className={cx(styles.detachWindow, styles.presentationBtn)}
             />
           </div>
         }
