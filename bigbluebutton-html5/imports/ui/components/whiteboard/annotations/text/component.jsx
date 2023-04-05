@@ -177,7 +177,7 @@ export default class TextDrawComponent extends Component {
   }
 
   renderViewerTextShape(results) {
-    //const { annotation, hidden, selected, slideWidth, isEditable } = this.props;
+    const { annotation, hidden, selected, slideWidth, isEditable } = this.props;
     const styles = TextDrawComponent.getViewerStyles(results);
 
     return (
