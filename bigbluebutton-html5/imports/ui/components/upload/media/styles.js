@@ -273,3 +273,21 @@ const Buttons = styled.div`
 const Footer = styled.div`
   display: flex;
 `;
+
+export default {
+  Header,
+  Content,
+  ModalStyle,
+  Title,
+  DropzoneStyle,
+  DropzoneMessage,
+  Hidden,
+  List,
+  Table,
+  Icon,
+  Actions,
+  Name,
+  Action,
+  Buttons,
+  Footer,
+};
