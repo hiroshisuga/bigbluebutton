@@ -154,16 +154,13 @@ class MediaUpload extends Component {
 
     return (
       <Styled.ModalStyle>
-        onRequestClose={closeModal}
-        hideBorder
-        contentLabel={intl.formatMessage(intlMessages.title)}
-        /*<Styled.Header>*/
-          /*<Styled.Title>*/
+        <Styled.Header>
+          <Styled.Title>
           <h3>
             {intl.formatMessage(intlMessages.title)}
           </h3>
-          /*</Styled.Title>*/
-        /*</Styled.Header>*/
+          </Styled.Title>
+        </Styled.Header>
         <Styled.Content>
           {intl.formatMessage(intlMessages.note)}
         </Styled.Content>
@@ -171,7 +168,6 @@ class MediaUpload extends Component {
           {this.renderFiles()}
           <Styled.DropzoneStyle
             multiple
-            /*activeClassName={styles.dropzoneActive}*/
             accept={this.validFiles.map(type => type.extension)}
             maxSize={this.maxSize}
             disablepreview="true"
