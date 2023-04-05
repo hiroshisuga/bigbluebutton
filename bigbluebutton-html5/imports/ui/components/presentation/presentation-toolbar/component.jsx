@@ -348,8 +348,8 @@ class PresentationToolbar extends PureComponent {
             <Styled.DetachWindowButton
               role="button"
               aria-label={isPresentationDetached
-                ? `${intl.formatMessage(intlMessages.mergePresentationDesc)}`
-                : `${intl.formatMessage(intlMessages.splitPresentationDesc)}`
+                ? intl.formatMessage(intlMessages.mergePresentationDesc)
+                : intl.formatMessage(intlMessages.splitPresentationDesc)
               }
               aria-describedby={isPresentationDetached ? 'mergePresentationDesc' : 'splitPresentationDesc'}
               color="default"
@@ -357,8 +357,8 @@ class PresentationToolbar extends PureComponent {
               size="md"
               onClick={togglePresentationDetached}
               label={isPresentationDetached
-                ? `${intl.formatMessage(intlMessages.mergePresentationDesc)}`
-                : `${intl.formatMessage(intlMessages.splitPresentationDesc)}`
+                ? intl.formatMessage(intlMessages.mergePresentationDesc)
+                : intl.formatMessage(intlMessages.splitPresentationDesc)
               }
               hideLabel
             />
