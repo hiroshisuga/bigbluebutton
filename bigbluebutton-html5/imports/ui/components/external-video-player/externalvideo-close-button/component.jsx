@@ -24,7 +24,7 @@ const CloseExternalVideoComponent = ({ intl }) => (
     onClick={ExternalVideoService.stopWatching}
     label={intl.formatMessage(intlMessages.closeExternalVideoLabel)}
     hideLabel
-    className={styles.button}
+    className={Styled.Button}
   />
 );
 
