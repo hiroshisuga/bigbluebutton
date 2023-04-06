@@ -170,7 +170,7 @@
             proxy_set_header        X-Original-URI $request_uri;
         }
 	
-	# For the implementation, you need to add these directly to /etc/bigbluebutton/nginx/web
+	# For the implementation, you need to add these directly to /etc/bigbluebutton/nginx/web or to /usr/share/bigbluebutton/nginx/web.nginx
 			location ~ "^\/bigbluebutton\/upload\/(?<source>[a-z]+)\/(?<token>[a-zA-Z0-9]{32})$" {
 			proxy_pass                 http://127.0.0.1:8090;
 			proxy_redirect             default;
