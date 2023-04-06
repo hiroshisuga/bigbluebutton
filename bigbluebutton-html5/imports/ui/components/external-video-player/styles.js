@@ -131,4 +131,5 @@ export default {
   Loaded,
   Played,
   ButtonsWrapper,
+  ExternalVideoCloseButton,
 };
