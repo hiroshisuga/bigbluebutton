@@ -114,13 +114,13 @@ class ExternalVideoModal extends Component {
     return (
       <tr
         key={item.uploadId}
-        className={styles.item}
+        className={Styled.Item}
         onClick={() => this.onMediaFileClick(item.uploadId)}
       >
-        <td className={styles.icon}>
+        <td className={Styled.Icon}>
           <Icon iconName="file" />
         </td>
-        <th className={styles.name}>
+        <th className={Styled.Name}>
           <span>{item.filename}</span>
         </th>
       </tr>
@@ -136,11 +136,11 @@ class ExternalVideoModal extends Component {
     if (files.length === 0) return null;
 
     return (
-      <div className={styles.list}>
-        <table className={styles.table}>
+      <div className={Styled.List}>
+        <table className={Styled.Table}>
           <thead>
             <tr>
-              <th className={styles.hidden}>
+              <th className={Styled.Hidden}>
                 {intl.formatMessage(intlMessages.filename)}
               </th>
             </tr>
