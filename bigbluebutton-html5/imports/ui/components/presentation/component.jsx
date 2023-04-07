@@ -1039,11 +1039,7 @@ class Presentation extends PureComponent {
               ? (
                 <Styled.PresentationToolbar
                   ref={(ref) => { this.refPresentationToolbar = ref; }}
-                  style={
-                    {
-                      width: containerWidth,
-                    }
-                  }
+                  style={pToolbarStyle}
                 >
                   {this.renderPresentationToolbar(svgWidth)}
                 </Styled.PresentationToolbar>
