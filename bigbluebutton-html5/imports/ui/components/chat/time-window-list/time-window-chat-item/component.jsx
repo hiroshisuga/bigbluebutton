@@ -116,10 +116,10 @@ class TimeWindowChatItem extends PureComponent {
                 <Styled.SystemMessageChatItem
                   border={message.id}
                   key={message.id ? message.id : _.uniqueId('id-')}
-                  text={intlMessages[message.upload ? UploadService.getNotification(upload, intl) : message.text] ? intl.formatMessage(
-                    intlMessages[message.upload ? UploadService.getNotification(upload, intl) : message.text],
+                  text={intlMessages[message.upload ? UploadService.getNotification(message.upload, intl) : message.text] ? intl.formatMessage(
+                    intlMessages[message.upload ? UploadService.getNotification(message.upload, intl) : message.text],
                     messageValues || {},
-                  ) : message.upload ? UploadService.getNotification(upload, intl) : message.text}
+                  ) : message.upload ? UploadService.getNotification(message.upload, intl) : message.text}
                   time={message.time}
                   isSystemMessage={message.id ? true : false}
                   systemMessageType={message.text === CHAT_CLEAR_MESSAGE ? 'chatClearMessageText' : 'chatWelcomeMessageText'}
