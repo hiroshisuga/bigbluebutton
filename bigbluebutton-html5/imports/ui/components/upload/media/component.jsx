@@ -168,18 +168,18 @@ class MediaUpload extends Component {
           {intl.formatMessage(intlMessages.note)}
           {this.renderFiles()}
           <Styled.DropzoneWrapper>
-          <Styled.UploaderDropzone
+           <Styled.UploaderDropzone
             multiple
             accept={this.validFiles.map(type => type.extension)}
             maxSize={this.maxSize}
             disablepreview="true"
             onDrop={this.handleOnDrop}
-          >
+           >
             <Styled.DropzoneIcon iconName="upload" />
             <Styled.DropzoneMessage>
               {intl.formatMessage(intlMessages.message)}
             </Styled.DropzoneMessage>
-          </Styled.UploaderDropzone>
+           </Styled.UploaderDropzone>
           </Styled.DropzoneWrapper>
         </Styled.Content>
         <Styled.Footer>
