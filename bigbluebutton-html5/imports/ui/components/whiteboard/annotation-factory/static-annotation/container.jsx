@@ -44,7 +44,7 @@ StaticAnnotationContainer.propTypes = {
     PropTypes.number,
     PropTypes.object,
   ])),
-  drawObject: PropTypes.func.isRequired,
+  drawObject: PropTypes.oneOfType([PropTypes.func, PropTypes.object]).isRequired,
   slideWidth: PropTypes.number.isRequired,
   slideHeight: PropTypes.number.isRequired,
 };
