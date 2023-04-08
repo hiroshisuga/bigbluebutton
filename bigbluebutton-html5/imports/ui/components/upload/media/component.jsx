@@ -97,21 +97,23 @@ class MediaUpload extends Component {
 
     return (
       <tr key={item.id}>
-        <Styled.Icon>
+        <td>
           <Icon iconName="file" />
-        </Styled.Icon>
+        </td>
         <Styled.Name>
           <span>{item.filename}</span>
         </Styled.Name>
         <Styled.Actions>
-          <Styled.Button>
+          <Styled.StyledButtons>
+           <Button
             label={intl.formatMessage(intlMessages.remove)}
             aria-label={`${intl.formatMessage(intlMessages.remove)} ${item.filename}`}
             size="sm"
             icon="delete"
             hideLabel
             onClick={() => this.handleRemove(item)}
-          </Styled.Button>
+           />
+          </Styled.StyledButtons>
         </Styled.Actions>
       </tr>
     );
@@ -153,34 +155,35 @@ class MediaUpload extends Component {
     const { files } = this.state;
 
     return (
-      <Styled.ModalStyle>
-        <Styled.Header>
+      <Styled.ModalStyle
+       onRequestClose={closeModal}
+      >
+       <Styled.ModalInner>
+        <Styled.ModalHeader>
           <Styled.Title>
-          <h3>
             {intl.formatMessage(intlMessages.title)}
-          </h3>
           </Styled.Title>
-        </Styled.Header>
+        </Styled.ModalHeader>
         <Styled.Content>
           {intl.formatMessage(intlMessages.note)}
-        </Styled.Content>
-        <Styled.Content>
           {this.renderFiles()}
-          <Styled.DropzoneStyle
+          <Styled.DropzoneWrapper>
+          <Styled.UploaderDropzone
             multiple
             accept={this.validFiles.map(type => type.extension)}
             maxSize={this.maxSize}
             disablepreview="true"
             onDrop={this.handleOnDrop}
           >
-            <Icon iconName="upload" />
+            <Styled.DropzoneIcon iconName="upload" />
             <Styled.DropzoneMessage>
               {intl.formatMessage(intlMessages.message)}
             </Styled.DropzoneMessage>
-          </Styled.DropzoneStyle>
+          </Styled.UploaderDropzone>
+          </Styled.DropzoneWrapper>
         </Styled.Content>
         <Styled.Footer>
-          <Styled.Buttons>
+          <Styled.StyledButtons>
             <Button
               label={intl.formatMessage(intlMessages.cancel)}
               onClick={closeModal}
@@ -191,8 +194,9 @@ class MediaUpload extends Component {
               onClick={() => this.handleUpload(files)}
               disabled={files.length === 0}
             />
-          </Styled.Buttons>
+          </Styled.StyledButtons>
         </Styled.Footer>
+       </Styled.ModalInner>
       </Styled.ModalStyle>
     );
   }
