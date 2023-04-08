@@ -194,10 +194,15 @@ class Presentation extends PureComponent {
   }
 
   componentDidMount() {
+    const { isPresentationDetached } = this.props;
     this.getInitialPresentationSizes();
     this.refPresentationContainer
       .addEventListener(FULLSCREEN_CHANGE_EVENT, this.onFullscreenChange);
-    window.addEventListener('resize', this.onResize, false);
+    if (isPresentationDetached){
+      presentationWindow.addEventListener('resize', this.onResize, false);
+    } else {
+      window.addEventListener('resize', this.onResize, false);
+    }
 
     const {
       currentSlide, slidePosition, layoutContextDispatch,
@@ -350,9 +355,14 @@ class Presentation extends PureComponent {
 
   componentWillUnmount() {
     Session.set('componentPresentationWillUnmount', true);
-    const { fullscreenContext, layoutContextDispatch } = this.props;
+    const { fullscreenContext, layoutContextDispatch, isPresentationDetached } = this.props;
 
-    window.removeEventListener('resize', this.onResize, false);
+    if (isPresentationDetached) {
+      presentationWindow.removeEventListener('resize', this.onResize, false);
+    } else {
+      window.removeEventListener('resize', this.onResize, false);
+    }
+
     this.refPresentationContainer
       .removeEventListener(FULLSCREEN_CHANGE_EVENT, this.onFullscreenChange);
 
@@ -368,10 +378,12 @@ class Presentation extends PureComponent {
   }
 
   handleResize() {
+    const { isPresentationDetached } = this.props;
     const presentationSizes = this.getPresentationSizesAvailable();
     if (Object.keys(presentationSizes).length > 0) {
       // updating the size of the space available for the slide
-      if (!Session.get('componentPresentationWillUnmount')) {
+      //This condition enables the resizing of detached window, by removing this condition, the original window start to resize after merging the detached window.
+      if (!Session.get('componentPresentationWillUnmount') || !isPresentationDetached) {
         this.setState({
           presentationHeight: presentationSizes.presentationHeight,
           presentationWidth: presentationSizes.presentationWidth,
