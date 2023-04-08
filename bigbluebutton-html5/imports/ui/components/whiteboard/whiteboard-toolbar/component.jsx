@@ -541,8 +541,8 @@ class WhiteboardToolbar extends Component {
   }
 
   renderFontItem() {
-    const { intl, fontSizes } = this.props;
-    const { currentSubmenuOpen, fontSizeSelected, presentationWindow } = this.state;
+    const { intl, fontSizes, presentationWindow } = this.props;
+    const { currentSubmenuOpen, fontSizeSelected } = this.state;
 
     return (
       <ToolbarMenuItem
