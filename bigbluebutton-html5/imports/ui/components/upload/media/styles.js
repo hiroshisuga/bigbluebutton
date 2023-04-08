@@ -1,6 +1,7 @@
 import styled from 'styled-components';
 import Modal from '/imports/ui/components/common/modal/simple/component';
 import Button from '/imports/ui/components/common/button/component';
+import Icon from '/imports/ui/components/common/icon/component';
 import Dropzone from 'react-dropzone';
 import {
   fileLineWidth,
