@@ -497,7 +497,7 @@ class WhiteboardToolbar extends Component {
 
   renderToolItem() {
     const { panMode, annotationSelected, currentSubmenuOpen } = this.state;
-    const { intl, annotations } = this.props;
+    const { intl, annotations, presentationWindow } = this.props;
     const isDisabled = !annotations.length;
 
     return panMode
@@ -532,6 +532,7 @@ class WhiteboardToolbar extends Component {
                 handleMouseEnter={this.handleMouseEnter}
                 handleMouseLeave={this.handleMouseLeave}
                 handleClose={this.handleClose}
+                presentationWindow={presentationWindow}
               />
             )
             : null}
