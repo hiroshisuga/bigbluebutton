@@ -73,8 +73,8 @@ function copyStyles(sourceDoc, targetDoc) {
       const newStyleEl = sourceDoc.createElement('style');
       Array.from(styleSheet.cssRules).forEach(cssRule => {
         let newCssText;
-        if (cssRule.cssText.match(/url\(.fonts/)) {
-          newCssText = cssRule.cssText.replace(/^(.*url\(.)(fonts.+)$/, function(){return arguments[1] + baseName + '/' + arguments[2]});
+        if (cssRule.cssText.match(/url\(\"[fonts|files]/)) {
+          newCssText = cssRule.cssText.replace(/url\(\"([^\"]*)/g, function(){return 'url("' + baseName + '/' + arguments[1]});
         } else {
           newCssText = cssRule.cssText;
         }
