@@ -353,7 +353,7 @@ const StyledButtons = styled.div`
 
   :first-child {
     margin-right: 3px;
-    margin-left: inherit;
+    /*margin-left: inherit;*/
 
     [dir="rtl"] & {
       margin-right: inherit;
