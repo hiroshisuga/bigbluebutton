@@ -542,7 +542,7 @@ class WhiteboardToolbar extends Component {
 
   renderFontItem() {
     const { intl, fontSizes } = this.props;
-    const { currentSubmenuOpen, fontSizeSelected } = this.state;
+    const { currentSubmenuOpen, fontSizeSelected, presentationWindow } = this.state;
 
     return (
       <ToolbarMenuItem
@@ -567,6 +567,7 @@ class WhiteboardToolbar extends Component {
               handleMouseEnter={this.handleMouseEnter}
               handleMouseLeave={this.handleMouseLeave}
               handleClose={this.handleClose}
+              presentationWindow={presentationWindow}
             />
           )
           : null}
@@ -595,6 +596,7 @@ class WhiteboardToolbar extends Component {
       intl,
       annotations,
       thicknessRadiuses,
+      presentationWindow,
     } = this.props;
 
     const {
@@ -630,6 +632,7 @@ class WhiteboardToolbar extends Component {
               handleMouseEnter={this.handleMouseEnter}
               handleMouseLeave={this.handleMouseLeave}
               handleClose={this.handleClose}
+              presentationWindow={presentationWindow}
             />
           )
           : null}
@@ -688,6 +691,7 @@ class WhiteboardToolbar extends Component {
       intl,
       annotations,
       colors,
+      presentationWindow,
     } = this.props;
 
     const {
@@ -723,6 +727,7 @@ class WhiteboardToolbar extends Component {
               handleMouseEnter={this.handleMouseEnter}
               handleMouseLeave={this.handleMouseLeave}
               handleClose={this.handleClose}
+              presentationWindow={presentationWindow}
             />
           )
           : null}
