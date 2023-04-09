@@ -297,6 +297,42 @@ const submenuStyleText = (arg) => {
       box-shadow: 1px 1px ${borderSizeLarge} ${colorGrayDark};
       font-size: ${smPaddingX};
     }
+    
+    /* SubmenuButton in toolbar-submenu-item/styles.js */
+    .toolbarButtonWrapper > button[state="active"] {
+      padding: 0;
+      border: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: row;
+      align-items: center !important;
+      justify-content: center !important;
+      position: relative;
+      border-radius: 0;
+      box-shadow: none !important;
+      z-index: 1;
+      font-size: ${toolbarButtonFontSize};
+      color: ${toolbarButtonColor};
+      border-color: ${toolbarButtonBorderColor};
+      background-color: ${toolbarListBg};
+    }
+    .toolbarButtonWrapper > button[state="active"]:hover,
+    .toolbarButtonWrapper > button[state="active"]:focus {
+      border: 0;
+    }
+    .toolbarButtonWrapper > button[state="active"] > i {
+      color: ${toolbarListColor};
+    }
+
+    /* Outline of texttool */
+    .toolbarButtonWrapper p {
+      font-family: Arial, sans-serif;
+      font-weight: normal;
+      text-shadow: -1px 0 ${toolbarListBgFocus}, 0 1px ${toolbarListBgFocus}, 1px 0 ${toolbarListBgFocus}, 0 -1px ${toolbarListBgFocus};
+      margin: auto;
+      color: ${toolbarListColor};
+    }
   `;
 
   return styleText;
