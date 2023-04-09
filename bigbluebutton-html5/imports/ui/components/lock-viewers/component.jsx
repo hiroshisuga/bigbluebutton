@@ -378,7 +378,7 @@ class LockViewersComponent extends Component {
                     icons={false}
                     defaultChecked={lockSettingsProps.hideAnnotations}
                     onChange={() => {
-                      this.toggleLockSettings('hideViewersCursor');
+                      this.toggleLockSettings('hideAnnotations');
                     }}
                     ariaLabel={intl.formatMessage(intlMessages.isolatedWhiteboardLabel)}
                     showToggleLabel={showToggleLabel}
