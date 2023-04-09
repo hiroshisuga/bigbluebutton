@@ -452,6 +452,33 @@ const parseCurrentSlideContent = (yesValue, noValue, abstentionValue, trueValue,
   };
 };
 
+export const copyStyles = (sourceDoc, targetDoc) => {
+  //To be fair, I declare that this was copied from https://medium.com/hackernoon/using-a-react-16-portal-to-do-something-cool-2a2d627b0202
+  const hostUri = `https://${window.document.location.hostname}`;
+  const baseName = hostUri + Meteor.settings.public.app.cdn + Meteor.settings.public.app.basename + Meteor.settings.public.app.instanceId;
+  Array.from(sourceDoc.styleSheets).forEach(styleSheet => {
+    if (styleSheet.cssRules) {
+      const newStyleEl = sourceDoc.createElement('style');
+      Array.from(styleSheet.cssRules).forEach(cssRule => {
+        let newCssText;
+        if (cssRule.cssText.match(/url\(\"[fonts|files]/)) {
+          newCssText = cssRule.cssText.replace(/url\(\"([^\"]*)/g, function(){return 'url("' + baseName + '/' + arguments[1]});
+        } else {
+          newCssText = cssRule.cssText;
+        }
+console.log("CSS", newCssText);
+        newStyleEl.appendChild(sourceDoc.createTextNode(newCssText));
+      });
+      targetDoc.head.appendChild(newStyleEl);
+    } else if (styleSheet.href) {
+      const newLinkEl = sourceDoc.createElement('link');
+      newLinkEl.rel = 'stylesheet';
+      newLinkEl.href = styleSheet.href;
+      targetDoc.head.appendChild(newLinkEl);
+    }
+  });
+}
+
 export default {
   getCurrentSlide,
   getSlidePosition,
