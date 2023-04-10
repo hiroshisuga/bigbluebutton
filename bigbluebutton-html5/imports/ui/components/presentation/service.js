@@ -299,7 +299,7 @@ const parseCurrentSlideContent = (yesValue, noValue, abstentionValue, trueValue,
   let {
     content,
   } = currentSlide;
-  
+
   const urlRegex = /((http|https):\/\/[a-zA-Z0-9\-.:]+(\/\S*)?)/g;
   const optionsUrls = content.match(urlRegex) || [];
   const videoUrls = optionsUrls.filter(value => isUrlValid(value));
