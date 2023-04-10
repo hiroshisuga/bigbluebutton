@@ -338,7 +338,8 @@ const parseCurrentSlideContent = (yesValue, noValue, abstentionValue, trueValue,
     });
   }
 
-  optionsPoll.reduce((acc, currentValue) => {
+  //optionsPoll.reduce((acc, currentValue) => {
+  optionsWithLabels.reduce((acc, currentValue) => {
     const lastElement = acc[acc.length - 1];
 
     if (!lastElement) {
