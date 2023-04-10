@@ -17,8 +17,6 @@ import FullscreenService from '/imports/ui/components/common/fullscreen-button/s
 import Panopto from '/imports/ui/components/external-video-player/custom-players/panopto';
 import Auth from '/imports/ui/services/auth';
 
-import { styles } from '../styles';
-
 const intlMessages = defineMessages({
   quickLinksLabel: {
     id: 'app.externalLinks.title',
@@ -134,7 +132,6 @@ const QuickLinksDropdown = (props) => {
     <DropdownTrigger tabIndex={0}>
         <Styled.QuickLinksButton
           aria-label={intl.formatMessage(intlMessages.quickLinksLabel)}
-          className={styles.presentationBtn}
           color="primary"
           hideLabel
           icon="popout_window"
