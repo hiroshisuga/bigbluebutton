@@ -22,7 +22,7 @@ const FeatureList: FeatureItem[] = [
             </>
         ),
         actionText: "Teaching Experience",
-        docId: "/teaching"
+        docId: "https://bigbluebutton.org/teachers/tutorials/"
     },
     {
         title: 'I am a developer',
@@ -58,7 +58,7 @@ const FeatureList: FeatureItem[] = [
             </>
         ),
         actionText: "Greenlight guide",
-        docId: "/greenlight/v2/overview"
+        docId: "/greenlight/v3/install"
     },
     {
         title: 'What\'s new?',
