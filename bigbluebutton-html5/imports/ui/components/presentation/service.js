@@ -324,23 +324,6 @@ const parseCurrentSlideContent = (yesValue, noValue, abstentionValue, trueValue,
   const trueFalsePatt = /.*(true\/false|false\/true).*/gm;
   const hasTF = safeMatch(trueFalsePatt, content, false);
 
-//  const pollRegex = /[1-9A-Ia-i][.)].*/g;
-//  let optionsPoll = safeMatch(pollRegex, content, []);
-//  const optionsWithLabels = [];
-
-//  if (hasYN) {
-//    optionsPoll = ['yes', 'no'];
-//  }
-
-//  if (optionsPoll) {
-//    optionsPoll = optionsPoll.map((opt) => {
-//      const MAX_CHAR_LIMIT = 30;
-//      const formattedOpt = opt.substring(0, MAX_CHAR_LIMIT);
-//      optionsWithLabels.push(formattedOpt);
-//      return `\r${opt[0]}.`;
-//    });
-//  }
-
   optionsPoll.reduce((acc, currentValue) => {
     const lastElement = acc[acc.length - 1];
 
@@ -395,20 +378,10 @@ const parseCurrentSlideContent = (yesValue, noValue, abstentionValue, trueValue,
   }) => options.length > 1 && options.length < 99).forEach((p) => {
     const poll = p;
     if (doubleQuestion) poll.multiResp = true;
-    //if (poll.options.length <= 5 || MAX_CUSTOM_FIELDS <= 5) {
-    //  const maxAnswer = poll.options.length > MAX_CUSTOM_FIELDS
-    //    ? MAX_CUSTOM_FIELDS
-    //    : poll.options.length;
-    //  quickPollOptions.push({
-    //    type: `${pollTypes.Letter}${maxAnswer}`,
-    //    poll,
-    //  });
-    //} else {
       quickPollOptions.push({
         type: pollTypes.Custom,
         poll,
       });
-    //}
   });
 
   if (question.length > 0 && optionsPoll.length === 0 && !doubleQuestion && !hasYN && !hasTF) {// from #17049
