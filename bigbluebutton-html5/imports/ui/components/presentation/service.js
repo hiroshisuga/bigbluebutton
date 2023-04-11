@@ -306,7 +306,7 @@ const parseCurrentSlideContent = (yesValue, noValue, abstentionValue, trueValue,
   const urls = optionsUrls.filter(i => videoUrls.indexOf(i) == -1);
   content = content.replace(new RegExp(urlRegex), '');
   
-  const pollRegex = /(\d{1,2}|[A-Za-z])[.)].*/g;
+  const pollRegex = /\b(\d{1,2}|[A-Za-z])[.)] .*/g; //from #16622 + #16650
   let optionsPoll = content.match(pollRegex) || [];
   let optionsPollStrings = [];
   if (optionsPoll) optionsPollStrings = optionsPoll.map(opt => `${opt.replace(/^[^.)]{1,2}[.)]/,'').replace(/^\s+/, '')}`);
@@ -326,20 +326,20 @@ const parseCurrentSlideContent = (yesValue, noValue, abstentionValue, trueValue,
 
 //  const pollRegex = /[1-9A-Ia-i][.)].*/g;
 //  let optionsPoll = safeMatch(pollRegex, content, []);
-  const optionsWithLabels = [];
+//  const optionsWithLabels = [];
 
-  if (hasYN) {
+//  if (hasYN) {
 //    optionsPoll = ['yes', 'no'];
-  }
+//  }
 
-  if (optionsPoll) {
-    optionsPoll = optionsPoll.map((opt) => {
-      const MAX_CHAR_LIMIT = 30;
-      const formattedOpt = opt.substring(0, MAX_CHAR_LIMIT);
-      optionsWithLabels.push(formattedOpt);
-      return `\r${opt[0]}.`;
-    });
-  }
+//  if (optionsPoll) {
+//    optionsPoll = optionsPoll.map((opt) => {
+//      const MAX_CHAR_LIMIT = 30;
+//      const formattedOpt = opt.substring(0, MAX_CHAR_LIMIT);
+//      optionsWithLabels.push(formattedOpt);
+//      return `\r${opt[0]}.`;
+//    });
+//  }
 
   optionsPoll.reduce((acc, currentValue) => {
     const lastElement = acc[acc.length - 1];
@@ -411,7 +411,7 @@ const parseCurrentSlideContent = (yesValue, noValue, abstentionValue, trueValue,
     //}
   });
 
-  if (question.length > 0 && optionsPoll.length === 0 && !doubleQuestion && !hasYN && !hasTF) {
+  if (question.length > 0 && optionsPoll.length === 0 && !doubleQuestion && !hasYN && !hasTF) {// from #17049
     quickPollOptions.push({
       type: 'R-',
       poll: {
@@ -448,7 +448,7 @@ const parseCurrentSlideContent = (yesValue, noValue, abstentionValue, trueValue,
   return {
     slideId: currentSlide.id,
     quickPollOptions,
-    optionsWithLabels,
+    //optionsWithLabels,
     pollQuestion,
     videoUrls,
     urls,
