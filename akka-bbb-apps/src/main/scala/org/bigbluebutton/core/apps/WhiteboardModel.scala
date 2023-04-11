@@ -166,9 +166,9 @@ class WhiteboardModel extends SystemConfiguration {
         case Some(annotation) => annotation.position
         case None             => wb.annotationCount
       }
-      if (SYNCUPDATE) {
+      //if (SYNCUPDATE) {
         newPosition = wb.annotationCount
-      }
+      //}
       val updatedAnnotation = annotation.copy(position = newPosition, annotationInfo = updatedAnnotationData)
 
       val updateExists = !usersAnnotations.isEmpty && usersAnnotations.head.id == annotation.id
@@ -184,10 +184,10 @@ class WhiteboardModel extends SystemConfiguration {
 
       val newAnnotationsMap = wb.annotationsMap + (userId -> (updatedAnnotation :: newUsersAnnotations))
       //println("Annotation has position [" + usersAnnotations.head.position + "]")
-      var newWb = wb.copy(annotationsMap = newAnnotationsMap)
-      if (SYNCUPDATE) {
-        newWb = wb.copy(annotationCount = wb.annotationCount + 1, annotationsMap = newAnnotationsMap)
-      }
+      //var newWb = wb.copy(annotationsMap = newAnnotationsMap)
+      //if (SYNCUPDATE) {
+        val newWb = wb.copy(annotationCount = wb.annotationCount + 1, annotationsMap = newAnnotationsMap)
+      //}
       //println("Updating annotation on page [" + wb.id + "]. After numAnnotations=[" + getAnnotationsByUserId(wb, userId).length + "].")
       saveWhiteboard(newWb)
 
