@@ -306,6 +306,12 @@ const parseCurrentSlideContent = (yesValue, noValue, abstentionValue, trueValue,
   const urls = optionsUrls.filter(i => videoUrls.indexOf(i) == -1);
   content = content.replace(new RegExp(urlRegex), '');
   
+  const pollRegex = /(\d{1,2}|[A-Za-z])[.)].*/g;
+  let optionsPoll = content.match(pollRegex) || [];
+  let optionsPollStrings = [];
+  if (optionsPoll) optionsPollStrings = optionsPoll.map(opt => `${opt.replace(/^[^.)]{1,2}[.)]/,'').replace(/^\s+/, '')}`);
+  if (optionsPoll) optionsPoll = optionsPoll.map(opt => `\r${opt.replace(/[.)].*/,'')}.`);
+  
   const questionRegex = /.*?\?/gm;
   const question = safeMatch(questionRegex, content, '');
 
@@ -318,15 +324,12 @@ const parseCurrentSlideContent = (yesValue, noValue, abstentionValue, trueValue,
   const trueFalsePatt = /.*(true\/false|false\/true).*/gm;
   const hasTF = safeMatch(trueFalsePatt, content, false);
 
-  //const pollRegex = /[1-9A-Ia-i][.)].*/g;
-  //const pollRegex = /(\d{1,2}|[A-Za-z])[.)].*/g;
-  //const pollRegex = /\b[1-9A-Ia-i][.)] .*/g;
-  const pollRegex = /\b(\d{1,2}|[A-Za-z])[.)] .*/g;
-  let optionsPoll = safeMatch(pollRegex, content, []);
+//  const pollRegex = /[1-9A-Ia-i][.)].*/g;
+//  let optionsPoll = safeMatch(pollRegex, content, []);
   const optionsWithLabels = [];
 
   if (hasYN) {
-    optionsPoll = ['yes', 'no'];
+//    optionsPoll = ['yes', 'no'];
   }
 
   if (optionsPoll) {
@@ -338,7 +341,8 @@ const parseCurrentSlideContent = (yesValue, noValue, abstentionValue, trueValue,
     });
   }
 
-  optionsPoll.reduce((acc, currentValue) => {
+  //optionsPoll.reduce((acc, currentValue) => {
+  optionsWithLabels.reduce((acc, currentValue) => {
     const lastElement = acc[acc.length - 1];
 
     if (!lastElement) {
@@ -358,12 +362,22 @@ const parseCurrentSlideContent = (yesValue, noValue, abstentionValue, trueValue,
     const isCurrentValueInteger = !!parseInt(currentValue.charAt(1), 10);
 
     if (isLastOptionInteger === isCurrentValueInteger) {
-      if (currentValue.toLowerCase().charCodeAt(1) > lastOption.toLowerCase().charCodeAt(1)) {
-        options.push(currentValue);
+      if (isCurrentValueInteger){
+        if (parseInt(currentValue.replace(/[\r.]g/,'')) == parseInt(lastOption.replace(/[\r.]g/,'')) + 1) {
+          options.push(currentValue);
+        } else {
+          acc.push({
+            options: [currentValue],
+          });
+        }
       } else {
-        acc.push({
-          options: [currentValue],
-        });
+        if (currentValue.toLowerCase().charCodeAt(1) == lastOption.toLowerCase().charCodeAt(1) + 1) {
+          options.push(currentValue);
+        } else {
+          acc.push({
+            options: [currentValue],
+          });
+        }
       }
     } else {
       acc.push({
@@ -371,25 +385,31 @@ const parseCurrentSlideContent = (yesValue, noValue, abstentionValue, trueValue,
       });
     }
     return acc;
-  }, []).filter(({
+  }, []).map(poll => {
+    for (let i = 0 ; i < poll.options.length ; i++) {
+      poll.options.shift();
+      poll.options.push(optionsPollStrings.shift());
+    }
+    return poll;
+  }).filter(({
     options,
   }) => options.length > 1 && options.length < 99).forEach((p) => {
     const poll = p;
     if (doubleQuestion) poll.multiResp = true;
-    if (poll.options.length <= 5 || MAX_CUSTOM_FIELDS <= 5) {
-      const maxAnswer = poll.options.length > MAX_CUSTOM_FIELDS
-        ? MAX_CUSTOM_FIELDS
-        : poll.options.length;
-      quickPollOptions.push({
-        type: `${pollTypes.Letter}${maxAnswer}`,
-        poll,
-      });
-    } else {
+    //if (poll.options.length <= 5 || MAX_CUSTOM_FIELDS <= 5) {
+    //  const maxAnswer = poll.options.length > MAX_CUSTOM_FIELDS
+    //    ? MAX_CUSTOM_FIELDS
+    //    : poll.options.length;
+    //  quickPollOptions.push({
+    //    type: `${pollTypes.Letter}${maxAnswer}`,
+    //    poll,
+    //  });
+    //} else {
       quickPollOptions.push({
         type: pollTypes.Custom,
         poll,
       });
-    }
+    //}
   });
 
   if (question.length > 0 && optionsPoll.length === 0 && !doubleQuestion && !hasYN && !hasTF) {
