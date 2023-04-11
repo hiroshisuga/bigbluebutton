@@ -112,18 +112,19 @@ class ExternalVideoModal extends Component {
     const { intl } = this.props;
 
     return (
-      <tr
+      <Styled.Item
         key={item.uploadId}
-        className={Styled.Item}
         onClick={() => this.onMediaFileClick(item.uploadId)}
       >
-        <td className={Styled.Icon}>
-          <Icon iconName="file" />
+        <td>
+          <Styled.Icon>
+            <Icon iconName="file" />
+          </Styled.Icon>
         </td>
         <th className={Styled.Name}>
           <span>{item.filename}</span>
         </th>
-      </tr>
+      </Styled.Item>
     );
   }
 
