@@ -33,13 +33,8 @@ const Icon = styled.div`
     font-size: 1.35rem;
   }
 `;
-/*
-.icon > i {
-  font-size: 1.35rem;
-}
-*/
 
-const Item = styled.div`
+const Item = styled.tr`
   cursor: pointer;
 `;
 
@@ -217,4 +212,6 @@ export default {
   VideoUrl,
   ExternalVideoNote,
   StartButton,
+  Item,
+  Icon,
 };
