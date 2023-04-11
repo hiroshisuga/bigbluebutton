@@ -421,7 +421,6 @@ const parseCurrentSlideContent = (yesValue, noValue, abstentionValue, trueValue,
   return {
     slideId: currentSlide.id,
     quickPollOptions,
-    //optionsWithLabels,
     pollQuestion,
     videoUrls,
     urls,
