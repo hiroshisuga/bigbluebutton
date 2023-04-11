@@ -129,14 +129,15 @@ export default class TextDrawListener extends Component {
   checkTextAreaFocus() {
     const {
       actions,
+      presentationWindow,
     } = this.props;
 
     const { getCurrentShapeId } = actions;
 
-    const textarea = document.getElementById(getCurrentShapeId());
+    const textarea = presentationWindow.document.getElementById(getCurrentShapeId());
 
     if (textarea) {
-      if (document.activeElement === textarea && document.activeElement.value.length > 0) {
+      if (presentationWindow.document.activeElement === textarea && presentationWindow.document.activeElement.value.length > 0) {
         return true;
       }
       textarea.focus();
