@@ -38,7 +38,7 @@ const Item = styled.tr`
   cursor: pointer;
 `;
 
-const Name = styled.div`
+const Name = styled.th`
   height: 1rem;
   width: auto;
   position: relative;
@@ -214,4 +214,5 @@ export default {
   StartButton,
   Item,
   Icon,
+  Name,
 };
