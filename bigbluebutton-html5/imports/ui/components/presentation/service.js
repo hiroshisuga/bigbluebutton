@@ -441,7 +441,6 @@ export const copyStyles = (sourceDoc, targetDoc) => {
         } else {
           newCssText = cssRule.cssText;
         }
-console.log("CSS", newCssText);
         newStyleEl.appendChild(sourceDoc.createTextNode(newCssText));
       });
       targetDoc.head.appendChild(newStyleEl);
