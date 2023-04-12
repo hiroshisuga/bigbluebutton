@@ -306,7 +306,7 @@ const parseCurrentSlideContent = (yesValue, noValue, abstentionValue, trueValue,
   const urls = optionsUrls.filter(i => videoUrls.indexOf(i) == -1);
   content = content.replace(new RegExp(urlRegex), '');
   
-  const pollRegex = /\b(\d{1,2}|[A-Za-z])[.)] .*/g; //from #16622 + #16650
+  const pollRegex = /\b(\d{1,2}|[A-Za-z])[.)].*/g; //from (#16622) + #16650
   let optionsPoll = content.match(pollRegex) || [];
   let optionsPollStrings = [];
   if (optionsPoll) optionsPollStrings = optionsPoll.map(opt => `${opt.replace(/^[^.)]{1,2}[.)]/,'').replace(/^\s+/, '')}`);
