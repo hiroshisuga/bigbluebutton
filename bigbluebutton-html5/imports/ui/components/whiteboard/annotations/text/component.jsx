@@ -246,8 +246,15 @@ export default class TextDrawComponent extends Component {
     const { isActive, annotation } = this.props;
     const results = this.getCoordinates();
 
-    if (isActive && annotation.status !== DRAW_END) {
+    if (isActive) {
       return this.renderPresenterTextShape(results);
+    } else {
+      if (annotation.status !== DRAW_END) {
+        // When the realtime text update finished, 
+        // you will have isActive:false and annotation.status:DRAW_UPDATE component remains.
+        // This should not be rendered.
+        return null;
+      }
     }
     return this.renderViewerTextShape(results);
   }
