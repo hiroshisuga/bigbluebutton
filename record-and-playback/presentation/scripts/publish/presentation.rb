@@ -776,7 +776,7 @@ end
 
 def set_undo_helper(shapes, key, id, timestamp)
   shapes.each do |shape|
-    //next unless shape[key] == id
+    #next unless shape[key] == id
     next unless shape[key].sub(/_[\.\d]+$/,"") == id
 
     shape[:undo] = timestamp if !shape[:undo] || (shape[:undo] > timestamp)
