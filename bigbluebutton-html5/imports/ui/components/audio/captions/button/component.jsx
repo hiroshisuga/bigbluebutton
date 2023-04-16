@@ -104,6 +104,13 @@ const CaptionsButton = ({
   const isTranscriptionDisabled = () => (
     currentSpeechLocale === DISABLED
   );
+  const isTranslationDisabled = () => (
+    currentTranslationLocale === DISABLED
+  );
+
+  const isTranslationActivated = () => (
+    Meteor.settings.public.captions.enableAutomaticTranslation
+  );
 
   const fallbackLocale = availableVoices.includes(navigator.language)
     ? navigator.language : DEFAULT_LOCALE;
