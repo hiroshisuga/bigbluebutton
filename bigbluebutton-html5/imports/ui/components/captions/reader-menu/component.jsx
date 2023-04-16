@@ -156,7 +156,7 @@ class ReaderMenu extends PureComponent {
   handleLocaleChange(event) {
     this.setState({ locale: event.target.value });
   }
-  
+
   handleSelectChange(fieldname, options, event) {
     const obj = {};
     obj[fieldname] = options[event.target.value];
