@@ -14,7 +14,7 @@ function translateText (meetingId, userId, payload, dst) {
 
   const { locale: src, transcript: textOri } = payload;
 
-  if ( !CAPTIONS_CONFIG.enableAutomaticTranslation || textOri === "" || !dst || dst === "" || dst === src || dst.replace(/-.*$/,'') === src || dst === src.replace(/-.*$/,'') ) {
+  if ( !CAPTIONS_CONFIG.enableAutomaticTranslation || textOri === "" || !dst || dst === "" || dst === src || dst.replace(/-..$/,'') === src || dst === src.replace(/-..$/,'') ) {
       RedisPubSub.publishUserMessage(CHANNEL, EVENT_NAME, meetingId, userId, payload);
   } else {
     let url = '';
@@ -23,7 +23,7 @@ function translateText (meetingId, userId, payload, dst) {
             'text=' + encodeURIComponent(textOri) + '&source=' + src + '&target=' + dst;
     } else if (CAPTIONS_CONFIG.deeplTranslateUrl) {
       url = CAPTIONS_CONFIG.deeplTranslateUrl +
-            '&text=' + encodeURIComponent(textOri) + '&source_lang=' + src.replace(/-.*$/,'').toUpperCase() +
+            '&text=' + encodeURIComponent(textOri) + '&source_lang=' + src.replace(/-..$/,'').toUpperCase() +
             '&target_lang=' + dst.toUpperCase();
     } else {
       Logger.error('Could not get a translation service.');
