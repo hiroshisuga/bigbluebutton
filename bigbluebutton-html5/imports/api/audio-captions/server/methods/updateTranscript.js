@@ -46,7 +46,6 @@ function translateText (meetingId, userId, payload, dst) {
       } else if (CAPTIONS_CONFIG.deeplTranslateUrl) {
         const { translations } = response.data;
         if (translations.length > 0 && translations[0].text) {
-          //sendToPad(padId, translations[0].text);
           const newPayload = Object.assign({}, payload, {transcript: translations[0].text});
           RedisPubSub.publishUserMessage(CHANNEL, EVENT_NAME, meetingId, userId, newPayload);
         } else {
