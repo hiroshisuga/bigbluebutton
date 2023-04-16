@@ -108,7 +108,7 @@ export default function updateTranscript(transcriptId, start, end, text, transcr
             Logger.info(`Assigned user prevTextOri ${prevTextOri} id=${requesterUserId} meeting=${meetingId}`);
           }
         } catch (err) {
-         Logger.error(`Assigning user prevTextOri: ${err}`);
+          Logger.error(`Assigning user prevTextOri: ${err}`);
         }
         translateText(meetingId, requesterUserId, payload, dstLocale);
       } else {
