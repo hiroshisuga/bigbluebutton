@@ -10,7 +10,9 @@ const Container = (props) => <Button {...props} />;
 export default withTracker(() => {
   const isRTL = document.documentElement.getAttribute('dir') === 'rtl';
   const availableVoices = SpeechService.getSpeechVoices();
+  const availableTranslations = SpeechService.getTranslations();
   const currentSpeechLocale = SpeechService.getSpeechLocale();
+  const currentTranslationLocale = SpeechService.getTranslationLocale();
   const isSupported = availableVoices.length > 0;
   const isVoiceUser = AudioService.isVoiceUser();
   return {
@@ -18,7 +20,9 @@ export default withTracker(() => {
     enabled: Service.hasAudioCaptions(),
     active: Service.getAudioCaptions(),
     currentSpeechLocale,
+    currentTranslationLocale,
     availableVoices,
+    availableTranslations,
     isSupported,
     isVoiceUser,
   };
