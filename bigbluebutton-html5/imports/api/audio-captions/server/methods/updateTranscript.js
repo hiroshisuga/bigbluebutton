@@ -59,7 +59,7 @@ function translateText (meetingId, userId, payload, dst) {
               'text=' + encodeURIComponent(transcriptOriNoBlank) + '&source=' + src + '&target=' + dst;
       } else if (CAPTIONS_CONFIG.deeplTranslateUrl) {
         url = CAPTIONS_CONFIG.deeplTranslateUrl +
-              '&text=' + encodeURIComponent(transcriptOriNoBlank) + '&source_lang=' + src.replace(/-.*$/,'').toUpperCase() +
+              '&text=' + encodeURIComponent(transcriptOriNoBlank) + '&source_lang=' + src.replace(/-..$/,'').toUpperCase() +
               '&target_lang=' + dst.toUpperCase();
       } else {
         Logger.error('Could not get a translation service.');
