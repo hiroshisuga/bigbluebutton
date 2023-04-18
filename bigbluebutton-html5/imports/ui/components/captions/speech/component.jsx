@@ -126,7 +126,7 @@ class Speech extends PureComponent {
               this.speechRecognition.start();
             } catch (e) {
               this.counterDictationStop = 0;
-             this.dictationDemanded = false;
+              this.dictationDemanded = false;
               this.onEnd();
               logger.error({
                 logCode: 'captions_recognition',
