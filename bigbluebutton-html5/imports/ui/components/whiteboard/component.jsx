@@ -70,8 +70,12 @@ export default function Whiteboard(props) {
     hasMultiUserAccess,
     tldrawAPI,
     setTldrawAPI,
+    whiteboardToolbarAutoHide,
+    toggleToolsAnimations,
     isIphone,
     sidebarNavigationWidth,
+    animations,
+    isToolbarVisible,
   } = props;
   const { pages, pageStates } = initDefaultPages(curPres?.pages.length || 1);
   const rDocument = React.useRef({
@@ -162,6 +166,14 @@ export default function Whiteboard(props) {
     };
   }, [tldrawAPI, isToolLocked]);
 
+  React.useEffect(() => {
+    if (whiteboardToolbarAutoHide) {
+      toggleToolsAnimations('fade-in', 'fade-out', animations ? '3s' : '0s');
+    } else {
+      toggleToolsAnimations('fade-out', 'fade-in', animations ? '.3s' : '0s');
+    }
+  }, [whiteboardToolbarAutoHide]);
+  
   const calculateZoom = (localWidth, localHeight) => {
     const calcedZoom = fitToWidth ? (presentationWidth / localWidth) : Math.min(
       (presentationWidth) / localWidth,
@@ -208,7 +220,9 @@ export default function Whiteboard(props) {
         clientY: event.clientY,
       });
       const canvas = document.getElementById('canvas');
-      canvas && canvas.dispatchEvent(newEvent);
+      if (canvas) {
+        canvas.dispatchEvent(newEvent);
+      }
     }
   }
 
@@ -604,6 +618,7 @@ export default function Whiteboard(props) {
       const MENU_OFFSET = '48px';
       menu.style.position = 'relative';
       menu.style.height = presentationMenuHeight;
+      menu.setAttribute('id', 'TD-Styles-Parent');
       if (isRTL && !isPresentationDetached) { //a workaround for now..
         menu.style.left = MENU_OFFSET;
       } else {
@@ -614,6 +629,7 @@ export default function Whiteboard(props) {
         .sort((a, b) => (a?.id > b?.id ? -1 : 1))
         .forEach((n) => menu.appendChild(n));
     }
+
     app.setSetting('language', language);
     app?.setSetting('isDarkMode', false);
     app?.patchState(
@@ -894,6 +910,10 @@ export default function Whiteboard(props) {
       setHistory(app.history);
     }
 
+    if (whiteboardToolbarAutoHide && command && command.id === "change_page") {
+      toggleToolsAnimations('fade-in', 'fade-out', '0s');
+    }
+
     if (command?.id?.includes('style')) {
       setCurrentStyle({ ...currentStyle, ...command?.after?.appState?.currentStyle });
     }
@@ -1023,7 +1043,7 @@ export default function Whiteboard(props) {
   } 
 
   return (
-    <>
+    <div key={`animations=-${animations}`}>
       <Cursors
         tldrawAPI={tldrawAPI}
         currentUser={currentUser}
@@ -1036,6 +1056,8 @@ export default function Whiteboard(props) {
         currentTool={currentTool}
         isPresentationDetached={isPresentationDetached}
         presentationWindow={presentationWindow}
+        whiteboardToolbarAutoHide={whiteboardToolbarAutoHide}
+        toggleToolsAnimations={toggleToolsAnimations}
       >
         {(hasWBAccess || isPresenter) ? editableWB : readOnlyWB}
         <Styled.TldrawGlobalStyle
@@ -1047,6 +1069,7 @@ export default function Whiteboard(props) {
             darkTheme,
             menuOffset,
             panSelected,
+            isToolbarVisible,
           }}
         />
       </Cursors>
@@ -1066,7 +1089,7 @@ export default function Whiteboard(props) {
           formatMessage={intl?.formatMessage}
         />
       )}
-    </>
+    </div>
   );
 }
 
