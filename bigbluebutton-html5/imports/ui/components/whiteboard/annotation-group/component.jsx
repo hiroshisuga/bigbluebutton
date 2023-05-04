@@ -8,7 +8,6 @@ const AnnotationGroup = props => (
     slideWidth={props.slideWidth}
     slideHeight={props.slideHeight}
     whiteboardId={props.whiteboardId}
-    published={props.published}
   />
 );
 
