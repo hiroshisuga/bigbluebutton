@@ -94,7 +94,7 @@ export default class PencilDrawListener extends Component {
       this.points.push(transformedSvgPoint.x);
       this.points.push(transformedSvgPoint.y);
 
-      if (this.points.length > POINTS_TO_BUFFER)) {
+      if (this.points.length > POINTS_TO_BUFFER) {
         this.sendCoordinates();
       }
     }
