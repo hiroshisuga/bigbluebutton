@@ -96,9 +96,7 @@ const PresentationMenu = (props) => {
     layoutContextDispatch,
     meetingName,
     isIphone,
-    isRTL,
-    isPresentationDetached,
-    presentationWindow,
+    isRTL
   } = props;
 
   const [state, setState] = useState({
@@ -152,7 +150,7 @@ const PresentationMenu = (props) => {
           dataTest: 'presentationFullscreen',
           label: formattedLabel(isFullscreen),
           onClick: () => {
-            handleToggleFullscreen(isPresentationDetached ? presentationWindow.document.documentElement : fullscreenRef);
+            handleToggleFullscreen(fullscreenRef);
             const newElement = (elementId === currentElement) ? '' : elementId;
             const newGroup = (elementGroup === currentGroup) ? '' : elementGroup;
 
@@ -205,10 +203,10 @@ const PresentationMenu = (props) => {
             });
 
             toPng(getScreenshotRef(), {
-              width: presentationWindow.screen.width,
-              height: presentationWindow.screen.height,
+              width: window.screen.width,
+              height: window.screen.height,
             }).then((data) => {
-              const anchor = presentationWindow.document.createElement('a');
+              const anchor = document.createElement('a');
               anchor.href = data;
               anchor.setAttribute(
                 'download',
@@ -254,7 +252,7 @@ const PresentationMenu = (props) => {
     }
 
     if (dropdownRef.current) {
-      presentationWindow.document.activeElement.blur();
+      document.activeElement.blur();
       dropdownRef.current.focus();
     }
   });
@@ -289,11 +287,9 @@ const PresentationMenu = (props) => {
           fullwidth: "true",
           anchorOrigin: { vertical: 'bottom', horizontal: isRTL ? 'right' : 'left' },
           transformOrigin: { vertical: 'top', horizontal: isRTL ? 'right' : 'left' },
-          container: isPresentationDetached ? presentationWindow.document.body : fullscreenRef
+          container: fullscreenRef
         }}
         actions={getAvailableOptions()}
-        isPresentationDetached={isPresentationDetached}
-        presentationWindow={presentationWindow}
       />
     </Styled.Right>
   );
