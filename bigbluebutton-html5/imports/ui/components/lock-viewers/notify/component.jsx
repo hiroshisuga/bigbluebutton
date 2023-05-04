@@ -28,10 +28,6 @@ const intlDisableMessages = defineMessages({
     id: 'app.userList.userOptions.hideUserList',
     description: 'label to hide user list notification',
   },
-  hideAnnotations: {
-    id: 'app.userList.userOptions.hideAnnotations',
-    description: 'label to hide viewers annotations',
-  },
   hideViewersCursor: {
     id: 'app.userList.userOptions.hideViewersCursor',
     description: 'label to show viewer cursors notification',
@@ -66,10 +62,6 @@ const intlEnableMessages = defineMessages({
   hideUserList: {
     id: 'app.userList.userOptions.showUserList',
     description: 'label to show user list notification',
-  },
-  hideAnnotations: {
-    id: 'app.userList.userOptions.showAnnotations',
-    description: 'label to show viewers annotations',
   },
   hideViewersCursor: {
     id: 'app.userList.userOptions.showViewersCursor',
