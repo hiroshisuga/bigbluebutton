@@ -322,7 +322,7 @@ public class ParamsProcessorUtil {
 			if (!StringUtils.isEmpty(lockSettingsHideUserListParam)) {
 				lockSettingsHideUserList = Boolean.parseBoolean(lockSettingsHideUserListParam);
 			}
-			
+
 			Boolean lockSettingsLockedLayout = defaultLockSettingsLockedLayout;
 			String lockSettingsLockedLayoutParam = params.get(ApiParams.LOCK_SETTINGS_LOCKED_LAYOUT);
 			if (!StringUtils.isEmpty(lockSettingsLockedLayoutParam)) {
