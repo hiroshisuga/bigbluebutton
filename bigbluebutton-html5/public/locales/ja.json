@@ -133,7 +133,7 @@
     "app.userList.userOptions.disablePrivChat": "非公開チャットは利用できません",
     "app.userList.userOptions.disablePubChat": "グループチャットは利用できません",
     "app.userList.userOptions.disableNotes": "共有ノートがロックされています",
-    "app.userList.userOptions.hideUserList": "ユーザーリストが視聴者に表示されません",
+    "app.userList.userOptions.hideUserList": "ユーザーリストは視聴者に表示されません",
     "app.userList.userOptions.webcamsOnlyForModerator": "モデレーターのみがビューアーのウェブカメラを見ることができます(ロック設定による)",
     "app.userList.content.participants.options.clearedStatus": "全てのユーザーのステータスをクリアしました",
     "app.userList.userOptions.enableCam": "ビューアーのウェブカメラが利用可能です",
