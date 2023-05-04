@@ -37,7 +37,7 @@ class DataSaving extends BaseMenu {
     const { intl, showToggleLabel, displaySettingsStatus } = this.props;
 
     const { viewParticipantsWebcams, viewScreenshare } = this.state.settings;
-    
+
     return (
       <div>
         <div>
