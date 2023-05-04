@@ -5,14 +5,13 @@ import AnnotationGroupService from './service';
 import AnnotationGroup from './component';
 
 const AnnotationGroupContainer = ({
-  annotationsInfo, width, height, whiteboardId, published,
+  annotationsInfo, width, height, whiteboardId,
 }) => (
   <AnnotationGroup
     annotationsInfo={annotationsInfo}
     slideWidth={width}
     slideHeight={height}
     whiteboardId={whiteboardId}
-    published={published}
   />
 );
 
