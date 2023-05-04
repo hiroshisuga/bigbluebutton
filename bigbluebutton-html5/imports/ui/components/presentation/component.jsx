@@ -305,7 +305,7 @@ class Presentation extends PureComponent {
       }
     }
   }
-  
+
   onFullscreenChange() {
     const { isFullscreen } = this.state;
     const newIsFullscreen = FullscreenService.isFullScreen(this.refPresentationContainer);
