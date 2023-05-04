@@ -3,7 +3,6 @@ import Auth from '/imports/ui/services/auth';
 import Settings from '/imports/ui/services/settings';
 import { notify } from '/imports/ui/services/notification';
 import GuestService from '/imports/ui/components/waiting-users/service';
-import WhiteboardService from '/imports/ui/components/whiteboard/service';
 
 const getUserRoles = () => {
   const user = Users.findOne({
@@ -22,14 +21,6 @@ const showGuestNotification = () => {
 };
 
 const updateSettings = (obj, msg) => {
-  // Update whiteboard mode
-  const dataSaveSetting = obj['dataSaving'];
-  const newWhiteboardMode = {
-    synchronizeWBUpdate: dataSaveSetting.synchronizeWBUpdate,
-    simplifyPencil: dataSaveSetting.simplifyPencil,
-  };
-  WhiteboardService.setWhiteboardMode(newWhiteboardMode);
-  
   Object.keys(obj).forEach(k => (Settings[k] = obj[k]));
   Settings.save();
 
