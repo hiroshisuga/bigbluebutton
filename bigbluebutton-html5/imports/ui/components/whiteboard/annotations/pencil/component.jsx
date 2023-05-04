@@ -130,7 +130,6 @@ export default class PencilDrawComponent extends Component {
 
     let i = this.points.length;
     let path = '';
-    
     while (i < points.length) {
       path = `${path} L${denormalizeCoord(points[i], slideWidth)
       }, ${denormalizeCoord(points[i + 1], slideHeight)}`;
@@ -144,7 +143,6 @@ export default class PencilDrawComponent extends Component {
 
   render() {
     const { annotation, slideWidth } = this.props;
-
     return (
       <path
         fill="none"
