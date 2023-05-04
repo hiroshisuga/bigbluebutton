@@ -22,7 +22,6 @@ trait GetLockSettingsReqMsgHdlr {
       disablePubChat = settings.disablePubChat,
       disableNotes = settings.disableNotes,
       hideUserList = settings.hideUserList,
-      hideAnnotations = settings.hideAnnotations,
       lockedLayout = settings.lockedLayout,
       lockOnJoin = settings.lockOnJoin,
       lockOnJoinConfigurable = settings.lockOnJoinConfigurable,
