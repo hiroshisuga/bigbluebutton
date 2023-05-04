@@ -50,15 +50,13 @@ const FullscreenButtonComponent = ({
   elementGroup,
   isIphone,
   isFullscreen,
-  isPresentationDetached,
-  presentationWindow,
-  handleToggleFullScreen,
   layoutContextDispatch,
   currentElement,
   currentGroup,
   color,
   fullScreenStyle,
   fullscreenRef,
+  handleToggleFullScreen,
 }) => {
   if (isIphone) return null;
 
@@ -73,7 +71,6 @@ const FullscreenButtonComponent = ({
     )
   );
 
-  //const newFullscreenRef = isPresentationDetached ? presentationWindow.document.documentElement : fullscreenRef;
   const handleClick = () => {
     handleToggleFullScreen(fullscreenRef);
     const newElement = (elementId === currentElement) ? '' : elementId;
@@ -97,7 +94,7 @@ const FullscreenButtonComponent = ({
         color={color || 'default'}
         icon={!isFullscreen ? 'fullscreen' : 'exit_fullscreen'}
         size="sm"
-        onClick={() => isPresentationDetached ? handleToggleFullScreen(presentationWindow.document.documentElement) : handleClick()}
+        onClick={() => handleClick()}
         label={formattedLabel(isFullscreen)}
         hideLabel
         isStyled={fullScreenStyle}
