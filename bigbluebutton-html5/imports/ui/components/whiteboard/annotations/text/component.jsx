@@ -79,6 +79,7 @@ export default class TextDrawComponent extends Component {
   shouldComponentUpdate(nextProps) {
     const { version, isActive } = this.props;
     return version !== nextProps.version
+      || isActive !== nextProps.isActive;
   }
 
   // If the user is drawing a text shape and clicks Undo - reset textShapeId
