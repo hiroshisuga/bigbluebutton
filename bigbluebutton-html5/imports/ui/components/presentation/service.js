@@ -1,7 +1,6 @@
 import Presentations from '/imports/api/presentations';
 import { Slides, SlidePositions } from '/imports/api/slides';
 import ReactPlayer from 'react-player';
-import WhiteboardService, { Annotations } from '/imports/ui/components/whiteboard/service';
 import PollService from '/imports/ui/components/poll/service';
 import { safeMatch } from '/imports/utils/string-utils';
 
