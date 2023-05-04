@@ -333,7 +333,7 @@ class RedisRecorderActor(
     ev.setShapeId(msg.body.annotationId)
     record(msg.header.meetingId, ev.toMap.asJava)
   }
-    
+
   private def handleUserJoinedMeetingEvtMsg(msg: UserJoinedMeetingEvtMsg): Unit = {
     val ev = new ParticipantJoinRecordEvent()
     ev.setMeetingId(msg.header.meetingId)
