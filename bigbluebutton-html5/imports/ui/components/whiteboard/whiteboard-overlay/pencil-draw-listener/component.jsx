@@ -10,7 +10,6 @@ const DRAW_END = ANNOTATION_CONFIG.status.end;
 // maximum value of z-index to prevent other things from overlapping
 const MAX_Z_INDEX = (2 ** 31) - 1;
 const POINTS_TO_BUFFER = 2;
-const POINTS_TO_BUFFER_SYNC = Meteor.settings.public.app.defaultSettings.dataSaving.syncPencilPointsToBuffer;
 
 export default class PencilDrawListener extends Component {
   constructor() {
@@ -31,18 +30,15 @@ export default class PencilDrawListener extends Component {
     this.handleTouchEnd = this.handleTouchEnd.bind(this);
     this.handleTouchCancel = this.handleTouchCancel.bind(this);
     this.discardAnnotation = this.discardAnnotation.bind(this);
-    //this.handleKeyDown = this.handleKeyDown.bind(this);
   }
 
   componentDidMount() {
-    const { presentationWindow } = this.props;
     // to send the last DRAW_END message in case if a user reloads the page while drawing
-    presentationWindow.addEventListener('beforeunload', this.sendLastMessage);
+    window.addEventListener('beforeunload', this.sendLastMessage);
   }
 
   componentWillUnmount() {
-    const { presentationWindow } = this.props;
-    presentationWindow.removeEventListener('beforeunload', this.sendLastMessage);
+    window.removeEventListener('beforeunload', this.sendLastMessage);
 
     // sending the last message on componentDidUnmount
     this.sendLastMessage();
@@ -51,7 +47,6 @@ export default class PencilDrawListener extends Component {
   commonDrawStartHandler(clientX, clientY) {
     const {
       actions,
-      drawSettings,
     } = this.props;
 
     const {
@@ -71,14 +66,13 @@ export default class PencilDrawListener extends Component {
 
     // sending the first message
     this.points = [transformedSvgPoint.x, transformedSvgPoint.y];
-    this.handleDrawPencil(this.points, DRAW_START, generateNewShapeId(), undefined, drawSettings.tool);
+    this.handleDrawPencil(this.points, DRAW_START, generateNewShapeId());
   }
 
   commonDrawMoveHandler(clientX, clientY) {
     if (this.isDrawing) {
       const {
         actions,
-        synchronizeWBUpdate,
       } = this.props;
 
       const {
@@ -100,62 +94,18 @@ export default class PencilDrawListener extends Component {
       this.points.push(transformedSvgPoint.x);
       this.points.push(transformedSvgPoint.y);
 
-      if (this.points.length > (synchronizeWBUpdate ? POINTS_TO_BUFFER_SYNC : POINTS_TO_BUFFER)) {
+      if (this.points.length > POINTS_TO_BUFFER)) {
         this.sendCoordinates();
       }
     }
   }
-/*
-  handleKeyDown(event) {
-    const {
-      physicalSlideWidth,
-      physicalSlideHeight,
-    } = this.props;
 
-    const iter = this.points.length / 2;
-
-    const d = {
-      x: 1.0 * physicalSlideHeight /(physicalSlideWidth + physicalSlideHeight),
-      y: 1.0 * physicalSlideWidth  /(physicalSlideWidth + physicalSlideHeight),
-    };
-
-    if        (event.keyCode == '38') { // up arrow
-      for (let i = 0; i < iter; i++) {
-        const move = -d.y * (this.points[i * 2 + 0] - this.points[this.points.length - 2]) /
-                            (this.points[        0] - this.points[this.points.length - 2]);
-        this.points[i * 2 + 1] += move;
-      }
-    } else if (event.keyCode == '40') { // down arrow
-      for (let i = 0; i < iter; i++) {
-        const move =  d.y * (this.points[i * 2 + 0] - this.points[this.points.length - 2]) /
-                            (this.points[        0] - this.points[this.points.length - 2]);
-        this.points[i * 2 + 1] += move;
-      }
-    } else if (event.keyCode == '37') { // left arrow
-      for (let i = 0; i < iter; i++) {
-        const move = -d.x * (this.points[i * 2 + 1] - this.points[this.points.length - 1]) /
-                            (this.points[        1] - this.points[this.points.length - 1]);
-        this.points[i * 2    ] += move;
-      }
-    } else if (event.keyCode == '39') { // right arrow
-      for (let i = 0; i < iter; i++) {
-        const move =  d.x * (this.points[i * 2 + 1] - this.points[this.points.length - 1]) /
-                            (this.points[        1] - this.points[this.points.length - 1]);
-        this.points[i * 2    ] += move;
-      }
-    }
-    event.stopPropagation();
-    this.sendCoordinates();
-  }
-*/
   handleTouchStart(event) {
-    const { presentationWindow } = this.props;
     event.preventDefault();
     if (!this.isDrawing) {
-      presentationWindow.addEventListener('touchend', this.handleTouchEnd, { passive: false });
-      presentationWindow.addEventListener('touchmove', this.handleTouchMove, { passive: false });
-      presentationWindow.addEventListener('touchcancel', this.handleTouchCancel, true);
-      //presentationWindow.addEventListener('keydown', this.handleKeyDown, true);
+      window.addEventListener('touchend', this.handleTouchEnd, { passive: false });
+      window.addEventListener('touchmove', this.handleTouchMove, { passive: false });
+      window.addEventListener('touchcancel', this.handleTouchCancel, true);
 
       const { clientX, clientY } = event.changedTouches[0];
       this.commonDrawStartHandler(clientX, clientY);
@@ -183,15 +133,13 @@ export default class PencilDrawListener extends Component {
 
   // main mouse down handler
   mouseDownHandler(event) {
-    const { presentationWindow } = this.props;
     const isLeftClick = event.button === 0;
     const isRightClick = event.button === 2;
 
     if (!this.isDrawing) {
       if (isLeftClick) {
-        presentationWindow.addEventListener('mouseup', this.mouseUpHandler);
-        presentationWindow.addEventListener('mousemove', this.mouseMoveHandler, true);
-        //presentationWindow.addEventListener('keydown', this.handleKeyDown, true);
+        window.addEventListener('mouseup', this.mouseUpHandler);
+        window.addEventListener('mousemove', this.mouseMoveHandler, true);
 
         const { clientX, clientY } = event;
         this.commonDrawStartHandler(clientX, clientY);
@@ -219,22 +167,19 @@ export default class PencilDrawListener extends Component {
     if (this.isDrawing && this.points.length > 0) {
       const {
         actions,
-        drawSettings,
       } = this.props;
 
       const { getCurrentShapeId } = actions;
-      this.handleDrawPencil(this.points, DRAW_UPDATE, getCurrentShapeId(), undefined, drawSettings.tool);
-      this.points = []; // only new points will be sent
+      this.handleDrawPencil(this.points, DRAW_UPDATE, getCurrentShapeId());
     }
   }
 
-  handleDrawPencil(points, status, id, dimensions, pencilType) {
+  handleDrawPencil(points, status, id, dimensions) {
     const {
       whiteboardId,
       userId,
       actions,
       drawSettings,
-      synchronizeWBUpdate,
     } = this.props;
 
     const {
@@ -247,17 +192,10 @@ export default class PencilDrawListener extends Component {
       color,
     } = drawSettings;
 
-    if (status == DRAW_END && synchronizeWBUpdate && points.length === 2) {
-      // To ensure a point is drawn by a single click,
-      //  with a risk of unnecessary point added also for a normal drawing
-      // If we simply revive sending DRAW_START to akka-apps, this would not be necessary (see whiteboard/service.js).
-      points = points.concat(points);
-    }
-    
     const annotation = {
       id,
       status,
-      annotationType: pencilType,
+      annotationType: 'pencil',
       annotationInfo: {
         color,
         thickness: normalizeThickness(thickness),
@@ -265,7 +203,7 @@ export default class PencilDrawListener extends Component {
         id,
         whiteboardId,
         status,
-        type: pencilType,
+        type: 'pencil',
       },
       wbId: whiteboardId,
       userId,
@@ -277,7 +215,7 @@ export default class PencilDrawListener extends Component {
       annotation.annotationInfo.dimensions = dimensions;
     }
 
-    sendAnnotation(annotation, synchronizeWBUpdate); //whiteboardId seems unnecessary
+    sendAnnotation(annotation, whiteboardId);
   }
 
   sendLastMessage() {
@@ -286,7 +224,6 @@ export default class PencilDrawListener extends Component {
         physicalSlideWidth,
         physicalSlideHeight,
         actions,
-        drawSettings,
       } = this.props;
 
       const { getCurrentShapeId } = actions;
@@ -296,25 +233,22 @@ export default class PencilDrawListener extends Component {
         DRAW_END,
         getCurrentShapeId(),
         [Math.round(physicalSlideWidth), Math.round(physicalSlideHeight)],
-        drawSettings.tool,
       );
       this.resetState();
     }
   }
 
   resetState() {
-    const { presentationWindow } = this.props;
     // resetting the current info
     this.points = [];
     this.isDrawing = false;
     // mouseup and mousemove are removed on desktop
-    presentationWindow.removeEventListener('mouseup', this.mouseUpHandler);
-    presentationWindow.removeEventListener('mousemove', this.mouseMoveHandler, true);
-    //presentationWindow.removeEventListener('keydown', this.handleKeyDown, true);
+    window.removeEventListener('mouseup', this.mouseUpHandler);
+    window.removeEventListener('mousemove', this.mouseMoveHandler, true);
     // touchend, touchmove and touchcancel are removed on devices
-    presentationWindow.removeEventListener('touchend', this.handleTouchEnd, { passive: false });
-    presentationWindow.removeEventListener('touchmove', this.handleTouchMove, { passive: false });
-    presentationWindow.removeEventListener('touchcancel', this.handleTouchCancel, true);
+    window.removeEventListener('touchend', this.handleTouchEnd, { passive: false });
+    window.removeEventListener('touchmove', this.handleTouchMove, { passive: false });
+    window.removeEventListener('touchcancel', this.handleTouchCancel, true);
   }
 
   discardAnnotation() {
@@ -334,27 +268,17 @@ export default class PencilDrawListener extends Component {
   render() {
     const {
       actions,
-      drawSettings,
-      isPresentationDetached,
     } = this.props;
 
     const { contextMenuHandler } = actions;
-    
-    const {
-      tool,
-    } = drawSettings;
-    
-    let baseName = Meteor.settings.public.app.cdn + Meteor.settings.public.app.basename + Meteor.settings.public.app.instanceId;
-    const hostUri = `https://${window.document.location.hostname}`;
-    if (isPresentationDetached) {
-      baseName = hostUri + baseName ;
-    }
+
+    const baseName = Meteor.settings.public.app.cdn + Meteor.settings.public.app.basename + Meteor.settings.public.app.instanceId;
     const pencilDrawStyle = {
       width: '100%',
       height: '100%',
       touchAction: 'none',
       zIndex: MAX_Z_INDEX,
-      cursor: `url('${baseName}/resources/images/whiteboard-cursor/${tool}.png') 2 22, default`,
+      cursor: `url('${baseName}/resources/images/whiteboard-cursor/pencil.png') 2 22, default`,
     };
 
     return (
