@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import PropTypes from 'prop-types';
-import StaticAnnotationContainer from './static-annotation/container';
+import StaticAnnotation from './static-annotation/component';
 import ReactiveAnnotationContainer from './reactive-annotation/container';
 import Ellipse from '../annotations/ellipse/component';
 import Line from '../annotations/line/component';
@@ -9,17 +9,14 @@ import Rectangle from '../annotations/rectangle/component';
 import Text from '../annotations/text/container';
 import Triangle from '../annotations/triangle/component';
 import Pencil from '../annotations/pencil/component';
-import Eraser from '../annotations/eraser/component';
-import Marker from '../annotations/marker/component';
 
 const ANNOTATION_CONFIG = Meteor.settings.public.whiteboard.annotations;
 const DRAW_END = ANNOTATION_CONFIG.status.end;
-const DRAW_UPDATE = ANNOTATION_CONFIG.status.update;
 
 export default class AnnotationFactory extends Component {
   static renderStaticAnnotation(annotationInfo, slideWidth, slideHeight, drawObject, whiteboardId) {
     return (
-      <StaticAnnotationContainer
+      <StaticAnnotation
         key={annotationInfo._id}
         shapeId={annotationInfo._id}
         drawObject={drawObject}
@@ -51,7 +48,7 @@ export default class AnnotationFactory extends Component {
   renderAnnotation(annotationInfo) {
     const drawObject = this.props.annotationSelector[annotationInfo.annotationType];
 
-    if (this.props.published) {
+    if (annotationInfo.status === DRAW_END) {
       return AnnotationFactory.renderStaticAnnotation(
         annotationInfo,
         this.props.slideWidth,
@@ -59,15 +56,14 @@ export default class AnnotationFactory extends Component {
         drawObject,
         this.props.whiteboardId,
       );
-    } else {
-      return AnnotationFactory.renderReactiveAnnotation(
-        annotationInfo,
-        this.props.slideWidth,
-        this.props.slideHeight,
-        drawObject,
-        this.props.whiteboardId,
-      );
     }
+    return AnnotationFactory.renderReactiveAnnotation(
+      annotationInfo,
+      this.props.slideWidth,
+      this.props.slideHeight,
+      drawObject,
+      this.props.whiteboardId,
+    );
   }
 
   render() {
@@ -92,7 +88,7 @@ AnnotationFactory.propTypes = {
 
   // array of annotations, optional
   annotationsInfo: PropTypes.arrayOf(PropTypes.object).isRequired,
-  annotationSelector: PropTypes.objectOf(PropTypes.oneOfType([PropTypes.func, PropTypes.object])).isRequired,
+  annotationSelector: PropTypes.objectOf(PropTypes.func).isRequired,
 };
 
 AnnotationFactory.defaultProps = {
@@ -101,10 +97,8 @@ AnnotationFactory.defaultProps = {
     line: Line,
     poll_result: Poll,
     rectangle: Rectangle,
-    eraser: Eraser,
     text: Text,
     triangle: Triangle,
     pencil: Pencil,
-    marker: Marker,
   },
 };
