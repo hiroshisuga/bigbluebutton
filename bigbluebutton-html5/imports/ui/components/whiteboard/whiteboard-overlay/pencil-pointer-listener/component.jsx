@@ -183,7 +183,7 @@ export default class PencilPointerListener extends Component {
     // remove event listener
     window.removeEventListener('pointerup', this.handlePointerUp);
     window.removeEventListener('pointermove', this.handlePointerMove);
-    window.removeEventListener('pointercancel', this.handlePointerCancel, true);  
+    window.removeEventListener('pointercancel', this.handlePointerCancel, true);
   }
 
   discardAnnotation() {
