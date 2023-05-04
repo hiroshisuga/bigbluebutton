@@ -35,7 +35,6 @@ const getCurrentCursorIds = (podId, whiteboardId) => {
       },
     };
 
-    selector._id = { $nin: [] };
     // if there is a presenter cursor - excluding it from the query
     if (data.presenterCursorId) {
       selector._id = {
