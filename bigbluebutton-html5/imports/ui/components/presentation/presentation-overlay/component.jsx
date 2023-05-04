@@ -475,7 +475,7 @@ export default class PresentationOverlay extends Component {
     } = this.state;
 
     if (annotationTool !== HAND_TOOL) return;
-    
+
     if (pressed) {
       const mouseDeltaX = slideHeight / physicalSlideHeight * (this.currentMouseX - event.clientX);
       const mouseDeltaY = slideHeight / physicalSlideHeight * (this.currentMouseY - event.clientY);
