@@ -199,7 +199,7 @@ export default class TextDrawListener extends Component {
       isDrawing,
       isWritingText,
     } = this.state;
-    
+
     const isLeftClick = event.button === 0;
     const isRightClick = event.button === 2;
 
