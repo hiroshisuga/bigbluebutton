@@ -17,7 +17,7 @@ export default function modifyWhiteboardAccess(meetingId, whiteboardId, multiUse
     whiteboardId,
     multiUser,
   };
-  
+
   try {
     const { insertedId } = WhiteboardMultiUser.upsert(selector, modifier);
     if (insertedId) {
