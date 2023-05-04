@@ -11,7 +11,7 @@ import org.bigbluebutton.SystemConfiguration
 
 class WhiteboardModel extends SystemConfiguration {
   private var _whiteboards = new HashMap[String, Whiteboard]()
-  
+
   private def saveWhiteboard(wb: Whiteboard) {
     _whiteboards += wb.id -> wb
   }
@@ -153,7 +153,7 @@ class WhiteboardModel extends SystemConfiguration {
       //println("oldAnnotation value = " + oldAnnotationOption.getOrElse("Empty"))
 
       var newPosition: Int = wb.annotationCount
-      
+
       val updatedAnnotation = annotation.copy(position = newPosition, annotationInfo = updatedAnnotationData)
 
       var newUsersAnnotations: List[AnnotationVO] = oldAnnotationOption match {
@@ -232,31 +232,12 @@ class WhiteboardModel extends SystemConfiguration {
     }
     last
   }
-  
-  def removeWhiteboardAnnotations(wbId: String, selectedAnnotations: Array[Map[String, String]], userId: String): List[AnnotationVO] = {
-    var lasts: List[AnnotationVO] = List[AnnotationVO]()
-    val wb = getWhiteboard(wbId)
-    if (wb.annotationsMap.nonEmpty) {
-      var newWb = getWhiteboard("dummy")
-      for ((uid, annotation) <- wb.annotationsMap) {
-        if (!wb.multiUser.contains(userId) || userId == uid) {
-          for (a <- selectedAnnotations) {
-            val elemRM = annotation.filter(_.id == a("id"))
-            lasts = lasts ++ elemRM
-          }
-          newWb = removeSpecificAnnotations(wb, uid, annotation, lasts)
-        }
-      }
-      saveWhiteboard(newWb)
-    }
-    lasts
-  }
-  
+
   private def removeHeadAnnotation(wb: Whiteboard, key: String, list: List[AnnotationVO]): Whiteboard = {
     val newAnnotationsMap = if (list.tail == Nil) wb.annotationsMap - key else wb.annotationsMap + (key -> list.tail)
     wb.copy(annotationsMap = newAnnotationsMap)
   }
-  
+
   def modifyWhiteboardAccess(wbId: String, multiUser: Array[String]) {
     val wb = getWhiteboard(wbId)
     val newWb = wb.copy(multiUser = multiUser, oldMultiUser = wb.multiUser, changedModeOn = System.currentTimeMillis())
