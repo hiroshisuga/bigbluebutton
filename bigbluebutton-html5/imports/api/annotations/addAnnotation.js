@@ -2,7 +2,6 @@ import { check } from 'meteor/check';
 
 const ANNOTATION_TYPE_TEXT = 'text';
 const ANNOTATION_TYPE_PENCIL = 'pencil';
-const ANNOTATION_TYPE_MARKER = 'marker';
 
 // line, triangle, ellipse, rectangle
 function handleCommonAnnotation(meetingId, whiteboardId, userId, annotation) {
@@ -106,14 +105,12 @@ function handlePencilUpdate(meetingId, whiteboardId, userId, annotation) {
       };
       break;
     case DRAW_UPDATE:
-      //setting annotationType seems necessary when a user joins during drawing
       baseModifier = {
         $push: {
           'annotationInfo.points': { $each: annotationInfo.points },
         },
         $set: {
           status,
-          annotationType,
         },
         $inc: { version: 1 },
       };
@@ -150,7 +147,6 @@ export default function addAnnotation(meetingId, whiteboardId, userId, annotatio
     case ANNOTATION_TYPE_TEXT:
       return handleTextUpdate(meetingId, whiteboardId, userId, annotation);
     case ANNOTATION_TYPE_PENCIL:
-    case ANNOTATION_TYPE_MARKER:
       return handlePencilUpdate(meetingId, whiteboardId, userId, annotation);
     default:
       return handleCommonAnnotation(meetingId, whiteboardId, userId, annotation);
