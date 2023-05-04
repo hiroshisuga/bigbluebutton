@@ -68,7 +68,7 @@ const APP_CONFIG = Meteor.settings.public.app;
 const PRELOAD_NEXT_SLIDE = APP_CONFIG.preloadNextSlides;
 const fetchedpresentation = {};
 
-export default withTracker(({ podId, isPresentationDetached, setPresentationDetached }) => {
+export default withTracker(({ podId }) => {
   const currentSlide = PresentationService.getCurrentSlide(podId);
   const presentationIsDownloadable = PresentationService.isPresentationDownloadable(podId);
   const layoutSwapped = getSwapLayout() && shouldEnableSwapLayout();
@@ -127,8 +127,6 @@ export default withTracker(({ podId, isPresentationDetached, setPresentationDeta
     notify,
     zoomSlide: PresentationToolbarService.zoomSlide,
     podId,
-    isPresentationDetached,
-    setPresentationDetached,
     layoutSwapped,
     toggleSwapLayout: MediaService.toggleSwapLayout,
     publishedPoll: Meetings.findOne({ meetingId: Auth.meetingID }, {
