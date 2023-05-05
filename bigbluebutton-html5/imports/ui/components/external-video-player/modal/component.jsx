@@ -121,7 +121,7 @@ class ExternalVideoModal extends Component {
             <Icon iconName="file" />
           </Styled.Icon>
         </td>
-        <Styled.Name}>
+        <Styled.Name>
           <span>{item.filename}</span>
         </Styled.Name>
       </Styled.Item>
