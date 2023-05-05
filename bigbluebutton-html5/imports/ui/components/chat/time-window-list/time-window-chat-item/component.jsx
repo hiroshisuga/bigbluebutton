@@ -4,6 +4,7 @@ import { FormattedTime, defineMessages, injectIntl } from 'react-intl';
 import _ from 'lodash';
 import UserAvatar from '/imports/ui/components/user-avatar/component';
 import ChatLogger from '/imports/ui/components/chat/chat-logger/ChatLogger';
+import UploadService from '/imports/ui/components/upload/service';
 import PollService from '/imports/ui/components/poll/service';
 import Styled from './styles';
 
@@ -115,15 +116,15 @@ class TimeWindowChatItem extends PureComponent {
         ref={element => this.itemRef = element} >
         <Styled.Messages>
           {messages.map((message) => (
-            message.text !== ''
+            message.text !== '' || message.upload
               ? (
                 <Styled.SystemMessageChatItem
                   border={message.id}
                   key={message.id ? message.id : _.uniqueId('id-')}
-                  text={intlMessages[message.text] ? intl.formatMessage(
-                    intlMessages[message.text],
+                  text={intlMessages[message.upload ? UploadService.getNotification(message.upload, intl) : message.text] ? intl.formatMessage(
+                    intlMessages[message.upload ? UploadService.getNotification(message.upload, intl) : message.text],
                     messageValues || {},
-                  ) : message.text}
+                  ) : message.upload ? UploadService.getNotification(message.upload, intl) : message.text}
                   time={message.time}
                   isSystemMessage={message.id ? true : false}
                   systemMessageType={message.text === CHAT_CLEAR_MESSAGE ? 'chatClearMessageText' : 'chatWelcomeMessageText'}

@@ -127,6 +127,8 @@ public class ParamsProcessorUtil {
 		private boolean defaultLockSettingsHideViewersCursor;
 
     private Long maxPresentationFileUpload = 30000000L; // 30MB
+    private Long maxUploadSize = 900000000L; // 900MB - but probably doesn't matter
+    private String uploadDir;
 
     private Integer clientLogoutTimerInMinutes = 0;
     private Integer defaultMeetingExpireIfNoUserJoinedInMinutes = 5;
@@ -1302,6 +1304,22 @@ public class ParamsProcessorUtil {
 	public Long getMaxPresentationFileUpload() {
 		return maxPresentationFileUpload;
 	}
+	
+	public void setMaxUploadSize(Long maxUploadSize) {
+               this.maxUploadSize = maxUploadSize;
+       }
+
+       public Long getMaxUploadSize() {
+               return maxUploadSize;
+       }
+
+       public void setUploadDir(String uploadDir) {
+               this.uploadDir = uploadDir;
+       }
+
+       public String getUploadDir() {
+               return uploadDir;
+       }
 
 	public void setMuteOnStart(Boolean mute) {
 		defaultMuteOnStart = mute;

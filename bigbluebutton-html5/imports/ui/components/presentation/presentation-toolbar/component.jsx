@@ -269,6 +269,10 @@ class PresentationToolbar extends PureComponent {
       slidePosition,
       multiUserSize,
       multiUser,
+      allowExternalVideo,
+      screenSharingCheck,
+      fullscreenElementId,
+      toolbarWidth,
     } = this.props;
 
     const { isMobile } = deviceInfo;
@@ -307,6 +311,25 @@ class PresentationToolbar extends PureComponent {
 
           <SmartMediaShareContainer {...{ intl, currentSlide }} />
         </div>
+
+        {
+          <div>
+          {
+              <QuickLinksDropdown
+                {...{
+                  intl,
+                  amIPresenter,
+                  parseCurrentSlideContent,
+                  allowExternalVideo,
+                  screenSharingCheck,
+                  isFullscreen,
+                  fullscreenRef,
+                }}
+              />
+          }
+          </div>
+        }
+
         <Styled.PresentationSlideControls>
           <Styled.PrevSlideButton
             role="button"

@@ -29,7 +29,7 @@ const PresentationToolbarWrapper = styled.div`
   width: 100%;
   bottom: 0px;
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
   padding: 2px;
 
   select {
@@ -169,6 +169,36 @@ const PresentationZoomControls = styled.div`
   }
 `;
 
+const QuickLinksButton = styled(Button)`
+  border: none !important;
+
+  & > i {
+    font-size: 1.2rem;
+
+    [dir="rtl"] & {
+      -webkit-transform: scale(-1, 1);
+      -moz-transform: scale(-1, 1);
+      -ms-transform: scale(-1, 1);
+      -o-transform: scale(-1, 1);
+      transform: scale(-1, 1);
+    }
+  }
+  margin-left: ${whiteboardToolbarMargin};
+  margin-right: ${whiteboardToolbarMargin};
+
+  position: relative;
+  color: ${toolbarButtonColor};
+  background-color: ${colorOffWhite};
+  border-radius: 0;
+  box-shadow: none !important;
+  border: 0;
+
+  &:focus {
+    background-color: ${colorOffWhite};
+    border: 0;
+  }
+`;
+  
 const FitToWidthButton = styled(Button)`
   border: none !important;
 
@@ -281,6 +311,7 @@ export default {
   NextSlideButton,
   SkipSlideSelect,
   PresentationZoomControls,
+  QuickLinksButton,
   FitToWidthButton,
   MultiUserTool,
   WBAccessButton,

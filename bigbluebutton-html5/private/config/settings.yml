@@ -498,7 +498,7 @@ public:
   poll:
     enabled: true
     allowCustomResponseInput: true
-    maxCustom: 5
+    maxCustom: 99
     maxTypedAnswerLength: 45
     chatMessage: true
   captions:
@@ -698,6 +698,25 @@ public:
       - danger
       - critical
     help: STATS_HELP_URL
+  upload:
+    endpoint: /bigbluebutton/upload
+    timeout: 5000
+    notification: false
+    media:
+      enabled: true
+      maxSize: 900000000
+      source: media
+      validFiles:
+        - extension: .mp3
+          type: audio/mp3
+        - extension: .ogg
+          type: audio/ogg
+        - extension: .mp4
+          type: video/mp4
+        - extension: .webm
+          type: video/webm
+  download:
+    endpoint: /bigbluebutton/download
   presentation:
     allowDownloadable: true
     panZoomThrottle: 32
