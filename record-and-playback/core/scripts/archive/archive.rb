@@ -171,10 +171,10 @@ props = BigBlueButton.read_props
 audio_dir = props['raw_audio_src']
 recording_dir = props['recording_dir']
 raw_archive_dir = "#{recording_dir}/raw"
+#screenshare_dir = props['raw_screenshare_src']
 deskshare_dir = props['raw_deskshare_src']
 # Note: modify directly /usr/local/bigbluebutton/core/scripts/archive/archive.rb
 upload_dir = props['raw_upload_src']
-screenshare_dir = props['raw_screenshare_src']
 redis_host = props['redis_host']
 redis_port = props['redis_port']
 redis_password = props['redis_password']
