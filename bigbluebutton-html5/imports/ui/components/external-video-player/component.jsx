@@ -13,7 +13,7 @@ import deviceInfo from '/imports/utils/deviceInfo';
 
 import logger from '/imports/startup/client/logger';
 import ExternalVideoCloseButton from './externalvideo-close-button/component';
-import Service from './service';
+//import Service from './service';
 
 import Subtitles from './subtitles/component';
 import VolumeSlider from './volume-slider/component';
