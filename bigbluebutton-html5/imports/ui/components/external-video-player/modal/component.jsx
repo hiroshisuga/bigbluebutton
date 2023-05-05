@@ -165,23 +165,23 @@ class ExternalVideoModal extends Component {
       <Styled.ExternalVideoModal
         onRequestClose={closeModal}
         contentLabel={intl.formatMessage(intlMessages.title)}
-        hideBorder
+        title={intl.formatMessage(intlMessages.title)}
       >
-        <Styled.Header data-test="videoModalHeader">
-          <Styled.Title>{intl.formatMessage(intlMessages.title)}</Styled.Title>
-        </Styled.Header>
-
         <Styled.Content>
           <Styled.VideoUrl animations={animations}>
             <label htmlFor="video-modal-input">
               {intl.formatMessage(intlMessages.input)}
               <input
+                autoFocus
                 id="video-modal-input"
                 onChange={this.updateVideoUrlHandler}
                 name="video-modal-input"
                 placeholder={intl.formatMessage(intlMessages.urlInput)}
                 disabled={sharing}
                 aria-describedby="exernal-video-note"
+                onPaste={(e) => { e.stopPropagation(); }}
+                onCut={(e) => { e.stopPropagation(); }}
+                onCopy={(e) => { e.stopPropagation(); }}
               />
             </label>
             <Styled.ExternalVideoNote id="external-video-note">
@@ -199,6 +199,7 @@ class ExternalVideoModal extends Component {
             onClick={this.startWatchingHandler}
             disabled={startDisabled}
             data-test="startNewVideo"
+            color="primary"
           />
         </Styled.Content>
       </Styled.ExternalVideoModal>

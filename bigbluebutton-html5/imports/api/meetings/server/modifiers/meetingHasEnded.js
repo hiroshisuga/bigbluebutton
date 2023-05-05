@@ -20,6 +20,7 @@ import clearVoiceUsers from '/imports/api/voice-users/server/modifiers/clearVoic
 import clearUserInfo from '/imports/api/users-infos/server/modifiers/clearUserInfo';
 import clearConnectionStatus from '/imports/api/connection-status/server/modifiers/clearConnectionStatus';
 import clearScreenshare from '/imports/api/screenshare/server/modifiers/clearScreenshare';
+import clearAudioCaptions from '/imports/api/audio-captions/server/modifiers/clearAudioCaptions';
 import clearUploadRequest from '/imports/api/upload/server/modifiers/clearUploadRequest';
 import clearUploadedFile from '/imports/api/upload/server/modifiers/clearUploadedFile';
 import clearMeetingTimeRemaining from '/imports/api/meetings/server/modifiers/clearMeetingTimeRemaining';
@@ -34,42 +35,43 @@ import clearUsersPersistentData from '/imports/api/users-persistent-data/server/
 import clearWhiteboardMultiUser from '/imports/api/whiteboard-multi-user/server/modifiers/clearWhiteboardMultiUser';
 import Metrics from '/imports/startup/server/metrics';
 
-export default function meetingHasEnded(meetingId) {
+export default async function meetingHasEnded(meetingId) {
   if (!process.env.BBB_HTML5_ROLE || process.env.BBB_HTML5_ROLE === 'frontend') {
     removeAnnotationsStreamer(meetingId);
     removeCursorStreamer(meetingId);
     removeExternalVideoStreamer(meetingId);
   }
 
-  return Meetings.remove({ meetingId }, () => {
-    clearCaptions(meetingId);
-    clearPads(meetingId);
-    clearGroupChat(meetingId);
-    clearGuestUsers(meetingId);
-    clearPresentationPods(meetingId);
-    clearBreakouts(meetingId);
-    clearPolls(meetingId);
-    clearAnnotations(meetingId);
-    clearSlides(meetingId);
-    clearUsers(meetingId);
-    clearUsersSettings(meetingId);
-    clearVoiceUsers(meetingId);
-    clearUserInfo(meetingId);
-    clearConnectionStatus(meetingId);
+  await Meetings.removeAsync({ meetingId });
+  await Promise.all([
+    clearCaptions(meetingId),
+    clearPads(meetingId),
+    clearGroupChat(meetingId),
+    clearGuestUsers(meetingId),
+    clearPresentationPods(meetingId),
+    clearBreakouts(meetingId),
+    clearPolls(meetingId),
+    clearAnnotations(meetingId),
+    clearSlides(meetingId),
+    clearUsers(meetingId),
+    clearUsersSettings(meetingId),
+    clearVoiceUsers(meetingId),
+    clearUserInfo(meetingId),
+    clearConnectionStatus(meetingId),
     clearUploadRequest(meetingId);
     clearUploadedFile(meetingId);
-    clearLocalSettings(meetingId);
-    clearMeetingTimeRemaining(meetingId);
-    clearRecordMeeting(meetingId);
-    clearExternalVideoMeeting(meetingId);
-    clearVoiceCallStates(meetingId);
-    clearVideoStreams(meetingId);
-    clearAuthTokenValidation(meetingId);
-    clearWhiteboardMultiUser(meetingId);
-    clearScreenshare(meetingId);
-    clearUsersPersistentData(meetingId);
-    Metrics.removeMeeting(meetingId);
-
-    Logger.info(`Cleared Meetings with id ${meetingId}`);
-  });
+    clearAudioCaptions(meetingId),
+    clearLocalSettings(meetingId),
+    clearMeetingTimeRemaining(meetingId),
+    clearRecordMeeting(meetingId),
+    clearExternalVideoMeeting(meetingId),
+    clearVoiceCallStates(meetingId),
+    clearVideoStreams(meetingId),
+    clearAuthTokenValidation(meetingId),
+    clearWhiteboardMultiUser(meetingId),
+    clearScreenshare(meetingId),
+    clearUsersPersistentData(meetingId),
+  ]);
+  await Metrics.removeMeeting(meetingId);
+  return Logger.info(`Cleared Meetings with id ${meetingId}`);
 }

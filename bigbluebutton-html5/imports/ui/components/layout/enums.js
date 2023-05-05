@@ -30,6 +30,8 @@ export const ACTIONS = {
   SET_DEVICE_TYPE: 'setDeviceType',
   SET_FONT_SIZE: 'setFontSize',
 
+  SET_FOCUSED_CAMERA_ID: 'focusedId',
+
   SET_LAYOUT_INPUT: 'setLayoutInput',
 
   SET_SIDEBAR_NAVIGATION_PANEL: 'setSidebarNavigationPanel',
@@ -77,7 +79,7 @@ export const ACTIONS = {
   SET_PRESENTATION_IS_OPEN: 'setPresentationIsOpen',
   SET_PRESENTATION_CURRENT_SLIDE_SIZE: 'setPresentationCurrentSlideSize',
   SET_PRESENTATION_NUM_CURRENT_SLIDE: 'setPresentationNumCurrentSlide',
-  SET_PRESENTATION_SLIDES_LENGTH: 'setPresentationSlideslength',
+  SET_PRESENTATION_SLIDES_LENGTH: 'setPresentationSlidesLength',
   SET_PRESENTATION_SIZE: 'setPresentationSize',
   SET_PRESENTATION_OUTPUT: 'setPresentationOutput',
   SET_PRESENTATION_IS_RESIZABLE: 'setPresentationIsResizable',
@@ -92,6 +94,9 @@ export const ACTIONS = {
   SET_HAS_EXTERNAL_VIDEO: 'setHasExternalVideo',
   SET_EXTERNAL_VIDEO_SIZE: 'setExternalVideoSize',
   SET_EXTERNAL_VIDEO_OUTPUT: 'setExternalVideoOutput',
+
+  SET_SHARED_NOTES_OUTPUT: 'setSharedNotesOutput',
+  SET_NOTES_IS_PINNED: 'setNotesIsPinned',
 };
 
 export const PANELS = {

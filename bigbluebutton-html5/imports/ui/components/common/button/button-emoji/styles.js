@@ -10,10 +10,10 @@ import { btnSpacing } from '/imports/ui/stylesheets/styled-components/general';
 const EmojiButtonIcon = styled(Icon)`
   position: absolute;
   top: 0;
-  height: 60%;
+  height: 40%;
   left: 0;
   width: 75%;
-  margin-left: 15%;
+  margin-left: 14%;
   font-size: 50%;
   margin-top: 30%;
   color: ${btnDefaultColor};
@@ -65,15 +65,6 @@ const EmojiButton = styled.button`
     margin-top: 40%;
     color: ${btnDefaultColor};
   }
-
-  ${({ rotate }) => rotate && `
-    span {
-      i {
-        transform: rotate(180deg);
-        margin-top: 20%;
-      }
-    }
-  `}
 `;
 
 const EmojiButtonSpace = styled.div`

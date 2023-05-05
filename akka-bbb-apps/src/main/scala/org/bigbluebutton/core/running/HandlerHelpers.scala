@@ -63,9 +63,11 @@ trait HandlerHelpers extends SystemConfiguration {
         guestStatus = regUser.guestStatus,
         emoji = "none",
         pin = false,
+        mobile = false,
         presenter = false,
         locked = MeetingStatus2x.getPermissions(liveMeeting.status).lockOnJoin,
         avatar = regUser.avatarURL,
+        color = regUser.color,
         clientType = clientType,
         pickExempted = false,
         userLeftFlag = UserLeftFlag(false, 0)
@@ -86,6 +88,17 @@ trait HandlerHelpers extends SystemConfiguration {
 
             val event = UserJoinedMeetingEvtMsgBuilder.build(liveMeeting.props.meetingProp.intId, newUser)
             outGW.send(event)
+
+            val notifyEvent = MsgBuilder.buildNotifyAllInMeetingEvtMsg(
+              liveMeeting.props.meetingProp.intId,
+              "info",
+              "user",
+              "app.notification.userJoinPushAlert",
+              "Notification for a user joins the meeting",
+              Vector(s"${newUser.name}")
+            )
+            outGW.send(notifyEvent)
+
             val newState = startRecordingIfAutoStart2x(outGW, liveMeeting, state)
             if (!Users2x.hasPresenter(liveMeeting.users2x)) {
               // println(s"userJoinMeeting will trigger an automaticallyAssignPresenter for user=${newUser}")
@@ -215,7 +228,7 @@ trait HandlerHelpers extends SystemConfiguration {
       model <- state.breakout
     } yield {
       model.rooms.values.foreach { room =>
-        eventBus.publish(BigBlueButtonEvent(room.id, EndBreakoutRoomInternalMsg(liveMeeting.props.breakoutProps.parentId, room.id, reason)))
+        eventBus.publish(BigBlueButtonEvent(room.id, EndBreakoutRoomInternalMsg(liveMeeting.props.meetingProp.intId, room.id, reason)))
       }
     }
 

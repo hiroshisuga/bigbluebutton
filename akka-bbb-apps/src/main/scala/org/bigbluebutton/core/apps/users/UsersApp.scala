@@ -158,7 +158,7 @@ class UsersApp(
   with SelectRandomViewerReqMsgHdlr
   with AssignPresenterReqMsgHdlr
   with ChangeUserPinStateReqMsgHdlr
-  with EjectDuplicateUserReqMsgHdlr
+  with ChangeUserMobileFlagReqMsgHdlr
   with EjectUserFromMeetingCmdMsgHdlr
   with EjectUserFromMeetingSysMsgHdlr
   with MuteUserCmdMsgHdlr {

@@ -1,306 +1,257 @@
----
-layout: page
-title: "What's New"
-category: 2.5
-date: 2021-06-09 11:42:28
-order: 1
----
 
-![BigBlueButton 2.5 runs on Ubuntu 20.04](/img/25-header.png)
+![BigBlueButton 2.6 runs on Ubuntu 20.04](/img/26_BBB_header.png)
 
+## Overview
 
-# Overview
+This document gives you an overview of BigBlueButton 2.6.
 
-BigBlueButton is a virtual classroom designed to help teachers effectively engage students for online learning.  
+BigBlueButton 2.6 offers users improved usability, increased engagement, and more performance.
 
-BigBlueButton is built by teachers, for teachers -- meaning that we, the core developers, spend a lot of time listening to teachers (and students) for their input on designing BigBlueButton for them so they can hold effective virtual classes.
+- **Usability** - making common functions (such as raise hand) easier
+- **Engagement** - giving the instructor more ways to engage students
+- **Performance** - increasing overall performance and scalability
 
-In our research, there are four key foundations of an effective virtual class: management, relationships, engagement, and assessment.  From the point of view of the instructor, the use cases are: 
+Here's a breakdown of what's new in 2.6.
 
-- **Management** - Setup and manage the virtual classroom for success
-- **Relationships** -  Establish presence and trust with and between students
-- **Engagement** - Effectively engage and activate their minds for learning
-- **Assessment** - Assess progress of students and give timely feedback
+### Usability
 
-From the point of view of the student, the use cases are
-- **Relationships** -  Feel comfortable to participate
-- **Engagement** - Effectively master new skills
-- **Assessment** - Receive help when struggling
+#### Dark theme
 
-We describe the improvements of this release in the context of these foundations.  Here's a breakdown of what's new in 2.5.
+BigBlueButton supports dark theme. To enable it just navigate to the Settings.
 
-## Management
+![The toggle for dark theme is located in the main settings panel](/img/26-dark-theme-setting.png)
 
-### Easier setup of breakout rooms
+![Dark theme in action - typically pale elements like the participants list are displayed in dark palette](/img/26-dark-theme-in-action.png)
 
-Breakout rooms now remember your previous rooms assignments within the current session.  This means if you assign students to breakout rooms and then, later in the class want to reuse the breakout rooms, you don't need to re-assign students.
+#### Improved Echo Test dialog
+The echo test modal has added a new audio stream volume indicator in place of the
+separate confirmation screen. This reduced the number of views and interactions required for audio confirmation.
+![Updated echo test modal with added ](/img/26-echo-test.png)
 
-### Change time of breakout rooms
+#### Improved notification of recording start
 
-You can now increase or decrease the remaing time for breakout rooms (the duration).
+The indicator for whether the recording is on has been made bigger. Additionally, if you create your meeting with an optional parameter `notifyRecordingIsOn=true`, you users will see the following dialog when the recording commenses and also when joining a session that is already actively being recorded. You can choose to either continue or leave the session.
 
-![Change time in breakouts](/img/25-change-time.gif)
+![A big red square used as a recording indicator, used to be more subtle](/img/26-recording-indicator.png)
 
+![A blocking dialog shows up if the session is being recorded](/img/26-recording-popup.png)
 
-When you change the duration, BigBlueButton will notify each breakout room in the public chat of the new remaining time.
+#### Allow pinning of more than one webcam
 
-![New duration in breakouts](/img/25-new-duration.png)
+The pinning feature prevents the webcams from being rotated out when audio floor switching is activated.
+This functionality is specially important for document and/or interpreter cameras. It has also been improved
+to support miltiple pinned cameras.
 
-### Text message broadcasting to breakout rooms
+![Animation selecting webcam dropdown menu and pin option item](/img/26-cam-pin.gif)
 
-You can now broadcast a text message to all breakout rooms.  This message will appear in the public chat of each breakout room.
+#### Upload your own webcam background
 
-![Message breakout rooms](/img/25-message-breakout.gif)
+This new feature allows a user to upload virtual background image's for their webcam. The user can upload
+and delete images at will.
 
-### Private message users in waiting lobby
+![Animation of user uploading webcam custom background image](/img/26-bg-upload.gif)
 
-When a user is waiting in the lobby (pending moderator approval before they can join the meeting), moderators can now send them a private message.
+#### Set webcam image brightness
 
-![Message awaiting guests](/img/25-message-waiting.gif)
+Allows the ability to adjust the brightness levels of their webcam (or) webcam and background image.
 
-The message will appear to the user in the waiting message.  In the screen shot below, the message "We will start the class soon!" appears to the user.
+This is done via the webcam settings modal using the brightness slider at the bottom.
 
-### Waiting users see their order in the waiting queue
+![Animation of webcam brightness slider interaction](/img/26-webcam-brightness.gif)
 
-When a user is lobby, they will now see their position in the waiting line. 
+#### Improved layouts manager selection
 
-![Queue order in guest list](/img/25-queue-order.png)
+Layout selection can now be done via the updated layout selection modal located in the actions (+) button.
 
-Moderators will see waiting users in the order they joined.  If a moderator accepts or denies a user, all those waiting behind them will get their position updated.
+![Animation selecting actions button and layout selection item](/img/26layout-selection.gif)
 
-![Queue order moderator](/img/25-queue-order-moderator.png)
+#### Live Automatic Closed Captions
 
-### Improvements to Endpoint API 
+Note: The automatic transcription is only available for browsers that support SpeechRecognition (Google Chrome, MS Edge and Safari). So those who join a meeting using other browsers will see a warning in the audio modal.
 
-#### insertDocument
+![audio modal with speech recognition error](/img/26-no-voice-rec.png)
 
-A new API endpoint was added: `/insertDocument`. Now, it is possible to send a batch of documents with all the common presentation parameters such as `current`, `downloadable` and `removable`. 
+By default, automatic transcription language selector is disabled. This can be changed in the settings file.  Users who want to have their voices transcribed must enable it by selecting the desired language from the drop-down selector in the join audio dialog.
 
-All the presentations are sent via payload (the body of the request) such as when preuploading documents in `/create` endpoint, whether by a link to download the file or by `base64` encoded file. See the [API documentation](/development/api#insertdocument) for more information
+![audio modal with automatic transcription dropdown](/img/26-auto-transcription.png)
 
-## Engagement
+When the user selects a language for automatic transcription, BigBlueButton will display a CC icon next to their name in the "who is talking" indicator.
 
-### Prevent users from seeing other cursors in multi-user whiteboard
+![Talking indicator with closed caption icon](/img/26-cc-talking-indicator.png)
 
-BigBlueButton lets you engage users visually with multi-user whiteboard.  You can now restrict users to only see their cursor (not all cursors) by enabling the <b>See other viewers cursor</b> option.
+When one or more users have enabled transcription, BigBlueButton will display a 'CC' button to display the transcriptions. You don't need to have selected transcription of your audio to view the transcriptions for others.
 
-![Visual engagement via pointing to a spot on the slide](/img/25-see-cursor-lock-setting.png)
+To view the transcriptions for those with 'CC' in their "who is talking" icon, select the CC button.
 
-When locked, you can have users point at the screen as a form of visual assessment.  For example, if you were teaching students about Spain and wanted to test their geography, you could show a world map and ask everyone to "point to Spain."
+The placement of the 'CC' button depends on your device.  For desktop, the 'CC' button is in the bottom left.
 
-![Visual engagement via pointing to a spot on the slide](/img/25-point-to-spain.gif)
 
-You can see above that most users correctly point to Spain (and you can see the names of those users that didn't get it correct).
+![closed captions button on action bar](/img/26-cc-desktop-btn.png)
 
-Visually pointing gives you may ways to assess users.  Some examples include: 
+For mobile devices, The 'CC' button is in the three dots in the top right corner.
 
-  * A linear timeline of the last 400 years where you could ask students when particular events occured
-  * A line with two endpoints "uncertain" and "certain" asking how comfortable users are with their understanding of new concepts so far in the lecture
+![closed captions button on mobile in app options menu](/img/26-cc-mobile-btn.png)
 
-
-### Polling support for multiple answers per question
-
-In previous versions, when asking users to respond to a poll, they can only choose one option. Here the user is prompted to respond to a poll with four choices: A, B, C, or D.
-
-![Regular poll](/img/25-normal-poll.png)
-
-You can now create polls where users can choose more than one answer by selecting the option <b>Allow multiple answers per respondent</b> in the polling dialog.
-
-![Enable mutliple choices poll](/img/25-poll-multiple-options.png)
-
-When this optinon is selected, users can choose mutliple answers.  Here, the user choose both A and B as their answer.
-
-
-![Choose both A and B](/img/25-choose-a-b.png)
-
-From the presenters view, users that choose multiple answers have their choices separated by commas.  Here Dustin Henderson chooes both A and B.
-
-![Choose multiple options in polling](/img/25-poll-multiple-options.gif)
-
-## Assessment (Learning Analytics Dashboard)
-
-### Timeline View
-
-The Learning Analytics Dashboard now shows a timeline view of when each user was present, with milestones for each slide, along with any emojis they selected (such as Raise Hand).
-
-![Timeline view of learning analytics dashboard](/img/25-timeline.png)
-
-### Scorecare View
-
-Within the Learning Analytics Dashboard, you can now select a user's name to see a score card of their activity.  
-
-![Scorecard view of learning analytics dashboard](/img/25-scorecard-name.png)
-
-When selecting a name, a panel will appear showing a detailed breakdown of the user's attendance, activity score, and responses to polls.
-
-![Example of a scorecard](/img/25-scorecard.png)
-
-### Download data as CSV
-
-The Download Session Data button is in the lower right-hand corner of the Learning Analytics Dashboard.
-
-You will also be able to download the data from the Learning Analytics Dashboard as a CSV file.  
-
-![Download Learning Analytics Dashboard as CSV](/img/25-download-csv.png)
-
-You will also be able to download the data when you (as moderator) end the session.
-
-![Download CSV at end of session](/img/25-download-end.png)
-
-## General Improvements
-
-### Webcam pinning
-
-You can now pin a webcam so it always stays visible.  This is useful if one on of the webcams is showing sign language, for example, and you always want it to be visible.
-
-![Pin webcam](/img/25-pin-webcam.png)
-
-### Screenshot of current slide with annotations
-
-To capture the current slide with annotations, you can now have BigBlueButton give you a PNG image of the current slide.
-
-![Download Annotations](/img/25-download-annotations.png)
-
-### Improved scaling of webcams and screenshare
-
-BigBlueButton now uses [mediasoup](https://mediasoup.org/) (instead of Kurento) as its default WebRTC media server.  You'll find mediasoup able to handle more media streams (including screenshare) using less memory and CPU.
-
-For analysis on mediasoup vs. Kurento, see [BigBlueButton World - BigBlueButton's Media Stack and the Road Ahead](https://youtu.be/SBO5iWLs0KE). Note that Kurento is still installed on the system and still plays a role in the recording of media.
-
-
-## Experimental
-
-### Two-way microphone connections using Mediasoup
-
-FreeSWITCH is awesome, but it doesn't support dual-stack IPV4 and IPV6 (we bridge this with nginx).  It does not support trickle ICE for quick connections.
-
-The experimental microphone bridge introduced in 2.4 is moving towards feature complete in 2.5.  Support for the following features are now in 2.5:
-  - mediasoup now proxies audio connections for FreeSWITCH
-  - Echo test
-  - Input and output device switching
-  - Audio filters
-
-For a list of pending issues for the experimental audio bridge to be considered production-grade, check this [Depends on](https://github.com/bigbluebutton/bigbluebutton/issues/14021#fullaudio-depends-on) section in GitHub.
-
-Moreover, the steps for enabling this have changed slightly since 2.4. If you want to try this (keep in mind it is still experimental), you need to add the `fullAudioEnabled: true` flag in bbb-webrtc-sfu's configuration (`/etc/bigbluebutton/bbb-webrtc-sfu/production.yml`).  
+To enable the option for automatic translations for users of Google Chrome, Microsoft Edge, and Safari, edit the `/etc/bigbluebutton/bbb-html5.yml` and add the following to the `public:` section and restart BigBlueButton.
 
 ```
-mkdir -p /etc/bigbluebutton/bbb-webrtc-sfu
-if ! grep -q "fullAudioEnabled: true" /etc/bigbluebutton/bbb-webrtc-sfu/production.yml; then echo "fullAudioEnabled: true" >> /etc/bigbluebutton/bbb-webrtc-sfu/production.yml; fi
+public:
+  app:
+    audioCaptions:
+      enabled: true
 ```
 
+#### Downloading presentation with whiteboard annotations included
 
-Once that flag is enabled in bbb-webrtc-sfu, there are two ways of opting in:
+Teachers can now export their slide decks with the annotations added during a lesson.
+Selecting "Send to chat" in the presentation upload modal sends a link in the public chat from which meeting participants can download the file.
 
-1. Using API parameters you can have specific meetings use the experimental bridge by passing: CREATE parameter `meta_fullaudio-bridge=fullaudio` to override the default `sipjs` value
+![BigBlueButton's upload modal with a button to export the presentation with annotations](/img/26-send-to-chat.png)
 
-2. You can change the defaults in the settings for bbb-html5 by adding the following to `/etc/bigbluebutton/bbb-html5.yml` (you will likely want to merge it carefully with your existing file):
+#### Upload a presentation straight from NextCloud
 
-  ```
-  public:
-    media:
-      audio:
-        defaultFullAudioBridge: fullaudio
-  ```
+Two new create parameters: presentationUploadExternalDescription and presentationUploadExternalUrl have been introduced.
 
-After a restart of BigBlueButton (`sudo bbb-conf --restart`), it should be ready to test. Reverting to the default options can be achieved by removing the override sections (and passed API parameters) and restart of BigBlueButton.
+The client supports these parameters, displaying a message in the presentation upload modal when both values are set at meeting creation.
 
-## Upgraded components 
+![Upload presentation modal with next cloud message](/img/26-next-cloud.png)
 
-### Ubuntu 20.04
+#### Easier moving of users between breakout rooms
 
-Under the hood, BigBlueButton 2.5 installs on Ubuntu 20.04 64-bit, and the following key components have been upgraded
+There is a new option for the breakout room controls called Manage users.
 
-- Tomcat 9
-- Java 11
-- Meteor 2.7.1
-- NodeJS 14.19.1 (for bbb-html5-*)
-- SBT 1.6.2
-- Grails 5.0.1
-- Gradle 7.3.1
-- Note that BigBlueButton 2.5 is the first iteration running on Ubuntu 20.04
+![Manage users](/img/26-manage-users.png)
 
-For full details on what is new in BigBlueButton 2.5, see the release notes. Recent releases:
+This dialog lets you drag-and-drop users between different breakout rooms.
 
-- [2.5.15](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.5.15)
-- [2.5.14](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.5.14)
-- [2.5.12](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.5.12)
-- [2.5.11](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.5.11)
-- [2.5.10](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.5.10)
-- [2.5.9](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.5.9)
-- [2.5.8](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.5.8)
-- [2.5.7](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.5.7)
-- [2.5.6](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.5.6)
-- [2.5.5](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.5.5)
-- [2.5.4](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.5.4)
-- [2.5.3](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.5.3)
-- [2.5.2](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.5.2)
-- [2.5.1](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.5.1)
-- [2.5.0](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.5.0)
-- [rc.4](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.5.0-rc.4)
-- [rc.3](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.5.0-rc.3)
-- [rc.2](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.5.0-rc.2)
-- [rc.1](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.5.0-rc.1)
-- [beta.2](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.5.0-beta.2)
-- [beta.1](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.5.0-beta.1)
-- [alpha.6](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.5.0-alpha.6)
-- [alpha.5](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.5.0-alpha.5)
-- [alpha-4](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.5-alpha-4)
-- [alpha-3](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.5-alpha-3)
-- [alpha-2](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.5-alpha-2)
-- [alpha-1](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.5-alpha-1)
+![Move users dialog](/img/26-move-user.gif)
 
-# Installation
+When you click Apply, BigBlueButton well send prompts to each user to move them to the target breakout room.
 
-For server requirements, BigBlueButton 2.5 needs similar [minimum server requirements](https://docs.bigbluebutton.org/2.5/install.html#minimum-server-requirements) as 2.4.
+![Move users prompt](/img/26-move-prompt.png)
 
-To install 2.5, use [bbb-install-2.5.sh](https://github.com/bigbluebutton/bbb-install/blob/master/bbb-install-2.5.sh). For example, the following command installs BigBlueButton 2.5 using `bbb.example.com` as the hostname and `notice@example.com` as the email for Let's Encrypt (you would substitute these values for your own hostname and email address). Notice the version is `-v focal-250`, which will install the latest officially published release (alpha/beta/etc) of BigBlueButton 2.5. If you instead use `-v focal-25-dev`, you will be installing/updating to the very latest build tracking the source code from branch `v2.5.x-release`.
+When you click Apply, BigBlueButton will send prompts to each user to move them to the target breakout room.
 
-```bash
-wget -qO- https://ubuntu.bigbluebutton.org/bbb-install-2.5.sh | bash -s -- -v focal-250 -s bbb.example.com -e notice@example.com  -a -w
-```
 
-After installation finishes, you should see the following installed packages (your version numbers may be slightly different).
 
-```bash
-# dpkg -l | grep bbb-
+#### Recording in Video format
 
-ii  bbb-apps-akka              2.5           all          BigBlueButton Apps (Akka)
-ii  bbb-config                 1:2.5-9       amd64        BigBlueButton configuration utilities
-ii  bbb-demo                   1:2.5-2       amd64        BigBlueButton API demos
-ii  bbb-etherpad               1:2.5-3       amd64        The EtherPad Lite components for BigBlueButton
-ii  bbb-freeswitch-core        2:2.5-4       amd64        BigBlueButton build of FreeSWITCH
-ii  bbb-freeswitch-sounds      1:2.5-2       amd64        FreeSWITCH Sounds
-ii  bbb-fsesl-akka             2.5           all          BigBlueButton FS-ESL (Akka)
-ii  bbb-html5                  1:2.5-12      amd64        The HTML5 components for BigBlueButton
-ii  bbb-learning-dashboard     1:2.5-2       amd64        BigBlueButton bbb-learning-dashboard
-ii  bbb-libreoffice-docker     1:2.5-2       amd64        BigBlueButton setup for LibreOffice running in docker
-ii  bbb-mkclean                1:0.8.7-1     amd64        Clean and optimize Matroska and WebM files
-ii  bbb-pads                   1:2.5-2       amd64        BigBlueButton Pads
-ii  bbb-playback               1:2.5-2       amd64        BigBlueButton playback
-ii  bbb-playback-presentation  1:2.5-2       amd64        BigBluebutton playback of presentation
-ii  bbb-record-core            1:2.5-3       amd64        BigBlueButton record and playback
-ii  bbb-web                    1:2.5-6       amd64        BigBlueButton API
-ii  bbb-webrtc-sfu             1:2.5-6       amd64        BigBlueButton WebRTC SFU
+This release introduces a new recording format that creates a single video file from audio, video, screen share, presentation, and whiteboard marks recorded during the session.  The file format is webm (vp9 video), although configuration options is available to create an mp4 (h264 video) file instead.
 
-```
+Learn more about [how to enable generating MP4 (h264 video) output](https://docs.bigbluebutton.org/administration/customize#enable-generating-mp4-h264-video-output)
 
-This installs the latest version of BigBlueButton 2.5 with Let's encrypt certificate and the API demos. With the API demos installed, you can open `https://<hostname>/` in a browser (where `<hostname>` is the hostname you specified in the `bbb-install-2.5.sh` command), enter your name, and click 'Join' to join 'Demo Meeting'. For more information, see the [bbb-install-2.5.sh](https://github.com/bigbluebutton/bbb-install/blob/master/bbb-install-2.5.sh) documentation.
+### Engagement
 
-We welcome feedback on [our bigbluebutton-dev mailing list](https://groups.google.com/g/bigbluebutton-dev).
+#### Fully reimplemented whiteboard (tl;draw)
 
-## Development
+The whiteboard has been updated with TLdraw, a small application which supports improved drawing features.
 
-For information on developing in BigBlueButton, see [setting up a development environment for 2.5](/development/guide).
+For more details see <https://github.com/tldraw/tldraw>.
 
-The build scripts for packaging 2.5 (using fpm) are located in the GitHub repository [here](https://github.com/bigbluebutton/bigbluebutton/tree/v2.5.x-release/build).
+![BigBlueButton whiteboard using tldraw](/img/26-tldraw.png)
 
-## Contribution
+#### Exporting Shared notes to the whiteboard
 
-We welcome contributors to BigBlueButton 2.5!  The best ways to contribute at the current time are:
+Instructors can move the shared notes to the whiteboard presentation area for further collaborative work among students.
 
-<!-- - Help localize BigBlueButton 2.5 on [Transifex project for BBB 2.5](https://www.transifex.com/bigbluebutton/bigbluebutton-v25-html5-client/dashboard/) -->
+![BigBlueButton's whiteboard with annotations, with imported shared notes as the presentation](/img/26-shared-notes-import.png)
 
-- Try out [installing BigBlueButton 2.5](#installation) and see if you spot any issues.
-- Help test a [2.5 pull request](https://github.com/bigbluebutton/bigbluebutton/pulls?q=is%3Aopen+is%3Apr+milestone%3A%22Release+2.5%22) in your development environment.
+#### Exporting breakout rooms' shared notes as a presentation to the main room
+
+#### Exporting breakout rooms' whiteboard annotations to the main room
+
+#### Easier setup of polling
+
+Polling has been updated to allow for polls when prepared in advance using the custom input option.
+
+![Animation of user opening poll panel and toggle custom input](/img/26-custom-poll.gif)
+
+### Analytics
+
+
+### Performance
+
+#### Recording API improvements
+
+Allows for quicker, more efficient search and retrieval of recording data.
+
+### Experimental
+
+
+### Upgraded components
+
+Under the hood, BigBlueButton 2.6 installs on Ubuntu 20.04 64-bit, and the following key components have been upgraded
+- Meteor 2.10.0
+- Grails 5.2.4
+- Spring 2.7.1
+
+For full details on what is new in BigBlueButton 2.6, see the release notes. Recent releases:
+
+- [2.6.3](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.6.3)
+- [2.6.2](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.6.2)
+- [2.6.1](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.6.1)
+- [2.6.0](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.6.0)
+- [rc.9](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.6.0-rc.9)
+- [rc.8](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.6.0-rc.8)
+- [rc.7](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.6.0-rc.7)
+- [rc.6](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.6.0-rc.6)
+- [rc.5](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.6.0-rc.5)
+- [rc.4](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.6.0-rc.4)
+- [rc.3](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.6.0-rc.3)
+- [rc.2](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.6.0-rc.2)
+- [rc.1](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.6.0-rc.1)
+- [beta.7](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.6.0-beta.7)
+- [beta.6](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.6.0-beta.6)
+- [beta.5](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.6.0-beta.5)
+- [beta.4](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.6.0-beta.4)
+- [beta.3](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.6.0-beta.3)
+- [beta.2](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.6.0-beta.2)
+- [beta.1](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.6.0-beta.1)
+- [alpha.4](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.6.0-alpha.4)
+- [alpha.3](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.6.0-alpha.3)
+- [alpha.2](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.6.0-alpha.2)
+- [alpha.1](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v2.6.0-alpha.1)
+
+### Other notable changes
+
+#### We have retired the `bbb-demo` API Demos development only package
+
+We recommend using API MATE or Greenlight - see the [development setup section](/development/guide) for more information.
+
+#### bbb-install-2.6.sh installs a local TURN server and shares port 443 by default
+
+If you are using bbb-install to configure your servers, be aware that in BigBlueButton 2.6's version of bbb-install by default we install a local TURN server. For more information: https://github.com/bigbluebutton/bbb-install/pull/579 and https://docs.bigbluebutton.org/administration/turn-server
+
+#### Change of parameters naming
+
+In 2.5 we had the hidePresentation which was responsible for disabling presentation Area, and it was configured in the join call. Now we have a new disabled feature which is responsible for that. it is called `disabledFeatures=presentation`, and it is configured in the create call, for more details see the [docs](https://docs.bigbluebutton.org/2.6/development/api#create).
+
+There is another parameter renamed in 2.6, it is `swapLayout`, or `userdata-bbb_auto_swap_layout` in the join call. Now, this parameter is set to `hidePresentationOnJoin` or `userdata-bbb_hide_presentation_on_join` in the join call, and it does essentially the same thing: it starts meeting with presentation minimized. And lastly, we've got another way to configure it: which is to set `public.layout.hidePresentationOnJoin: true` in the override settings file: `/etc/bigbluebutton/bbb-html5.yml`
+
+In brief:
+
+- 2.5 **JOIN** `hidePresentation` -> 2.6 **CREATE** `disabledFeatures=presentation` (permanent disabling of presentation area for all users)
+- 2.5 **JOIN** `swapLayout` -> 2.6 **JOIN** `hidePresentation` (join a meeting with presentation area hidden, not permanently)
+
+#### Change of location for default presentation
+
+We used to keep the default presentation (`default.pdf` on a stock installation) in `/var/www/bigbluebutton-default/`.
+In BigBlueButton 2.6 we added a directory `assets` so now the full path is `/var/www/bigbluebutton-default/assets/default.pdf`.
+In case you are overriding the file/filename, please pass `beans.presentationService.defaultUploadedPresentation=${bigbluebutton.web.serverURL}/assets/file.pdf` in `/etc/bigbluebutton/bbb-web.properties`
+
+
+### Development
+
+For information on developing in BigBlueButton, see [setting up a development environment for 2.6](/development/guide).
+
+The build scripts for packaging 2.6 (using fpm) are located in the GitHub repository [here](https://github.com/bigbluebutton/bigbluebutton/tree/v2.6.x-release/build).
+
+### Contribution
+
+We welcome contributors to BigBlueButton 2.6!  The best ways to contribute at the current time are:
+
+- Help localize BigBlueButton 2.6 on [Transifex project for BBB 2.6](https://www.transifex.com/bigbluebutton/bigbluebutton-v26-html5-client/dashboard/)
+
+- Try out [installing BigBlueButton 2.6](/administration/install) and see if you spot any issues.
+- Help test a [2.6 pull request](https://github.com/bigbluebutton/bigbluebutton/pulls?q=is%3Aopen+is%3Apr+milestone%3A%22Release+2.6%22) in your development environment.
   <!-- TODO create a GitHub label for contributions-welcome and link here -->

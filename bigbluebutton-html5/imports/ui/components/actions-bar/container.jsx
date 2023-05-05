@@ -15,12 +15,9 @@ import MediaUploadService from '/imports/ui/components/upload/media/service';
 import CaptionsService from '/imports/ui/components/captions/service';
 import { layoutSelectOutput, layoutDispatch } from '../layout/context';
 import { isVideoBroadcasting } from '/imports/ui/components/screenshare/service';
-import { isExternalVideoEnabled, isPollingEnabled } from '/imports/ui/services/features';
+import { isExternalVideoEnabled, isPollingEnabled, isPresentationEnabled } from '/imports/ui/services/features';
 
-import MediaService, {
-  getSwapLayout,
-  shouldEnableSwapLayout,
-} from '../media/service';
+import MediaService from '../media/service';
 
 const ActionsBarContainer = (props) => {
   const actionsBarStyle = layoutSelectOutput((i) => i.actionBar);
@@ -32,6 +29,8 @@ const ActionsBarContainer = (props) => {
   const currentUser = { userId: Auth.userID, emoji: users[Auth.meetingID][Auth.userID].emoji };
 
   const amIPresenter = users[Auth.meetingID][Auth.userID].presenter;
+
+  if (actionsBarStyle.display === false) return null;
 
   return (
     <ActionsBar {
@@ -47,29 +46,25 @@ const ActionsBarContainer = (props) => {
   );
 };
 
-const PRESENTATION_DISABLED = Meteor.settings.public.layout.hidePresentation;
 const SELECT_RANDOM_USER_ENABLED = Meteor.settings.public.selectRandomUser.enabled;
 const RAISE_HAND_BUTTON_ENABLED = Meteor.settings.public.app.raiseHandActionButton.enabled;
-const OLD_MINIMIZE_BUTTON_ENABLED = Meteor.settings.public.presentation.oldMinimizeButton;
 
 export default withTracker(() => ({
   amIModerator: Service.amIModerator(),
   stopExternalVideoShare: ExternalVideoService.stopWatching,
   enableVideo: getFromUserSettings('bbb_enable_video', Meteor.settings.public.kurento.enableVideo),
-  isLayoutSwapped: getSwapLayout() && shouldEnableSwapLayout(),
-  toggleSwapLayout: MediaService.toggleSwapLayout,
+  setPresentationIsOpen: MediaService.setPresentationIsOpen,
   handleTakePresenter: Service.takePresenterRole,
   currentSlidHasContent: PresentationService.currentSlidHasContent(),
   parseCurrentSlideContent: PresentationService.parseCurrentSlideContent,
   isSharingVideo: Service.isSharingVideo(),
+  isSharedNotesPinned: Service.isSharedNotesPinned(),
   hasScreenshare: isVideoBroadcasting(),
   isCaptionsAvailable: CaptionsService.isCaptionsAvailable(),
   isMeteorConnected: Meteor.status().connected,
-  isPollingEnabled: isPollingEnabled(),
-  isPresentationDisabled: PRESENTATION_DISABLED,
+  isPollingEnabled: isPollingEnabled() && isPresentationEnabled(),
   isSelectRandomUserEnabled: SELECT_RANDOM_USER_ENABLED,
   isRaiseHandButtonEnabled: RAISE_HAND_BUTTON_ENABLED,
-  isOldMinimizeButtonEnabled: OLD_MINIMIZE_BUTTON_ENABLED,
   isThereCurrentPresentation: Presentations.findOne({ meetingId: Auth.meetingID, current: true },
     { fields: {} }),
   isMediaUploadEnabled: MediaUploadService.isEnabled(),

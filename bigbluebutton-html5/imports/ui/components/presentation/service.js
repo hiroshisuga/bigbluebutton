@@ -53,11 +53,14 @@ const getCurrentSlide = (podId) => {
     fields: {
       meetingId: 0,
       thumbUri: 0,
-      swfUri: 0,
       txtUri: 0,
     },
   });
 };
+
+const getSlidesLength = (podId) => {
+  return getCurrentPresentation(podId)?.pages?.length || 0;
+}
 
 const getSlidePosition = (podId, presentationId, slideId) => SlidePositions.findOne({
   podId,
@@ -101,6 +104,12 @@ const parseCurrentSlideContent = (yesValue, noValue, abstentionValue, trueValue,
   const questionRegex = /.*?\?/gm;
   const question = safeMatch(questionRegex, content, '');
 
+  if (question?.length > 0) {
+    const urlRegex = /\bhttps?:\/\/\S+\b/g;
+    const hasUrl = safeMatch(urlRegex, question[0], '');
+    if (hasUrl.length > 0) question.pop();
+  }
+
   const doubleQuestionRegex = /\?{2}/gm;
   const doubleQuestion = safeMatch(doubleQuestionRegex, content, false);
 
@@ -109,6 +118,25 @@ const parseCurrentSlideContent = (yesValue, noValue, abstentionValue, trueValue,
 
   const trueFalsePatt = /.*(true\/false|false\/true).*/gm;
   const hasTF = safeMatch(trueFalsePatt, content, false);
+
+/*
+  const pollRegex = /\b[1-9A-Ia-i][.)] .*/g;
+  let optionsPoll = safeMatch(pollRegex, content, []);
+  const optionsWithLabels = [];
+
+  if (hasYN) {
+    optionsPoll = ['yes', 'no'];
+  }
+
+  if (optionsPoll) {
+    optionsPoll = optionsPoll.map((opt) => {
+      const MAX_CHAR_LIMIT = 30;
+      const formattedOpt = opt.substring(0, MAX_CHAR_LIMIT);
+      optionsWithLabels.push(formattedOpt);
+      return `\r${opt[0]}.`;
+    });
+  }
+*/
 
   optionsPoll.reduce((acc, currentValue) => {
     const lastElement = acc[acc.length - 1];
@@ -170,7 +198,7 @@ const parseCurrentSlideContent = (yesValue, noValue, abstentionValue, trueValue,
       });
   });
 
-  if (question.length > 0 && optionsPoll.length === 0 && !doubleQuestion && !hasYN && !hasTF) {// from #17049
+  if (question.length > 0 && optionsPoll.length === 0 && !doubleQuestion && !hasYN && !hasTF) {
     quickPollOptions.push({
       type: 'R-',
       poll: {
@@ -221,4 +249,5 @@ export default {
   currentSlidHasContent,
   parseCurrentSlideContent,
   getCurrentPresentation,
+  getSlidesLength,
 };

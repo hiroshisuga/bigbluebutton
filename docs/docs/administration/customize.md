@@ -20,7 +20,7 @@ For the full list of the configuration files and their overriding counterpart, s
 
 ### Preserving customizations using apply-conf.sh
 
-Whenever you upgrade a server to the latest version of BigBlueButton, either using the [manual upgrade steps](/administration/install#upgrading-from-bigbluebutton-24) or the [bbb-install-2.5.sh](https://github.com/bigbluebutton/bbb-install) script, if you have made custom changes to BigBlueButton's configuration files, the packaging scripts may overwrite these changes.
+Whenever you upgrade a server to the latest version of BigBlueButton, either using the [manual upgrade steps](/administration/install#upgrading-from-bigbluebutton-25) or the [bbb-install-2.6.sh](https://github.com/bigbluebutton/bbb-install) script, if you have made custom changes to BigBlueButton's configuration files, the packaging scripts may overwrite these changes.
 
 To make it easier to apply your configuration changes, you can create a BASH script at `/etc/bigbluebutton/bbb-conf/apply-config.sh` that contains commands to apply your changes. The `bbb-conf` script, which is run as part of the last steps in a manual upgrade steps or using `bbb-install.sh`, will detect `apply-config.sh` and invoke it just before starting all of BigBlueButton's components.
 
@@ -43,10 +43,11 @@ chown meteor:meteor $HTML5_CONFIG
 
 then when called by `bbb-conf`, the above `apply-conf.sh` script will
 
-- use the helper function `enableUFWRules` to [restrict access to specific ports](#restrict-access-to-specific-ports), and
+- use the helper function `enableUFWRules` to restrict access to specific ports, and
 - set `enableScreensharing` to `false` in the HTML5 configuration file at `/usr/share/meteor/bundle/programs/server/assets/app/config/settings.yml`.
 
-Notice that `apply-conf.sh` includes a helper script [apply-lib.sh](https://github.com/bigbluebutton/bigbluebutton/blob/master/bigbluebutton-config/bin/apply-lib.sh). This helper script contains some functions to make it easy to apply common configuration changes, along with some helper variables, such as `HTML5_CONFIG`.
+Notice that `apply-conf.sh` includes a helper script [apply-lib.sh](https://github.com/bigbluebutton/bigbluebutton/blob/v2.6.x-release/bigbluebutton-config/bin/apply-lib.sh).
+This helper script contains some functions to make it easy to apply common configuration changes, along with some helper variables, such as `HTML5_CONFIG`.
 
 The contents of `apply-config.sh` are not owned by any package, so it will never be overwritten.
 
@@ -295,6 +296,10 @@ Persistent=false
 
 and do `systemctl daemon-reload`. This file overrides the timing of when systemd runs `bbb-record-core.target`. In the above example, recordings will start processing between 21:00 and 03:59.
 
+#### Allow all recordings to be returned
+
+In 2.6.x a new configuration property, `allowFetchAllRecordings`, was added to `bigbluebutton.properties`. This property determines whether every recording on the server can be returned in a single response from a `getRecordings` call. By default this property is set to `true`. On a server with a large number of recordings an attempt to return every recording in a sinlge response can cause a large amount of load on the server and therefore it is advised that this property be switched to `false`. When this is done any request to `getRecordings` that does not specify any recording or meeting IDs as well as no pagination parameters will return no recordings to prevent all recordings from being returned. 
+
 #### Increase the number of recording workers
 
 <!-- TODO remove when 12403 is resolved -->
@@ -333,13 +338,14 @@ If you run `systemctl status bbb-rap-resque-worker.service` now, you will see th
 
 #### Install additional recording processing formats
 
-In addition to the `presentation` format that is installed and enabled by default, there are several optional recording formats available for BigBlueButton:
+In addition to the `presentation` format that is installed and enabled by default, there are several optional recording formats available for BigBlueButton 2.6:
 
 - `notes`: Makes the shared notes from the meeting available as a document.
 - `screenshare`: Generate a single video file from the screensharing and meeting audio.
 - `podcast`: Generate an audio-only recording.
+- `video`: Generate a recording containing the webcams, presentation area, and screensharing combined into a single video file.
 
-The processing scripts and playback support files for these recording formats can be installed from the packages named `bbb-playback-formatname` (e.g. `bbb-playback-notes`)
+The processing scripts and playback support files for these recording formats can be installed from the packages named `bbb-playback-formatname` (e.g. `bbb-playback-video`)
 
 There is currently an issue where the recording formats are not automatically enabled when they are installed - see [#12241](https://github.com/bigbluebutton/bigbluebutton/issues/12241) for details.
 
@@ -347,7 +353,7 @@ In order to enable the recording formats manually, you need to edit the file `/u
 
 To enable a new recording format, you need to add a new step named `process:formatname` that runs after the step named captions, and a new step named `publish:formatname` that runs after `process:formatname`. You may have to convert some of the steps to list format.
 
-For example, here are the stock steps in BigBlueButton 2.5 with the `presentation` format enabled:
+For example, here are the stock steps in BigBlueButton 2.6 with the `presentation` format enabled:
 
 ```yml
 steps:
@@ -357,7 +363,7 @@ steps:
   'process:presentation': 'publish:presentation'
 ```
 
-If you additionally enable the `notes` recording format, the steps will have to be changed to look like this:
+If you additionally enable the `video` recording format, the steps will have to be changed to look like this:
 
 ```yml
 steps:
@@ -365,14 +371,51 @@ steps:
   sanity: 'captions'
   captions:
     - 'process:presentation'
-    - 'process:notes'
+    - 'process:video'
   'process:presentation': 'publish:presentation'
-  'process:notes': 'publish:notes'
+  'process:video': 'publish:video'
 ```
 
 This pattern can be repeated for additional recording formats. Note that it's very important to put the step names containing a colon (`:`) in quotes.
 
 After you edit the configuration file, you must restart the recording processing queue: `systemctl restart bbb-rap-resque-worker.service` in order to pick up the changes.
+
+#### Enable generating mp4 (H.264) video output
+
+By default, BigBlueButton generates recording videos as `.webm` files using the VP9 video codec. These are supported in most desktop web browsers, but might not work on iOS mobile devices. You can additionally enable the H.264 video codec in some recording formats:
+
+**`video`**
+
+Edit the file `/usr/local/bigbluebutton/core/scripts/video.yml` and uncomment the lines under the `formats:` label for the mimetype `video/mp4`.
+
+<!-- TODO: The default for the video recording format is currently mp4; this needs to be updated with the correct steps -->
+
+The encoding options can be adjusted to speed up encoding or increase quality of video generation as desired.
+
+**`presentation`**
+
+Edit the file `/usr/local/bigbluebutton/core/scripts/presentation.yml` and uncomment the entry for `mp4`:
+
+```yml
+video_formats:
+  - webm
+  - mp4
+```
+
+**`screenshare`**
+
+Edit the file `/usr/local/bigbluebutton/core/scripts/screenshare.yml` and uncomment the lines under the `:formats:` label for the mime type `video/mp4`:
+
+```yml
+  - :mimetype: 'video/mp4; codecs="avc1.640028, mp4a.40.2"'
+    :extension: mp4
+    :parameters:
+      - [ '-c:v', 'libx264', '-crf', '21', '-preset', 'medium', '-profile:v', 'high', '-level', '40', '-g', '240',
+          '-c:a', 'aac', '-b:a', '96K',
+          '-threads', '2', '-f', 'mp4', '-movflags', 'faststart' ]
+```
+
+The encoding options can be adjusted to speed up encoding or increase quality of video generation as desired.
 
 ### Video
 
@@ -971,7 +1014,7 @@ Configuring IP firewalling is _essential for securing your installation_. By def
 
 If your server is behind a firewall already -- such as running within your company or on an EC2 instance behind a Amazon Security Group -- and the firewall is enforcing the above restrictions, you don't need a second firewall and can skip this section.
 
-BigBlueButton comes with a [UFW](https://launchpad.net/ufw) based ruleset. It it can be applied on restart (c.f. [Automatically apply configuration changes on restart](#automatically-apply-configuration-changes-on-restart)) and restricts access only to the following needed ports:
+BigBlueButton comes with a [UFW](https://launchpad.net/ufw) based ruleset. It it can be applied on restart and restricts access only to the following needed ports:
 
 - TCP/IP port 22 for SSH
 - TCP/IP port 80 for HTTP
@@ -986,7 +1029,9 @@ tcp        0      0 0.0.0.0:22              0.0.0.0:*               LISTEN      
 tcp6       0      0 :::22                   :::*                    LISTEN      1739/sshd
 ```
 
-To restrict external access minimal needed ports for BigBlueButton (with [HTML5 client set as default](#make-the-html5-client-default)). BigBlueButton supplies a helper function that you can call in `/etc/bigbluebutton/bbb-conf/apply-conf.sh` to setup a minimal firewall (see [Setup Firewall](#setup-firewall).
+To restrict external access minimal needed ports for BigBlueButton.
+BigBlueButton supplies a helper function that you can call in `/etc/bigbluebutton/bbb-conf/apply-conf.sh`
+to setup a minimal firewall (see [Setup Firewall](#setup-firewall)).
 
 You can also do it manually with the following commands
 
@@ -1283,6 +1328,7 @@ Useful tools for development:
 | `userdata-bbb_skip_check_audio=`               | If set to `true`, the user will not see the "echo test" prompt when sharing audio                                                                                                                                                                                                                                               | `false`       |
 | `userdata-bbb_skip_check_audio_on_first_join=` | (Introduced in BigBlueButton 2.3) If set to `true`, the user will not see the "echo test" when sharing audio for the first time in the session. If the user stops sharing, next time they try to share audio the echo test window will be displayed, allowing for configuration changes to be made prior to sharing audio again | `false`       |
 | `userdata-bbb_override_default_locale=`        | (Introduced in BigBlueButton 2.3) If set to `de`, the user's browser preference will be ignored - the client will be shown in 'de' (i.e. German) regardless of the otherwise preferred locale 'en' (or other)                                                                                                                   | `null`        |
+| `userdata-bbb_hide_presentation_on_join`        | (Introduced in BigBlueButton 2.6) If set to `true` it will make the user enter the meeting with presentation minimized (Only for non-presenters), not peremanent.                                                                                                                   | `false`        |
 
 #### Branding parameters
 
@@ -1333,8 +1379,8 @@ Useful tools for development:
 
 | Parameter                                  | Description                                                                                                             | Default value |
 | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- | ------------- |
-| `userdata-bbb_auto_swap_layout=`           | If set to `true`, the presentation area will be minimized when a user joins a meeting.                                     | `false`       |
-| `userdata-bbb_hide_presentation=`          | If set to `true`, the presentation area will not be displayed.                                                       | `false`       |
+| `userdata-bbb_auto_swap_layout=`           | If set to `true`, the presentation area will be minimized when a user joins a meeting. (Removed in 2.6)                                  | `false`       |
+| `userdata-bbb_hide_presentation=`          | If set to `true`, the presentation area will not be displayed. (Removed in 2.6)                                                          | `false`       |
 | `userdata-bbb_hide_presentation_on_join=`          | If set to `true`, the presentation area will start minimized, but can be restored                                                          | `false`       |
 | `userdata-bbb_show_participants_on_login=` | If set to `false`, the participants panel (and the chat panel) will not be displayed until opened.                      | `true`        |
 | `userdata-bbb_show_public_chat_on_login=`  | If set to `false`, the chat panel will not be visible on page load until opened. Not the same as disabling chat.        | `true`        |

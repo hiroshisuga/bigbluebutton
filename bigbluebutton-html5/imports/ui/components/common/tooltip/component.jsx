@@ -57,23 +57,36 @@ class Tooltip extends Component {
     const {
       position,
       title,
+      delay,
+      placement,
     } = this.props;
 
     const { animations } = Settings.application;
+    
+    const overridePlacement = placement ? placement : position;
+    let overrideDelay;
+    if (animations) {
+      overrideDelay = delay ? [delay, ANIMATION_DELAY[1]] : ANIMATION_DELAY;
+    } else {
+      overrideDelay = delay ? [delay, 0] : [ANIMATION_DELAY[0], 0];
+    }
 
     const options = {
       aria: null,
       allowHTML: false,
       animation: animations ? DEFAULT_ANIMATION : ANIMATION_NONE,
+      appendTo: document.body,
       arrow: roundArrow,
       boundary: 'window',
       content: title,
-      delay: animations ? ANIMATION_DELAY : [ANIMATION_DELAY[0], 0],
+      delay: overrideDelay,
       duration: animations ? ANIMATION_DURATION : 0,
+      interactive: true,
+      interactiveBorder: 10,
       onShow: this.onShow,
       onHide: this.onHide,
       offset: TIP_OFFSET,
-      placement: position,
+      placement: overridePlacement,
       touch: 'hold',
       theme: 'bbbtip',
       multiple: false,
@@ -83,7 +96,7 @@ class Tooltip extends Component {
 
   componentDidUpdate() {
     const { animations } = Settings.application;
-    const { title, fullscreen } = this.props;
+    const { title } = this.props;
     const elements = document.querySelectorAll('[id^="tippy-"]');
 
     Array.from(elements).filter((e) => {
@@ -98,16 +111,19 @@ class Tooltip extends Component {
       return true;
     }).forEach((e) => {
       const instance = e._tippy;
-      instance.setProps({
+      const newProps = {
         animation: animations
           ? DEFAULT_ANIMATION : ANIMATION_NONE,
-        delay: animations ? ANIMATION_DELAY : [ANIMATION_DELAY[0], 0],
         duration: animations ? ANIMATION_DURATION : 0,
-      });
+      };
+      if (!e.getAttribute("delay")) {
+        newProps["delay"] = animations ? ANIMATION_DELAY : [ANIMATION_DELAY[0], 0];
+      }
+      instance.setProps(newProps);
     });
 
     const elem = document.getElementById(this.tippySelectorId);
-    const opts = { content: title, appendTo: fullscreen || document.body };
+    const opts = { content: title, appendTo: document.body };
     if (elem && elem._tippy) elem._tippy.setProps(opts);
   }
 

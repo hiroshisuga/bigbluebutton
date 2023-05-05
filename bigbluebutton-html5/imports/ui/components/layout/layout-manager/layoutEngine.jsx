@@ -8,6 +8,7 @@ import CustomLayout from '/imports/ui/components/layout/layout-manager/customLay
 import SmartLayout from '/imports/ui/components/layout/layout-manager/smartLayout';
 import PresentationFocusLayout from '/imports/ui/components/layout/layout-manager/presentationFocusLayout';
 import VideoFocusLayout from '/imports/ui/components/layout/layout-manager/videoFocusLayout';
+import { isPresentationEnabled } from '/imports/ui/services/features';
 
 const propTypes = {
   layoutType: PropTypes.string.isRequired,
@@ -23,6 +24,7 @@ const LayoutEngine = ({ layoutType }) => {
   const sidebarContentInput = layoutSelectInput((i) => i.sidebarContent);
   const externalVideoInput = layoutSelectInput((i) => i.externalVideo);
   const screenShareInput = layoutSelectInput((i) => i.screenShare);
+  const sharedNotesInput = layoutSelectInput((i) => i.sharedNotes);
 
   const fullscreen = layoutSelect((i) => i.fullscreen);
   const isRTL = layoutSelect((i) => i.isRTL);
@@ -46,10 +48,10 @@ const LayoutEngine = ({ layoutType }) => {
   };
 
   const baseCameraDockBounds = (mediaAreaBounds, sidebarSize) => {
-    const { isOpen, currentSlide } = presentationInput;
-    const { num: currentSlideNumber } = currentSlide;
+    const { isOpen, slidesLength } = presentationInput;
     const { hasExternalVideo } = externalVideoInput;
     const { hasScreenShare } = screenShareInput;
+    const { isPinned: isSharedNotesPinned } = sharedNotesInput;
 
     const cameraDockBounds = {};
 
@@ -60,9 +62,10 @@ const LayoutEngine = ({ layoutType }) => {
       return cameraDockBounds;
     }
 
-    const isSmartLayout = (layoutType === LAYOUT_TYPE.SMART_LAYOUT);
+    const hasPresentation = isPresentationEnabled() && slidesLength !== 0
+    const isGeneralMediaOff = !hasPresentation && !hasExternalVideo && !hasScreenShare && !isSharedNotesPinned;
 
-    if (!isOpen || (isSmartLayout && currentSlideNumber === 0 && !hasExternalVideo && !hasScreenShare)) {
+    if (!isOpen || isGeneralMediaOff) {
       cameraDockBounds.width = mediaAreaBounds.width;
       cameraDockBounds.maxWidth = mediaAreaBounds.width;
       cameraDockBounds.height = mediaAreaBounds.height - bannerAreaHeight();
@@ -289,17 +292,24 @@ const LayoutEngine = ({ layoutType }) => {
     isMobile,
     isTablet,
   };
+  
+  const layout = document.getElementById('layout');
 
   switch (layoutType) {
     case LAYOUT_TYPE.CUSTOM_LAYOUT:
+      layout?.setAttribute("data-layout", LAYOUT_TYPE.CUSTOM_LAYOUT);
       return <CustomLayout {...common} />;
     case LAYOUT_TYPE.SMART_LAYOUT:
+      layout?.setAttribute("data-layout", LAYOUT_TYPE.SMART_LAYOUT);
       return <SmartLayout {...common} />;
     case LAYOUT_TYPE.PRESENTATION_FOCUS:
+      layout?.setAttribute("data-layout", LAYOUT_TYPE.PRESENTATION_FOCUS);
       return <PresentationFocusLayout {...common} />;
     case LAYOUT_TYPE.VIDEO_FOCUS:
+      layout?.setAttribute("data-layout",LAYOUT_TYPE.VIDEO_FOCUS);
       return <VideoFocusLayout {...common} />;
     default:
+      layout?.setAttribute("data-layout", LAYOUT_TYPE.CUSTOM_LAYOUT);
       return <CustomLayout {...common} />;
   }
 };

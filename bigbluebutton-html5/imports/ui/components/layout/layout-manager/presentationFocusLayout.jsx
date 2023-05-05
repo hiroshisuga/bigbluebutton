@@ -8,6 +8,7 @@ import {
   PANELS,
   CAMERADOCK_POSITION,
 } from '/imports/ui/components/layout/enums';
+import { isPresentationEnabled } from '/imports/ui/services/features';
 
 const windowWidth = () => window.document.documentElement.clientWidth;
 const windowHeight = () => window.document.documentElement.clientHeight;
@@ -33,6 +34,10 @@ const PresentationFocusLayout = (props) => {
   const currentPanelType = layoutSelect((i) => i.currentPanelType);
 
   const presentationInput = layoutSelectInput((i) => i.presentation);
+  const externalVideoInput = layoutSelectInput((i) => i.externalVideo);
+  const screenShareInput = layoutSelectInput((i) => i.screenShare);
+  const sharedNotesInput = layoutSelectInput((i) => i.sharedNotes);
+
   const sidebarNavigationInput = layoutSelectInput((i) => i.sidebarNavigation);
   const sidebarContentInput = layoutSelectInput((i) => i.sidebarContent);
   const cameraDockInput = layoutSelectInput((i) => i.cameraDock);
@@ -100,6 +105,8 @@ const PresentationFocusLayout = (props) => {
           },
           screenShare: {
             hasScreenShare: input.screenShare.hasScreenShare,
+            width: input.screenShare.width,
+            height: input.screenShare.height,
           },
         }, INITIAL_INPUT_STATE),
       });
@@ -140,11 +147,19 @@ const PresentationFocusLayout = (props) => {
         }, INITIAL_INPUT_STATE),
       });
     }
+    Session.set('layoutReady', true);
     throttledCalculatesLayout();
   };
 
   const calculatesSidebarContentHeight = () => {
-    const { isOpen } = presentationInput;
+    const { isOpen, slidesLength } = presentationInput;
+    const { hasExternalVideo } = externalVideoInput;
+    const { hasScreenShare } = screenShareInput;
+    const { isPinned: isSharedNotesPinned } = sharedNotesInput;
+
+    const hasPresentation = isPresentationEnabled() && slidesLength !== 0
+    const isGeneralMediaOff = !hasPresentation && !hasExternalVideo && !hasScreenShare && !isSharedNotesPinned;
+
     const {
       navBarHeight,
       sidebarContentMinHeight,
@@ -157,7 +172,7 @@ const PresentationFocusLayout = (props) => {
         height = windowHeight() - navBarHeight - bannerAreaHeight();
         minHeight = height;
         maxHeight = height;
-      } else if (cameraDockInput.numCameras > 0 && isOpen) {
+      } else if (cameraDockInput.numCameras > 0 && isOpen && !isGeneralMediaOff) {
         if (sidebarContentInput.height === 0) {
           height = (windowHeight() * 0.75) - bannerAreaHeight();
         } else {
@@ -218,13 +233,15 @@ const PresentationFocusLayout = (props) => {
           max((windowHeight() - sidebarContentHeight), cameraDockMinHeight),
           (windowHeight() - cameraDockMinHeight),
         );
+        const bannerAreaDiff = windowHeight() - sidebarContentHeight - cameraDockHeight - bannerAreaHeight();
+        cameraDockHeight += bannerAreaDiff;
       } else {
         cameraDockHeight = min(
           max(cameraDockInput.height, cameraDockMinHeight),
           (windowHeight() - cameraDockMinHeight),
         );
       }
-      cameraDockBounds.top = windowHeight() - cameraDockHeight;
+      cameraDockBounds.top = windowHeight() - cameraDockHeight - bannerAreaHeight();
       cameraDockBounds.left = !isRTL ? sidebarNavWidth : 0;
       cameraDockBounds.right = isRTL ? sidebarNavWidth : 0;
       cameraDockBounds.minWidth = sidebarContentWidth;
@@ -426,6 +443,7 @@ const PresentationFocusLayout = (props) => {
           bottom: false,
           left: false,
         },
+        focusedId: input.cameraDock.focusedId,
         zIndex: cameraDockBounds.zIndex,
       },
     });
@@ -459,6 +477,17 @@ const PresentationFocusLayout = (props) => {
 
     layoutContextDispatch({
       type: ACTIONS.SET_EXTERNAL_VIDEO_OUTPUT,
+      value: {
+        width: isOpen ? mediaBounds.width : 0,
+        height: isOpen ? mediaBounds.height : 0,
+        top: mediaBounds.top,
+        left: mediaBounds.left,
+        right: mediaBounds.right,
+      },
+    });
+
+    layoutContextDispatch({
+      type: ACTIONS.SET_SHARED_NOTES_OUTPUT,
       value: {
         width: isOpen ? mediaBounds.width : 0,
         height: isOpen ? mediaBounds.height : 0,
