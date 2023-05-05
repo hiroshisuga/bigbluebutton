@@ -58,8 +58,8 @@ export default async function meetingHasEnded(meetingId) {
     clearVoiceUsers(meetingId),
     clearUserInfo(meetingId),
     clearConnectionStatus(meetingId),
-    clearUploadRequest(meetingId);
-    clearUploadedFile(meetingId);
+    clearUploadRequest(meetingId),
+    clearUploadedFile(meetingId),
     clearAudioCaptions(meetingId),
     clearLocalSettings(meetingId),
     clearMeetingTimeRemaining(meetingId),
