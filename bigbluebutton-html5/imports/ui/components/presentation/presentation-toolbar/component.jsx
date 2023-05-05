@@ -11,6 +11,7 @@ import {
 import Styled from './styles';
 import ZoomTool from './zoom-tool/component';
 import SmartMediaShareContainer from './smart-video-share/container';
+import QuickLinksDropdown from './quick-links-dropdown/component';
 import TooltipContainer from '/imports/ui/components/common/tooltip/container';
 import KEY_CODES from '/imports/utils/keyCodes';
 
