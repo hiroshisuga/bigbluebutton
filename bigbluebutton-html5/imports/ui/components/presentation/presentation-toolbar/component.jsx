@@ -273,6 +273,8 @@ class PresentationToolbar extends PureComponent {
       allowExternalVideo,
       screenSharingCheck,
       fullscreenElementId,
+      isFullscreen,
+      fullscreenRef,
       toolbarWidth,
     } = this.props;
 
