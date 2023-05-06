@@ -217,6 +217,7 @@ const QuickPollDropdown = (props) => {
               pollTypes.Custom,
               currentSlide.id,
               //optionsWithLabels,
+              answers,
               pollQuestion,
               multiResponse,
             );
