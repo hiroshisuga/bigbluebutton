@@ -121,6 +121,7 @@ class VideoPlayer extends Component {
         playerVars: {
           //with this comment out autoplay stops but the video size would not be adjusted 
           // thus pic-in-pic option does not appear until you manually start playing
+          //If you close the video before the size is adjusted, the presentation will disappear!
           //autoplay: 1,
           modestbranding: 1,
           autohide: 1,
