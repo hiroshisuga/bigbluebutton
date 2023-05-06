@@ -67,7 +67,7 @@ const intlMessages = defineMessages({
   showToolsDesc: {
     id: 'app.presentation.presentationToolbar.showToolsDesc',
     description: 'Show toolbar label',
-  }
+  },
   splitPresentationDesc: {
     id: 'app.presentation.presentationToolbar.splitPresentationDesc',
     description: 'Detach the presentation area label',
