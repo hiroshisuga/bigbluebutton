@@ -118,6 +118,8 @@ class VideoPlayer extends Component {
       },
       youtube: {
         playerVars: {
+          //with this comment out autoplay stops but the video size would not be adjusted 
+          // thus pic-in-pic option does not appear until you manually start playing
           //autoplay: 1,
           modestbranding: 1,
           autohide: 1,
