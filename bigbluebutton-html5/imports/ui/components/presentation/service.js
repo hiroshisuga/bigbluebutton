@@ -119,23 +119,6 @@ const parseCurrentSlideContent = (yesValue, noValue, abstentionValue, trueValue,
   const trueFalsePatt = /.*(true\/false|false\/true).*/gm;
   const hasTF = safeMatch(trueFalsePatt, content, false);
 
-//  const pollRegex = /\b[1-9A-Ia-i][.)] .*/g;
-//  let optionsPoll = safeMatch(pollRegex, content, []);
-//  const optionsWithLabels = [];
-//
-//  if (hasYN) {
-//    optionsPoll = ['yes', 'no'];
-//  }
-//
-//  if (optionsPoll) {
-//    optionsPoll = optionsPoll.map((opt) => {
-//      const MAX_CHAR_LIMIT = 30;
-//      const formattedOpt = opt.substring(0, MAX_CHAR_LIMIT);
-//      optionsWithLabels.push(formattedOpt);
-//      return `\r${opt[0]}.`;
-//    });
-//  }
-
   optionsPoll.reduce((acc, currentValue) => {
     const lastElement = acc[acc.length - 1];
 
