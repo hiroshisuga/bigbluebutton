@@ -134,10 +134,10 @@ const QuickLinksDropdown = (props) => {
           aria-label={intl.formatMessage(intlMessages.quickLinksLabel)}
           color="primary"
           hideLabel
-          icon="popout_window"
+          icon="external-video"
           label={intl.formatMessage(intlMessages.quickLinksLabel)}
           onClick={() => null}
-          size="lg"
+          size="md"
         />
       </DropdownTrigger>
       <DropdownContent placement="top left">
