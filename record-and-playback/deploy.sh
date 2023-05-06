@@ -41,7 +41,7 @@ function deploy_format() {
 }
 
 deploy_format "presentation"
-## NOTE these changes are not necessary. You can Probably make the "meetings" directly manually if not present.
+## NOTE these changes are not necessary. You can generate /var/bigbluebutton/meetings directly manually if not present.
 
 BASE_DIR="/var/bigbluebutton"
 RECORDING_DIR="$BASE_DIR/recording"
