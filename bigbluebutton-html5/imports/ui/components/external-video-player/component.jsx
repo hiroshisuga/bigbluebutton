@@ -97,14 +97,14 @@ class VideoPlayer extends Component {
     this.opts = {
       // default option for all players, can be overwritten
       playerOptions: {
-        autoplay: true,
+        autoplay: false,
         playsinline: true,
         controls: isPresenter,
       },
       file: {
         attributes: {
           controls: isPresenter ? 'controls' : '',
-          autoplay: 'autoplay',
+          //autoplay: 'autoplay',
           playsinline: 'playsinline',
         },
       },
@@ -118,7 +118,7 @@ class VideoPlayer extends Component {
       },
       youtube: {
         playerVars: {
-          autoplay: 1,
+          //autoplay: 1,
           modestbranding: 1,
           autohide: 1,
           rel: 0,
