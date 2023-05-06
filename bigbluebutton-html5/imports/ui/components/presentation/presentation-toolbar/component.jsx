@@ -311,6 +311,7 @@ class PresentationToolbar extends PureComponent {
               }}
             />
           ) : null}
+
         {
           <div>
           {
