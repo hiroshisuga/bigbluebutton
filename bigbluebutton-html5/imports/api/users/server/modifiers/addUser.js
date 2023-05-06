@@ -44,6 +44,7 @@ export default async function addUser(meetingId, userData) {
     meetingId,
     sortName: lowercaseTrim(user.name),
     speechLocale: '',
+    translationLocale: '',
     mobile: false,
     breakoutProps: {
       isBreakoutUser: Meeting.meetingProp.isBreakout,

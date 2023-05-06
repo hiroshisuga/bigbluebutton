@@ -8,6 +8,7 @@ export default async function addUserPersistentData(user) {
     sortName: String,
     color: String,
     speechLocale: String,
+    translationLocale: String,
     mobile: Boolean,
     breakoutProps: Object,
     inactivityCheck: Boolean,

@@ -10,7 +10,9 @@ const XL_OFFSET = 85;
 const BOTTOM_CAM_HANDLE_HEIGHT = 10;
 const PRES_TOOLBAR_HEIGHT = 35;
 
-const baseName = Meteor.settings.public.app.cdn + Meteor.settings.public.app.basename;
+const { cursorInterval: CURSOR_INTERVAL } = Meteor.settings.public.whiteboard;
+const hostUri = `https://${window.document.location.hostname}`;
+const baseName = hostUri + Meteor.settings.public.app.cdn + Meteor.settings.public.app.basename;
 const makeCursorUrl = (filename) => `${baseName}/resources/images/whiteboard-cursor/${filename}`;
 
 const TOOL_CURSORS = {
@@ -46,6 +48,8 @@ const Cursors = (props) => {
     isPanning,
     isMoving,
     currentTool,
+    isPresentationDetached,
+    presentationWindow,
     toggleToolsAnimations,
     whiteboardToolbarAutoHide,
     application,
@@ -96,6 +100,7 @@ const Cursors = (props) => {
     const camPosition = document.getElementById('layout')?.getAttribute('data-cam-position') || null;
     const sl = document.getElementById('layout')?.getAttribute('data-layout');
     const presentationContainer = document.querySelector('[data-test="presentationContainer"]');
+    //Only this one needs to be obtained from presentationWindow, but when the presentation is re-attached, this will become null.. so stay without presentationWindow. Anyway only style.height/width values are used at calcPresOffset
     const presentation = document.getElementById('currentSlideText')?.parentElement;
     const banners = document.querySelectorAll('[data-test="notificationBannerBar"]');
     let yOffset = 0;
@@ -113,6 +118,7 @@ const Cursors = (props) => {
     };
     // If the presentation container is the full screen element we don't
     // need any offsets
+    // Does not need to be presentationWindow.document, because when isPresentationDetached, the offsets will be anyway ignored.
     const { webkitFullscreenElement, fullscreenElement } = document;
     const fsEl = webkitFullscreenElement || fullscreenElement;
     if (fsEl?.getAttribute('data-test') === 'presentationContainer') {
@@ -124,7 +130,7 @@ const Cursors = (props) => {
     if (subPanel) xOffset += parseFloat(subPanel?.style?.width);
 
     // offset native tldraw eraser animation container
-    const overlay = document.getElementsByClassName('tl-overlay')[0];
+    const overlay = presentationWindow.document.getElementsByClassName('tl-overlay')[0];
     if (overlay) overlay.style.left = '0px';
 
     if (type === 'touchmove') {
@@ -137,6 +143,7 @@ const Cursors = (props) => {
       return setPos({ x: newX, y: newY });
     }
 
+    //dir element cannot be obtained from the detached window
     if (document?.documentElement?.dir === 'rtl') {
       xOffset = 0;
       if (presentationContainer && presentation) {
@@ -214,14 +221,18 @@ const Cursors = (props) => {
         yOffset += parseFloat(window.getComputedStyle(el).height);
       });
     }
-
-    return setPos({ x: event.x - xOffset, y: event.y - yOffset });
+    
+    if (isPresentationDetached) {
+      return setPos({ x: event.x, y: event.y });
+    } else {
+      return setPos({ x: event.x - xOffset, y: event.y - yOffset });
+    }
   };
 
   React.useEffect(() => {
     const currentCursor = cursorWrapper?.current;
     currentCursor?.addEventListener('mouseenter', start);
-    currentCursor?.addEventListener('touchstart', start); 
+    currentCursor?.addEventListener('touchstart', start);
     currentCursor?.addEventListener('mouseleave', end);
     currentCursor?.addEventListener('mousedown', handleGrabbing);
     currentCursor?.addEventListener('mouseup', handleReleaseGrab);
@@ -231,7 +242,7 @@ const Cursors = (props) => {
 
     return () => {
       currentCursor?.removeEventListener('mouseenter', start);
-      currentCursor?.addEventListener('touchstart', start); 
+      currentCursor?.addEventListener('touchstart', start);
       currentCursor?.removeEventListener('mouseleave', end);
       currentCursor?.removeEventListener('mousedown', handleGrabbing);
       currentCursor?.removeEventListener('mouseup', handleReleaseGrab);
@@ -241,7 +252,8 @@ const Cursors = (props) => {
     };
   }, [cursorWrapper, whiteboardId, currentUser.presenter, whiteboardToolbarAutoHide]);
 
-  let cursorType = multiUserAccess || currentUser?.presenter ? TOOL_CURSORS[currentTool] || 'none' : 'default';
+  let cursorType = multiUserAccess || currentUser?.presenter ? TOOL_CURSORS[currentTool] : 'default';
+
   if (isPanning) {
     if (panGrabbing) {
       cursorType = TOOL_CURSORS.grabbing;
@@ -250,7 +262,6 @@ const Cursors = (props) => {
     }
   }
   if (isMoving) cursorType = TOOL_CURSORS.moving;
-
   return (
     <span key={`cursor-wrapper-${whiteboardId}`} ref={cursorWrapper}>
       <div style={{ height: '100%', cursor: cursorType }}>

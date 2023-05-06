@@ -69,7 +69,7 @@ const PRELOAD_NEXT_SLIDE = APP_CONFIG.preloadNextSlides;
 const fetchedpresentation = {};
 
 export default lockContextContainer(
-  withTracker(({ podId, presentationIsOpen, userLocks }) => {
+  withTracker(({ podId, presentationIsOpen, userLocks, isPresentationDetached, setPresentationDetached }) => {
     const currentSlide = PresentationService.getCurrentSlide(podId);
     const numPages = PresentationService.getSlidesLength(podId);
     const presentationIsDownloadable = PresentationService.isPresentationDownloadable(podId);
@@ -116,7 +116,7 @@ export default lockContextContainer(
         });
       }
     }
-
+    const currentPresentation = PresentationService.getCurrentPresentation(podId);
     return {
       currentSlide,
       slidePosition,
@@ -127,11 +127,14 @@ export default lockContextContainer(
         ) && presentationIsOpen,
       presentationIsDownloadable,
       mountPresentation: !!currentSlide,
-      currentPresentation: PresentationService.getCurrentPresentation(podId),
+      currentPresentation,
+      currentPresentationId: currentPresentation?.id,
       numPages,
       notify,
       zoomSlide: PresentationToolbarService.zoomSlide,
       podId,
+      isPresentationDetached,
+      setPresentationDetached,
       publishedPoll: Meetings.findOne({ meetingId: Auth.meetingID }, {
         fields: {
           publishedPoll: 1,

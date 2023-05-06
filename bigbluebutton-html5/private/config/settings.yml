@@ -35,7 +35,7 @@ public:
     helpLink: https://bigbluebutton.org/html5/
     delayForUnmountOfSharedNote: 120000
     bbbTabletApp:
-      enabled: false
+      enabled: true
       iosAppStoreUrl: 'https://apps.apple.com/us/app/bigbluebutton-tablet/id1641156756'
       iosAppUrlScheme: 'bigbluebutton-tablet'
     lockOnJoin: true
@@ -505,6 +505,9 @@ public:
     enabled: true
     id: captions
     dictation: false
+    enableAutomaticTranslation: false
+    googleTranslateUrl: https://script.google.com/macros/s/YOUR_ID
+    #deeplTranslateUrl: https://api-free.deepl.com/v2/translate?auth_key=YOUR_KEY
     background: '#000000'
     font:
       color: '#ffffff'
@@ -720,7 +723,7 @@ public:
   presentation:
     allowDownloadable: true
     panZoomThrottle: 32
-    restoreOnUpdate: false
+    restoreOnUpdate: true
     uploadEndpoint: '/bigbluebutton/presentation/upload'
     fileUploadConstraintsHint: false
     # mirroredFromBBBCore are values controlled in bbb-web properties file. We include a copy here for notification purposes

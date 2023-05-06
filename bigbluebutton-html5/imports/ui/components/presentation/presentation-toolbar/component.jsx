@@ -88,6 +88,16 @@ const intlMessages = defineMessages({
     id: 'app.whiteboard.toolbar.tools.hand',
     description: 'presentation toolbar pan label',
   },
+  /*
+  splitPresentationDesc: {
+    id: 'app.presentation.presentationToolbar.splitPresentationDesc',
+    description: 'detach the presentation area label',
+  },
+  mergePresentationDesc: {
+    id: 'app.presentation.presentationToolbar.mergePresentationDesc',
+    description: 'merge the detached presentation area label',
+  },
+  */
 });
 
 class PresentationToolbar extends PureComponent {
@@ -105,7 +115,8 @@ class PresentationToolbar extends PureComponent {
   }
 
   componentDidMount() {
-    document.addEventListener('keydown', this.switchSlide);
+    const { presentationWindow } = this.props;
+    presentationWindow.document.addEventListener('keydown', this.switchSlide);
   }
 
   componentDidUpdate(prevProps) {
@@ -114,7 +125,8 @@ class PresentationToolbar extends PureComponent {
   }
 
   componentWillUnmount() {
-    document.removeEventListener('keydown', this.switchSlide);
+    const { presentationWindow } = this.props;
+    presentationWindow.document.removeEventListener('keydown', this.switchSlide);
   }
 
   handleSkipToSlideChange(event) {
@@ -146,9 +158,11 @@ class PresentationToolbar extends PureComponent {
       fullscreenAction,
       fullscreenRef,
       handleToggleFullScreen,
+      presentationWindow,
+      isPresentationDetached,
     } = this.props;
 
-    handleToggleFullScreen(fullscreenRef);
+    handleToggleFullScreen(isPresentationDetached ? presentationWindow.document.documentElement : fullscreenRef);
     const newElement = isFullscreen ? '' : fullscreenElementId;
 
     layoutContextDispatch({
@@ -233,6 +247,14 @@ class PresentationToolbar extends PureComponent {
         <div id="fitPageDesc">
           {intl.formatMessage(intlMessages.fitToPageDesc)}
         </div>
+        {/*
+        <div id="mergePresentationDesc">
+          {intl.formatMessage(intlMessages.mergePresentationDesc)}
+        </div>
+        <div id="splitPresentationDesc">
+          {intl.formatMessage(intlMessages.splitPresentationDesc)}
+        </div>
+        */}
       </div>
     );
   }
@@ -276,6 +298,8 @@ class PresentationToolbar extends PureComponent {
       isFullscreen,
       fullscreenRef,
       toolbarWidth,
+      //togglePresentationDetached,
+      //isPresentationDetached,
     } = this.props;
 
     const { isMobile } = deviceInfo;
@@ -330,6 +354,27 @@ class PresentationToolbar extends PureComponent {
           </div>
         }
         </div>
+        {/*
+          <div>
+            <Styled.detachWindowButton
+              role="button"
+              aria-label={isPresentationDetached
+                ? `${intl.formatMessage(intlMessages.mergePresentationDesc)}`
+                : `${intl.formatMessage(intlMessages.splitPresentationDesc)}`
+              }
+              aria-describedby={isPresentationDetached ? 'mergePresentationDesc' : 'splitPresentationDesc'}
+              color="default"
+              icon={isPresentationDetached ? "application" : "rooms"}
+              size="md"
+              onClick={togglePresentationDetached}
+              label={isPresentationDetached
+                ? `${intl.formatMessage(intlMessages.mergePresentationDesc)}`
+                : `${intl.formatMessage(intlMessages.splitPresentationDesc)}`
+              }
+              hideLabel
+            />
+          </div>
+        */}
         <Styled.PresentationSlideControls>
           <Styled.PrevSlideButton
             role="button"
