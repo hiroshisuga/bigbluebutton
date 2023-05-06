@@ -1,5 +1,6 @@
 import styled from 'styled-components';
 import ReactPlayer from 'react-player';
+import Button from '/imports/ui/components/common/button/component';
 
 const VideoPlayerWrapper = styled.div`
   position: relative;
@@ -42,6 +43,20 @@ const VideoPlayer = styled(ReactPlayer)`
     overflow-y: auto;
     border-style: none;
     border-bottom: none;
+  }
+`;
+
+const ExternalVideoCloseButton = styled(Button)`
+  z-index: 1;
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: auto;
+  cursor: pointer;
+
+  [dir="rtl"] & {
+    right: auto;
+    left :0;
   }
 `;
 
@@ -116,4 +131,5 @@ export default {
   Loaded,
   Played,
   ButtonsWrapper,
+  ExternalVideoCloseButton,
 };

@@ -11,6 +11,7 @@ import {
 import Styled from './styles';
 import ZoomTool from './zoom-tool/component';
 import SmartMediaShareContainer from './smart-video-share/container';
+import QuickLinksDropdown from './quick-links-dropdown/component';
 import TooltipContainer from '/imports/ui/components/common/tooltip/container';
 import KEY_CODES from '/imports/utils/keyCodes';
 
@@ -291,6 +292,12 @@ class PresentationToolbar extends PureComponent {
       slidePosition,
       multiUserSize,
       multiUser,
+      allowExternalVideo,
+      screenSharingCheck,
+      fullscreenElementId,
+      isFullscreen,
+      fullscreenRef,
+      toolbarWidth,
       //togglePresentationDetached,
       //isPresentationDetached,
     } = this.props;
@@ -329,7 +336,23 @@ class PresentationToolbar extends PureComponent {
             />
           ) : null}
 
-          <SmartMediaShareContainer {...{ intl, currentSlide }} />
+        {
+          <div>
+          {
+              <QuickLinksDropdown
+                {...{
+                  intl,
+                  amIPresenter,
+                  parseCurrentSlideContent,
+                  allowExternalVideo,
+                  screenSharingCheck,
+                  isFullscreen,
+                  fullscreenRef,
+                }}
+              />
+          }
+          </div>
+        }
         </div>
         {/*
           <div>

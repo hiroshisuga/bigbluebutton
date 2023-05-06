@@ -1,5 +1,9 @@
 import React, { Component } from 'react';
 import { withModalMounter } from '/imports/ui/components/common/modal/service';
+import Icon from '/imports/ui/components/common/icon/component';
+//import Modal from '/imports/ui/components/modal/simple/component';
+//import Button from '/imports/ui/components/button/component';
+import UploadMediaService from '/imports/ui/components/upload/media/service';
 import { defineMessages, injectIntl } from 'react-intl';
 import { isUrlValid } from '../service';
 import Settings from '/imports/ui/services/settings';
@@ -30,6 +34,10 @@ const intlMessages = defineMessages({
     id: 'app.externalVideo.close',
     description: 'Close',
   },
+  filename: {
+    id: 'app.externalVideo.filename',
+    description: 'Media filename',
+  },
   note: {
     id: 'app.externalVideo.noteLabel',
     description: 'provides hint about Shared External videos',
@@ -51,6 +59,7 @@ class ExternalVideoModal extends Component {
     this.updateVideoUrlHandler = this.updateVideoUrlHandler.bind(this);
     this.renderUrlError = this.renderUrlError.bind(this);
     this.updateVideoUrlHandler = this.updateVideoUrlHandler.bind(this);
+    this.onMediaFileClick = this.onMediaFileClick.bind(this);
   }
 
   startWatchingHandler() {
@@ -69,6 +78,18 @@ class ExternalVideoModal extends Component {
     this.setState({ url: ev.target.value });
   }
 
+  onMediaFileClick(id) {
+    const {
+      startWatching,
+      closeModal,
+    } = this.props;
+
+    const url = UploadMediaService.getDownloadURL(id);
+
+    startWatching(url.trim());
+    closeModal();
+  }
+
   renderUrlError() {
     const { intl } = this.props;
     const { url } = this.state;
@@ -84,6 +105,52 @@ class ExternalVideoModal extends Component {
           </Styled.UrlError>
         )
         : null
+    );
+  }
+
+  renderItem(item) {
+    const { intl } = this.props;
+
+    return (
+      <Styled.Item
+        key={item.uploadId}
+        onClick={() => this.onMediaFileClick(item.uploadId)}
+      >
+        <td>
+          <Styled.Icon>
+            <Icon iconName="file" />
+          </Styled.Icon>
+        </td>
+        <Styled.Name>
+          <span>{item.filename}</span>
+        </Styled.Name>
+      </Styled.Item>
+    );
+  }
+
+  renderFiles() {
+    const {
+      intl,
+      files,
+    } = this.props;
+
+    if (files.length === 0) return null;
+
+    return (
+      <div className={Styled.List}>
+        <table className={Styled.Table}>
+          <thead>
+            <tr>
+              <th className={Styled.Hidden}>
+                {intl.formatMessage(intlMessages.filename)}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {files.map(item => this.renderItem(item))}
+          </tbody>
+        </table>
+      </div>
     );
   }
 
@@ -126,6 +193,7 @@ class ExternalVideoModal extends Component {
             {this.renderUrlError()}
           </div>
 
+          {this.renderFiles()}
           <Styled.StartButton
             label={intl.formatMessage(intlMessages.start)}
             onClick={this.startWatchingHandler}
