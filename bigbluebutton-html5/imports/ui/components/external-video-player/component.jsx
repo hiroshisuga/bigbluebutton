@@ -117,6 +117,7 @@ class VideoPlayer extends Component {
         },
       },
       youtube: {
+        //For pic-in-pic, you need to use the browser's function by another right clicking after showing the Youtube's menu.
         playerVars: {
           //with this comment out autoplay stops but the video size would not be adjusted 
           // thus pic-in-pic option does not appear until you manually start playing
