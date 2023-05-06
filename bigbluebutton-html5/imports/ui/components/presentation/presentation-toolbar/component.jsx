@@ -311,10 +311,6 @@ class PresentationToolbar extends PureComponent {
               }}
             />
           ) : null}
-
-          <SmartMediaShareContainer {...{ intl, currentSlide }} />
-        </div>
-
         {
           <div>
           {
@@ -332,7 +328,7 @@ class PresentationToolbar extends PureComponent {
           }
           </div>
         }
-
+        </div>
         <Styled.PresentationSlideControls>
           <Styled.PrevSlideButton
             role="button"
