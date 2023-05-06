@@ -27,11 +27,23 @@ const setSpeechVoices = () => {
   Session.set('speechVoices', _.uniq(window.speechSynthesis.getVoices().map((v) => v.lang)));
 };
 
+const setTranslations = () => {
+  if (!hasSpeechRecognitionSupport()) return;
+  //For now the same items as transcription, but they can be different and are dependent on translation services.
+  Session.set('translations', _.uniq(window.speechSynthesis.getVoices().map((v) => v.lang)));
+};
+
 // Trigger getVoices
 setSpeechVoices();
 
 const getSpeechVoices = () => {
   const voices = Session.get('speechVoices') || [];
+
+  return voices.filter((v) => LANGUAGES.includes(v));
+};
+
+const getTranslations = () => {
+  const voices = Session.get('translations') || [];
 
   return voices.filter((v) => LANGUAGES.includes(v));
 };
@@ -47,6 +59,17 @@ const setSpeechLocale = (value) => {
   }
 };
 
+const setTranslationLocale = (value) => {
+  const voices = getTranslations();
+  if (voices.includes(value) || value === '') {
+    makeCall('setTranslationLocale', value);
+  } else {
+    logger.error({
+      logCode: 'captions_translation_locale',
+    }, 'Captions translation set locale error');
+  }
+};
+
 const useFixedLocale = () => isEnabled() && CONFIG.language.forceLocale;
 
 const initSpeechRecognition = () => {
@@ -54,6 +77,7 @@ const initSpeechRecognition = () => {
   if (hasSpeechRecognitionSupport()) {
     // Effectivate getVoices
     setSpeechVoices();
+    setTranslations();
     const speechRecognition = new SpeechRecognitionAPI();
     speechRecognition.continuous = true;
     speechRecognition.interimResults = true;
@@ -122,6 +146,14 @@ const getSpeechLocale = (userId = Auth.userID) => {
   return '';
 };
 
+const getTranslationLocale = (userId = Auth.userID) => {
+  const user = Users.findOne({ userId }, { fields: { translationLocale: 1 } });
+
+  if (user) return user.translationLocale;
+
+  return '';
+};
+
 const hasSpeechLocale = (userId = Auth.userID) => getSpeechLocale(userId) !== '';
 
 const isLocaleValid = (locale) => LANGUAGES.includes(locale);
@@ -162,8 +194,11 @@ export default {
   updateInterimTranscript,
   updateFinalTranscript,
   getSpeechVoices,
+  getTranslations,
   getSpeechLocale,
+  getTranslationLocale,
   setSpeechLocale,
+  setTranslationLocale,
   hasSpeechLocale,
   isLocaleValid,
   isEnabled,
