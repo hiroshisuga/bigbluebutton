@@ -100,7 +100,7 @@ const getPollResultsText = (isDefaultPoll, answers, numRespondents, intl) => {
       resultString += `${translatedKey}: ${item.numVotes || 0} |${pctBars} ${pctFotmatted}\n`;
     } else {
       resultString += `${item.id + 1}: ${item.numVotes || 0} |${pctBars} ${pctFotmatted}\n`;
-      optionsString += `${item.id + 1}: ${item.key}\n`;
+      optionsString += `${item.id + 1}: ${item.key.slice(0,10)}\n`;
     }
   });
 
