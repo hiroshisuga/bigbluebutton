@@ -229,10 +229,6 @@ class PollDrawComponent extends Component {
     // group duplicated responses and keep track of the number of removed items
     const reducedResult = result.reduce(caseInsensitiveReducer, []).sort((a, b) => a.id - b.id);
     const reducedResultRatio = reducedResult.length * 100 / result.length;
-
-    for (const r of result) {
-      r.key = r.key.slice(0,10); //To make poll text visible.
-    }
     
     // x1 and y1 - coordinates of the top left corner of the annotation
     // initial width and height are the width and height of the annotation
