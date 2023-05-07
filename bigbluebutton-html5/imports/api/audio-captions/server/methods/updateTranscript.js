@@ -60,7 +60,7 @@ function translateText (meetingId, userId, payload, dst) {
       } else if (CAPTIONS_CONFIG.deeplTranslateUrl) {
         url = CAPTIONS_CONFIG.deeplTranslateUrl +
               '&text=' + encodeURIComponent(transcriptOriNoBlank) + '&source_lang=' + src.replace(/-..$/,'').toUpperCase() +
-              '&target_lang=' + dst.toUpperCase();
+              '&target_lang=' + dst.replace(/-..$/,'').toUpperCase();
       } else {
         Logger.error('Could not get a translation service.');
         return;
@@ -85,7 +85,7 @@ function translateText (meetingId, userId, payload, dst) {
           if (translations.length > 0 && translations[0].text) {
             const newTranscript = transcriptOriHeader + translations[0].text;
             const newText = textOri.match(/\S/g) ? newTranscript : '';
-            updateDbAndPublish(CHANNEL, EVENT_NAME, meetingId, userId, payload, newTranscript, newText, [ transcriptOriNoBlank, text, src+'-'+dst ]);
+            updateDbAndPublish(CHANNEL, EVENT_NAME, meetingId, userId, payload, newTranscript, newText, [ transcriptOriNoBlank, translations[0].text, src+'-'+dst ]);
           } else {
             Logger.error(`Failed to get DeepL translation for "${transcriptOri}"`);
           }
