@@ -10,10 +10,12 @@ const CAPTIONS_CONFIG = Meteor.settings.public.captions;
 
 function updateDbAndPublish(channel, eventName, meetingId, userId, payload, translatedTranscript, translatedText, newDbEntry) {
   const selector = { meetingId };
+  const dbname = newDbEntry.srcLocale + '-' + newDbEntry.dstLocale;
   const modifier = {
     $set: {
       //[`translationDb.${newDbEntry[2]}.${newDbEntry[0]}`]: newDbEntry[1], // this works as well
-      ['translationDb.'+newDbEntry[2]+'.'+newDbEntry[0]]: newDbEntry[1],
+      //['translationDb.'+newDbEntry[2]+'.'+newDbEntry[0]]: newDbEntry[1],
+      ['translationDb.'+dbname+'.'+newDbEntry.origText]: newDbEntry.translatedText,
     },
   };
 
@@ -26,7 +28,7 @@ function updateDbAndPublish(channel, eventName, meetingId, userId, payload, tran
     Logger.error(`Assigning meeting translationDb: ${err}`);
   }
 
-  const newPayload = Object.assign({}, payload, {transcript: translatedTranscript, text: translatedText});
+  const newPayload = Object.assign({}, payload, {transcript: translatedTranscript, text: translatedText, locale: newDbEntry.dstLocale});
   RedisPubSub.publishUserMessage(channel, eventName, meetingId, userId, newPayload);
 }
 
@@ -38,7 +40,8 @@ function translateText (meetingId, userId, payload, dst) {
   const { locale: src, transcript: transcriptOri, text: textOri } = payload;
 
   if ( !CAPTIONS_CONFIG.enableAutomaticTranslation || transcriptOri === "" || !dst || dst === "" || dst === src || dst.replace(/-..$/,'') === src || dst === src.replace(/-..$/,'') ) {
-      RedisPubSub.publishUserMessage(CHANNEL, EVENT_NAME, meetingId, userId, payload);
+    const newPayload = Object.assign({}, payload, {locale: dst});
+    RedisPubSub.publishUserMessage(CHANNEL, EVENT_NAME, meetingId, userId, newPayload);
   } else {
     const { translationDb : transDb = {} } = Meetings.findOne({ meetingId }, { fields: { translationDb: 1 }});
     const { [src+'-'+dst]: tDb = {} } = transDb;
@@ -50,7 +53,7 @@ function translateText (meetingId, userId, payload, dst) {
       // It can be either a blank string, same string as 'transcript', or trancated 'transcript'
       // To reduce the  access to translation servers, it is simplified: same as 'transcript' or a blank.
       const newText = textOri.match(/\S/g) ? tDb[transcriptOriNoBlank] : '';
-      const newPayload = Object.assign({}, payload, {transcript: transcriptOriHeader + tDb[transcriptOriNoBlank], text: transcriptOriHeader + newText});
+      const newPayload = Object.assign({}, payload, {transcript: transcriptOriHeader + tDb[transcriptOriNoBlank], text: transcriptOriHeader + newText, locale: dst});
       RedisPubSub.publishUserMessage(CHANNEL, EVENT_NAME, meetingId, userId, newPayload);
     } else {
       let url = '';
@@ -76,7 +79,7 @@ function translateText (meetingId, userId, payload, dst) {
           if (code === 200) {
             const newTranscript = transcriptOriHeader + text;
             const newText = textOri.match(/\S/g) ? newTranscript : '';
-            updateDbAndPublish(CHANNEL, EVENT_NAME, meetingId, userId, payload, newTranscript, newText, [ transcriptOriNoBlank, text, src+'-'+dst ]);
+            updateDbAndPublish(CHANNEL, EVENT_NAME, meetingId, userId, payload, newTranscript, newText, { origText: transcriptOriNoBlank, translatedText: text, srcLocale: src, dstLocale: dst });
           } else {
             Logger.error(`Failed to get Google translation for "${transcriptOri}"`);
           }
@@ -85,7 +88,7 @@ function translateText (meetingId, userId, payload, dst) {
           if (translations.length > 0 && translations[0].text) {
             const newTranscript = transcriptOriHeader + translations[0].text;
             const newText = textOri.match(/\S/g) ? newTranscript : '';
-            updateDbAndPublish(CHANNEL, EVENT_NAME, meetingId, userId, payload, newTranscript, newText, [ transcriptOriNoBlank, translations[0].text, src+'-'+dst ]);
+            updateDbAndPublish(CHANNEL, EVENT_NAME, meetingId, userId, payload, newTranscript, newText, { origText: transcriptOriNoBlank, translatedText: translations[0].text, srcLocale: src, dstLocale: dst });
           } else {
             Logger.error(`Failed to get DeepL translation for "${transcriptOri}"`);
           }
