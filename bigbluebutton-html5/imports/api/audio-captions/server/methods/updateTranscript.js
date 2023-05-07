@@ -48,6 +48,9 @@ function translateText (meetingId, userId, payload, dst) {
     const transcriptOriNoBlank = transcriptOri.replace(/^\s*/, '');
     const transcriptOriHeader = (transcriptOri === transcriptOriNoBlank ? '' : ' ');
 
+    //we are going to translate but publish untranslated captions anyway
+    RedisPubSub.publishUserMessage(CHANNEL, EVENT_NAME, meetingId, userId, payload);
+
     if (tDb[transcriptOriNoBlank]) {
       // The 'text' item, which seems kept for backward compatibility, is not always the same as 'transcript';
       // It can be either a blank string, same string as 'transcript', or trancated 'transcript'
