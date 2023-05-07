@@ -40,8 +40,8 @@ function translateText (meetingId, userId, payload, dst) {
   const { locale: src, transcript: transcriptOri, text: textOri } = payload;
 
   if ( !CAPTIONS_CONFIG.enableAutomaticTranslation || transcriptOri === "" || !dst || dst === "" || dst === src || dst.replace(/-..$/,'') === src || dst === src.replace(/-..$/,'') ) {
-      const newPayload = Object.assign({}, payload, {locale: dst});
-      RedisPubSub.publishUserMessage(CHANNEL, EVENT_NAME, meetingId, userId, newPayload);
+    const newPayload = Object.assign({}, payload, {locale: dst});
+    RedisPubSub.publishUserMessage(CHANNEL, EVENT_NAME, meetingId, userId, newPayload);
   } else {
     const { translationDb : transDb = {} } = Meetings.findOne({ meetingId }, { fields: { translationDb: 1 }});
     const { [src+'-'+dst]: tDb = {} } = transDb;
