@@ -66,7 +66,7 @@ const Cursors = (props) => {
     if (hasTlPartial) {
       event?.preventDefault();
     }
-    if (whiteboardToolbarAutoHide) toggleToolsAnimations('fade-out', 'fade-in', application?.animations ? '.3s' : '0s');
+    if (whiteboardToolbarAutoHide) toggleToolsAnimations('fade-out', 'fade-in', application?.animations ? '.3s' : '0s', presentationWindow);
     setActive(true);
   };
   const handleGrabbing = () => setPanGrabbing(true);
@@ -81,7 +81,7 @@ const Cursors = (props) => {
         whiteboardId,
       });
     }
-    if (whiteboardToolbarAutoHide) toggleToolsAnimations('fade-in', 'fade-out', application?.animations ? '3s' : '0s');
+    if (whiteboardToolbarAutoHide) toggleToolsAnimations('fade-in', 'fade-out', application?.animations ? '3s' : '0s', presentationWindow);
     setActive(false);
   };
 
