@@ -713,6 +713,7 @@
     "app.audio.captions.button.stop": "Stop closed captions",
     "app.audio.captions.button.language": "Language",
     "app.audio.captions.button.transcription": "Transcription",
+    "app.audio.captions.button.translation": "Translation",
     "app.audio.captions.button.transcriptionSettings": "Transcription settings",
     "app.audio.captions.speech.title": "Automatic transcription",
     "app.audio.captions.speech.disabled": "Disabled",
