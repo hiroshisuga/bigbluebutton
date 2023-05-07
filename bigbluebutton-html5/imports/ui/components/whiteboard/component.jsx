@@ -168,9 +168,9 @@ export default function Whiteboard(props) {
 
   React.useEffect(() => {
     if (whiteboardToolbarAutoHide) {
-      toggleToolsAnimations('fade-in', 'fade-out', animations ? '3s' : '0s');
+      toggleToolsAnimations('fade-in', 'fade-out', animations ? '3s' : '0s', presentationWindow);
     } else {
-      toggleToolsAnimations('fade-out', 'fade-in', animations ? '.3s' : '0s');
+      toggleToolsAnimations('fade-out', 'fade-in', animations ? '.3s' : '0s', presentationWindow);
     }
   }, [whiteboardToolbarAutoHide]);
   
@@ -911,7 +911,7 @@ export default function Whiteboard(props) {
     }
 
     if (whiteboardToolbarAutoHide && command && command.id === "change_page") {
-      toggleToolsAnimations('fade-in', 'fade-out', '0s');
+      toggleToolsAnimations('fade-in', 'fade-out', '0s', presentationWindow);
     }
 
     if (command?.id?.includes('style')) {
