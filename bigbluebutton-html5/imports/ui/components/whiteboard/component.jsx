@@ -231,6 +231,10 @@ export default function Whiteboard(props) {
       // to 'touch' the CSS of side position of the dock
       tldrawAPI.setSetting('dockPosition', isRTL ? 'left' : 'right');
     }
+    if (!fitToWidth && isPresentationDetached && slidePosition) {
+      const newzoom = calculateZoom(slidePosition.viewBoxWidth, slidePosition.viewBoxHeight);
+      tldrawAPI?.setCamera([slidePosition.x, slidePosition.y], newzoom);
+    }
     
     presentationWindow.document.addEventListener('mouseup', checkClientBounds);
     presentationWindow.document.addEventListener('visibilitychange', checkVisibility);
