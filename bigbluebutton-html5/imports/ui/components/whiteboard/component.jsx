@@ -232,14 +232,13 @@ export default function Whiteboard(props) {
       tldrawAPI.setSetting('dockPosition', isRTL ? 'left' : 'right');
     }
     if (isPresentationDetached && slidePosition) {
+      const newZoom = calculateZoom(slidePosition.viewBoxWidth, slidePosition.viewBoxHeight);
       if (fitToWidth) {
         setTimeout(() => {
-          const newZoom = calculateZoom(slidePosition.viewBoxWidth, slidePosition.viewBoxHeight);
           tldrawAPI.setCamera([slidePosition.x, slidePosition.y], newZoom, 'zoomed');
         }, 50);
       } else {
-        const newzoom = calculateZoom(slidePosition.viewBoxWidth, slidePosition.viewBoxHeight);
-        tldrawAPI?.setCamera([slidePosition.x, slidePosition.y], newzoom);
+        tldrawAPI?.setCamera([slidePosition.x, slidePosition.y], newZoom);
       }
     }
     presentationWindow.document.addEventListener('mouseup', checkClientBounds);
