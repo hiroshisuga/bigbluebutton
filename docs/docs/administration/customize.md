@@ -640,9 +640,9 @@ HERE
 
 Starting from version 2.4 BigBlueButton offers virtual background for webcams.
 To use your own background images copy them into the directory
-`/usr/share/meteor/bundle/programs/web.browser/app/resources/img/virtual-backgrounds`.
+`/usr/share/meteor/bundle/programs/web.browser/app/resources/images/virtual-backgrounds`.
 For each image copy a thumbnail of the image of 50x50 pixels size into
-`/usr/share/meteor/bundle/programs/web.browser/app/resources/img/virtual-backgrounds/thumbnails`.
+`/usr/share/meteor/bundle/programs/web.browser/app/resources/images/virtual-backgrounds/thumbnails`.
 
 To generate thumbnails you can use the following shell snippet:
 
@@ -1244,6 +1244,27 @@ Edit `systemd_start.sh` and `systemd_start_frontend.sh` files, located in `/usr/
 Finally, run the following command to reload configuration:
 
 `sudo service nginx reload && sudo bbb-conf --restart`
+
+#### Enable live captions
+
+BigBlueButton has the ability to use Chrome's built-in speech-to-text API to give users the option to have their audio live captioned for other users in the session.  When live captions are enabled on the server, a user can choose their language from the drop-down list when joining audio.
+
+<p align="center">
+  <img src="/img/26-auto-transcription.png"/>
+</p>
+
+These captions will automatically appear in the recordings.  To enable live captions, edit `/etc/bigbluebutton/bbb-html5.yml` and add the following
+
+```
+public:
+  app:
+    # You may have other setting itms here
+    audioCaptions:
+      enabled: true
+```
+
+Restart BigBlueButton with `sudo bbb-conf --restart` and you should now see the options for live captions when joining audio.
+
 
 ### Configuration of global settings
 

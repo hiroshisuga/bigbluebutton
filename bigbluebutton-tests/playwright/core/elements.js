@@ -149,10 +149,10 @@ exports.notificationBannerBar = 'div[data-test="notificationBannerBar"]';
 exports.zoomInBtn = 'button[data-test="zoomInBtn"]';
 exports.recordingIndicator = 'div[data-test="recordingIndicator"]';
 exports.webcamMirroredVideoContainer = 'video[data-test="mirroredVideoContainer"]';
-exports.userslist = 'div[data-test="userList"]';
+exports.usersList = 'div[data-test="userList"]';
 exports.selectCameraQualityId = 'select[id="setQuality"]';
 exports.virtualBackgrounds = 'div[data-test="virtualBackground"]';
-exports.liveTranscritpion = 'div[data-test="liveTranscription"]';
+exports.liveTranscription = 'div[data-test="liveTranscription"]';
 exports.learningDashboard = 'li[data-test="learningDashboard"]';
 exports.propagateLayout = 'li[data-test="propagateLayout"]';
 exports.layoutModal = 'li[data-test="layoutModal"]';
@@ -291,6 +291,7 @@ exports.downloadPresentationToast = 'div[data-test="downloadPresentationToast"]'
 exports.whiteboardOptionsButton = 'button[data-test="whiteboardOptionsButton"]';
 exports.presentationFullscreen = 'li[data-test="presentationFullscreen"]';
 exports.presentationSnapshot = 'li[data-test="presentationSnapshot"]';
+exports.toolVisibility = 'li[data-test="toolVisibility"]';
 // YouTube frame
 exports.youtubeLink = 'https://www.youtube.com/watch?v=Hso8yLzkqj8&ab_channel=BigBlueButton';
 // The title we match for here is the title of the test video specified by youtubeLink
@@ -410,6 +411,11 @@ exports.selectCustomBackground = 'button[data-test="selectCustomBackground"]';
 exports.removeCustomBackground = 'button[data-test="removeCustomBackground"]';
 exports.inputBackgroundButton = 'button[data-test="inputBackgroundButton"]';
 exports.noneBackgroundButton = 'button[data-test="noneBackgroundButton"]';
+exports.dropAreaBottom = 'div[data-test="dropArea-contentLeft"]';
+exports.dropAreaLeft = 'div[data-test="dropArea-contentLeft"]';
+exports.dropAreaRight = 'div[data-test="dropArea-contentRight"]';
+exports.dropAreaTop = 'div[data-test="dropArea-contentTop"]';
+exports.dropAreaSidebarBottom = 'div[data-test="dropArea-sidebarContentBottom"]';
 
 exports.videoQualitySelector = 'select[id="setQuality"]';
 exports.webcamItemTalkingUser = 'div[data-test="webcamItemTalkingUser"]';
@@ -444,6 +450,14 @@ exports.zoomOutButton = 'button[data-test="zoomOutBtn"]';
 exports.wbPan = 'button[data-test="panButton"]';
 exports.wbEraser = 'button[id="TD-PrimaryTools-Eraser"]';
 exports.wbArrowShape = 'button[id="TD-PrimaryTools-ArrowTopRight"]';
+exports.wbDelete = 'span[id="TD-Delete"]';
+exports.wbUndo = 'button[id="TD-TopPanel-Undo"]';
+exports.wbRedo = 'button[id="TD-TopPanel-Redo"]';
+exports.wbStyles = 'button[id="TD-Styles"]';
+exports.wbColorRed = 'button[id="TD-Styles-Color-Swatch-red"]';
+exports.wbFillDrawing = 'button[id="TD-Styles-Fill"]';
+exports.wbDashDotted = 'div[id="TD-Styles-Dash-dotted"]';
+exports.wbSizeLarge = 'div[id="TD-Styles-Dash-large"]';
 
 // About modal
 exports.showAboutModalButton = 'li[data-test="aboutModal"]';
@@ -466,8 +480,11 @@ exports.whiteboardOptionsButton = 'button[data-test="whiteboardOptionsButton"]';
 exports.layoutSettingsModalButton = 'li[data-test="layoutModal"]';
 exports.focusOnPresentation = 'button[data-test="presentationFocusLayout"]';
 exports.focusOnVideo = 'button[data-test="videoFocusLayout"]';
+exports.smartLayout = 'button[data-test="smartLayout"]';
+exports.customLayout = 'button[data-test="customLayout"]';
+exports.pushLayoutToggle = 'input#TogglePush';
 exports.confirmButton = 'button[aria-label="Confirm"]';
-exports.cameraDock = 'video[data-test="videoContainer"]';
+exports.cameraDock = 'div#cameraDock';
 
 // Font size
 exports.increaseFontSize = 'button[data-test="increaseFontSize"]';

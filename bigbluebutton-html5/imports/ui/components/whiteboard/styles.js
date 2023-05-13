@@ -89,9 +89,21 @@ const TldrawGlobalStyle = createGlobalStyle`
       }
     }
   `}
-  ${({ isPresenter }) => (!isPresenter) && `
+  ${({ isPresenter, hasWBAccess }) => (!isPresenter && !hasWBAccess) && `
     #presentationInnerWrapper div{
       cursor: default !important;
+    }
+  `}
+
+  ${({ isToolbarVisible }) => (!isToolbarVisible) && `
+    #TD-Tools {
+      visibility: hidden;
+    }
+    #TD-Styles-Parent {
+      visibility: hidden;
+    }
+    #WhiteboardOptionButton {
+      opacity: 0.2;
     }
   `}
 `;
