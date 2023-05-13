@@ -8,12 +8,15 @@ import Users from '/imports/api/users';
 import AudioService from '/imports/ui/components/audio/service';
 import deviceInfo from '/imports/utils/deviceInfo';
 import { isLiveTranscriptionEnabled } from '/imports/ui/services/features';
+import axios from 'axios';
 
 const THROTTLE_TIMEOUT = 1000;
 
 const CONFIG = Meteor.settings.public.app.audioCaptions;
 const LANGUAGES = CONFIG.language.available;
 const VALID_ENVIRONMENT = !deviceInfo.isMobile || CONFIG.mobile;
+
+const CAPTIONS_CONFIG = Meteor.settings.public.captions;
 
 const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -99,15 +102,72 @@ const initSpeechRecognition = () => {
 };
 
 let prevId = '';
-let prevTranscript = '';
+const prevTranscripts = {};
 const updateTranscript = (id, transcript, locale) => {
+  const translationLocale = getTranslationLocale();
   // If it's a new sentence
   if (id !== prevId) {
     prevId = id;
-    prevTranscript = '';
+    prevTranscripts[locale] = '';
+    prevTranscripts[translationLocale] = '';
   }
 
-  const transcriptDiff = diff(prevTranscript, transcript);
+  if ( CAPTIONS_CONFIG.enableAutomaticTranslation && translationLocale && translationLocale !== "" &&
+       locale !==  translationLocale && locale.replace(/-..$/,'') !== translationLocale && locale !== translationLocale.replace(/-..$/,'') ) {
+    translateTranscript(id, transcript, locale, translationLocale);
+  }
+
+  sendDiffTranscript(id, transcript, locale);
+};
+
+const translateTranscript = (id, text, src, dst) => {
+  if (text.match(/\S/)) {
+    const textDecap = text.replace(/^\s*/, '');
+    const preSpace = text === textDecap ? '' : ' ';
+    //console.log("translateTranscript", "|"+text+"|,", "|"+preSpace+"|");
+    let url = '';
+    if (CAPTIONS_CONFIG.googleTranslateUrl) {
+      url = CAPTIONS_CONFIG.googleTranslateUrl + '/exec?' +
+            'text=' + encodeURIComponent(textDecap) + '&source=' + src + '&target=' + dst;
+    } else if (CAPTIONS_CONFIG.deeplTranslateUrl) {
+      url = CAPTIONS_CONFIG.deeplTranslateUrl +
+            '&text=' + encodeURIComponent(textDecap) + '&source_lang=' + src.replace(/-..$/,'').toUpperCase() +
+            '&target_lang=' + dst.replace(/-..$/,'').toUpperCase();
+    } else {
+      logger.error('Could not get a translation service.');
+      return;
+    }
+
+    axios({
+      method: 'get',
+      url,
+      responseType: 'json',
+    }).then((response) => {
+      if (CAPTIONS_CONFIG.googleTranslateUrl) {
+        const { code, text } = response.data;
+        if (code === 200) {
+          sendDiffTranscript(id, preSpace + text, dst);
+        } else {
+          logger.error(`Failed to get Google translation for "${transcriptOri}"`);
+        }
+      } else if (CAPTIONS_CONFIG.deeplTranslateUrl) {
+        const { translations } = response.data;
+        if (translations.length > 0 && translations[0].text) {
+          sendDiffTranscript(id, preSpace + translations[0].text, dst);
+        } else {
+          logger.error(`Failed to get DeepL translation for "${transcriptOri}"`);
+        }
+      }
+    }).catch((error) => logger.error(`Could not get translation for ${transcriptOri.trim()} on the locale ${dst}: ${error}`));
+
+  } else {
+    sendDiffTranscript(id, text, dst);
+  } 
+}
+
+const sendDiffTranscript = (id, tsc, loc) => {
+  const transcriptDiff = diff(prevTranscripts[loc], tsc);
+  //console.log("sendDiffTranscript", loc, "\np:", prevTranscripts[loc], "\nc:", tsc, "\n", transcriptDiff);
 
   let start = 0;
   let end = 0;
@@ -119,9 +179,9 @@ const updateTranscript = (id, transcript, locale) => {
   }
 
   // Stores current transcript as previous
-  prevTranscript = transcript;
+  prevTranscripts[loc] = tsc;
 
-  makeCall('updateTranscript', id, start, end, text, transcript, locale);
+  makeCall('updateTranscript', id, start, end, text, tsc, loc);
 };
 
 const throttledTranscriptUpdate = _.throttle(updateTranscript, THROTTLE_TIMEOUT, {
