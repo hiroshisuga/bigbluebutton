@@ -429,7 +429,6 @@ if __name__ == "__main__":
 
     logger.info("Generating caption data from recording events")
     captions = Caption.from_events(events)
-    del captions[None]
     for locale, caption in captions.items():
         filename = os.path.join(outputdir, "caption_{}.vtt".format(locale))
         logger.info("Writing captions for locale %s to %s", locale, filename)
