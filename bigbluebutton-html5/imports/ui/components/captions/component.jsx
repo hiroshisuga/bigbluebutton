@@ -79,7 +79,7 @@ const Captions = ({
   hasPermission,
   layoutContextDispatch,
   isResizing,
-  //isAutoTranslated,
+  isAutoTranslated,
   //toggleAutoTranslation,
 }) => {
   const { isChrome } = browserInfo;
