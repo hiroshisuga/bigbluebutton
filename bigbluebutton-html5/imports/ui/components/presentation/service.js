@@ -161,7 +161,7 @@ const parseCurrentSlideContent = (yesValue, noValue, abstentionValue, trueValue,
     return poll;
   }).filter(({
     options,
-  }) => options.length > 1 && options.length < 99).forEach((p) => {
+  }) => options.length > 1 && options.length < MAX_CUSTOM_FIELDS).forEach((p) => {
     const poll = p;
     if (doubleQuestion) poll.multiResp = true;
       quickPollOptions.push({
