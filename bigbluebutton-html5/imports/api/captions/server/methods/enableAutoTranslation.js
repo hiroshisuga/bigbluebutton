@@ -1,3 +1,4 @@
+//Do we need this? It just modifies an entry of Captions
 import { check } from 'meteor/check';
 import Captions from '/imports/api/captions';
 import { extractCredentials } from '/imports/api/common/server/helpers';
