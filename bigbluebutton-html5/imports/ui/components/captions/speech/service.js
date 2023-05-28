@@ -21,18 +21,36 @@ const initSpeechRecognition = (locale = DEFAULT_LANGUAGE) => {
   return null;
 };
 
-const pushSpeechTranscript = (locale, transcript, type) => makeCall('pushSpeechTranscript', locale, transcript, type);
+const pushSpeechTranscript = (locale, transcript, type, locales) => makeCall('pushSpeechTranscript', locale, transcript, type, locales);
 
 const throttledTranscriptPush = _.throttle(pushSpeechTranscript, THROTTLE_TIMEOUT, {
   leading: false,
   trailing: true,
 });
 
-const pushInterimTranscript = (locale, transcript) => throttledTranscriptPush(locale, transcript, 'interim');
+const pushInterimTranscript = (locale, transcript) => { 
+  const localesAutoTranslated = Service.getLocalesAutoTranslated();
+  let locales = [locale];
+  for (let localeTrans of localesAutoTranslated) {
+    if (localeTrans.locale != locale) {
+      locales.push(localeTrans.locale);
+    }
+  }
+  throttledTranscriptPush(locale, transcript, 'interim', locales);
+}
 
 const pushFinalTranscript = (locale, transcript) => {
+  const localesAutoTranslated = Service.getLocalesAutoTranslated();
+
+  let locales = [locale];
+  for (let localeTrans of localesAutoTranslated) {
+    if (localeTrans.locale != locale) {
+      locales.push(localeTrans.locale);
+    }
+  }
+  //console.log("pushFinalTranscript", locale, locales);
   throttledTranscriptPush.cancel();
-  pushSpeechTranscript(locale, transcript, 'final');
+  pushSpeechTranscript(locale, transcript, 'final', locales);
 };
 
 export default {
