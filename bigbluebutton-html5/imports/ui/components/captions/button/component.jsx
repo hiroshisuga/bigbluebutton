@@ -9,7 +9,6 @@ import DropdownTrigger from '/imports/ui/components/dropdown/trigger/component';
 import DropdownContent from '/imports/ui/components/dropdown/content/component';
 import DropdownList from '/imports/ui/components/dropdown/list/component';
 import DropdownListItem from '/imports/ui/components/dropdown/list/item/component';
-import Storage from '/imports/ui/services/storage/session';
 import Service from '/imports/ui/components/captions/service';
 
 const propTypes = {
