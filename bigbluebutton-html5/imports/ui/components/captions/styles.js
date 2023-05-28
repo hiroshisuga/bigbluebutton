@@ -5,6 +5,11 @@ import {
   mdPaddingY,
 } from '/imports/ui/stylesheets/styled-components/general';
 import { smallOnly } from '/imports/ui/stylesheets/styled-components/breakpoints';
+import Select from 'react-select';
+
+const SelectTranslation = styled(Select)`
+  width: 100%;
+`;
 
 const Captions = styled.div`
   background-color: ${colorWhite};
@@ -24,4 +29,4 @@ const Captions = styled.div`
   }
 `;
 
-export default { Captions };
+export default { Captions, SelectTranslation };
