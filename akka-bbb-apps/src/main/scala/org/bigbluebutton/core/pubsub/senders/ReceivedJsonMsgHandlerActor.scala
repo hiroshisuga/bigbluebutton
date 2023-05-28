@@ -345,6 +345,12 @@ class ReceivedJsonMsgHandlerActor(
       case GetScreenshareStatusReqMsg.NAME =>
         routeGenericMsg[GetScreenshareStatusReqMsg](envelope, jsonNode)
 
+      // Upload
+      case UploadRequestReqMsg.NAME =>
+        routeGenericMsg[UploadRequestReqMsg](envelope, jsonNode)
+      case FileUploadedSysMsg.NAME =>
+        routeGenericMsg[FileUploadedSysMsg](envelope, jsonNode)
+
       // Lock settings
       case LockUserInMeetingCmdMsg.NAME =>
         routeGenericMsg[LockUserInMeetingCmdMsg](envelope, jsonNode)

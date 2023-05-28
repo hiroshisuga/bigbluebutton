@@ -255,6 +255,9 @@ class PresentationToolbar extends PureComponent {
       parseCurrentSlideContent,
       startPoll,
       currentSlide,
+      allowExternalVideo,
+      screenSharingCheck,
+      fullscreenElementId,
       toolbarWidth,
     } = this.props;
 
@@ -298,6 +301,25 @@ class PresentationToolbar extends PureComponent {
             />
           ) : null}
         </div>
+
+        {
+          <div>
+          {
+              <QuickLinksDropdown
+                {...{
+                  intl,
+                  amIPresenter,
+                  parseCurrentSlideContent,
+                  allowExternalVideo,
+                  screenSharingCheck,
+                  isFullscreen,
+                  fullscreenRef,
+                }}
+              />
+          }
+          </div>
+        }
+
         <Styled.PresentationSlideControls>
           <Styled.PrevSlideButton
             role="button"

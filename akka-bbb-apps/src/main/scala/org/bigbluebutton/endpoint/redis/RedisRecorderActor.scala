@@ -118,6 +118,9 @@ class RedisRecorderActor(
       case m: MeetingEndingEvtMsg                   => handleEndAndKickAllSysMsg(m)
       case m: MeetingCreatedEvtMsg                  => handleStarterConfigurations(m)
 
+      // Upload
+      case m: FileUploadedEvtMsg                    => handleFileUploadedEvtMsg(m)
+      
       // Recording
       case m: RecordingChapterBreakSysMsg           => handleRecordingChapterBreakSysMsg(m)
 
@@ -562,6 +565,16 @@ class RedisRecorderActor(
     val ev = new EndAndKickAllRecordEvent()
     ev.setMeetingId(msg.header.meetingId)
     ev.setReason(msg.body.reason)
+    record(msg.header.meetingId, ev.toMap.asJava)
+  }
+
+  private def handleFileUploadedEvtMsg(msg: FileUploadedEvtMsg): Unit = {
+    val ev = new FileUploadedRecordEvent()
+    ev.setUserId(msg.header.userId)
+    ev.setUploadId(msg.body.uploadId)
+    ev.setSource(msg.body.source)
+    ev.setFilename(msg.body.filename)
+
     record(msg.header.meetingId, ev.toMap.asJava)
   }
 
