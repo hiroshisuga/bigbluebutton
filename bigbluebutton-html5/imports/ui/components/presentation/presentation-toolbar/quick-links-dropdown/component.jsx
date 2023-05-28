@@ -137,7 +137,7 @@ const QuickLinksDropdown = (props) => {
           icon="popout_window"
           label={intl.formatMessage(intlMessages.quickLinksLabel)}
           onClick={() => null}
-          size="lg"
+          size="md"
         />
       </DropdownTrigger>
       <DropdownContent placement="top left">
