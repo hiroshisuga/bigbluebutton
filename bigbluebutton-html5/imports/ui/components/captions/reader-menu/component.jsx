@@ -5,6 +5,8 @@ import { GithubPicker } from 'react-color';
 import { defineMessages, injectIntl } from 'react-intl';
 import { withModalMounter } from '/imports/ui/components/common/modal/service';
 import Styled from './styles';
+import { Session } from 'meteor/session';
+import Service from '/imports/ui/components/captions/service';
 
 const DEFAULT_VALUE = 'select';
 const DEFAULT_KEY = -1;
@@ -94,7 +96,7 @@ const propTypes = {
   activateCaptions: PropTypes.func.isRequired,
   getCaptionsSettings: PropTypes.func.isRequired,
   closeModal: PropTypes.func.isRequired,
-  ownedLocales: PropTypes.arrayOf(PropTypes.object).isRequired,
+  translatedLocales: PropTypes.arrayOf(PropTypes.object).isRequired
   intl: PropTypes.shape({
     formatMessage: PropTypes.func.isRequired,
   }).isRequired,
@@ -111,10 +113,19 @@ class ReaderMenu extends PureComponent {
       fontSize,
     } = props.getCaptionsSettings();
 
-    const { ownedLocales } = this.props;
+    const { translatedLocales } = this.props;
+
+    let initLocale;
+    if (Service.getCaptionsActive() && translatedLocales.some ( locale => locale.locale == Service.getCaptionsActive()) ) {
+      initLocale = Service.getCaptionsActive();
+    } else {
+      const locale = (translatedLocales && translatedLocales[0]) ? translatedLocales[0].locale : null;
+      Service.setCaptionsActive(locale);
+      initLocale = locale;
+    }
 
     this.state = {
-      locale: (ownedLocales && ownedLocales[0]) ? ownedLocales[0].locale : null,
+      locale: initLocale,
       backgroundColor,
       fontColor,
       fontFamily,
@@ -179,6 +190,7 @@ class ReaderMenu extends PureComponent {
       fontSize,
     };
     activateCaptions(locale, settings);
+    Service.setCaptionsActive(locale);
     closeModal();
   }
 
@@ -201,7 +213,7 @@ class ReaderMenu extends PureComponent {
   render() {
     const {
       intl,
-      ownedLocales,
+      translatedLocales,
       closeModal,
     } = this.props;
 
@@ -251,7 +263,7 @@ class ReaderMenu extends PureComponent {
                   >
                     {intl.formatMessage(intlMessages.select)}
                   </option>
-                  {ownedLocales.map((loc) => (
+                  {translatedLocales.map((loc) => (
                     <option
                       key={loc.locale}
                       value={loc.locale}
