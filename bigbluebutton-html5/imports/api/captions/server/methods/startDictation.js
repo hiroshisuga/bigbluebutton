@@ -14,7 +14,6 @@ export default function startDictation(locale) {
 
     const captions = Captions.findOne({
       meetingId,
-      ownerId: requesterUserId,
       locale,
     });
 
