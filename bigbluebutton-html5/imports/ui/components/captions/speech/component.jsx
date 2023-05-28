@@ -120,10 +120,12 @@ class Speech extends PureComponent {
     this.result.transcript = transcript;
     this.result.isFinal = isFinal;
 
-    if (isFinal) {
-      Service.pushFinalTranscript(locale, transcript);
-    } else {
-      Service.pushInterimTranscript(locale, transcript);
+    if (transcript !== "") {
+      if (isFinal) {
+        Service.pushFinalTranscript(locale, transcript);
+      } else {
+        Service.pushInterimTranscript(locale, transcript);
+      }
     }
   }
 
