@@ -96,7 +96,7 @@ const propTypes = {
   activateCaptions: PropTypes.func.isRequired,
   getCaptionsSettings: PropTypes.func.isRequired,
   closeModal: PropTypes.func.isRequired,
-  translatedLocales: PropTypes.arrayOf(PropTypes.object).isRequired
+  translatedLocales: PropTypes.arrayOf(PropTypes.object).isRequired,
   intl: PropTypes.shape({
     formatMessage: PropTypes.func.isRequired,
   }).isRequired,
