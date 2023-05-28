@@ -25,8 +25,7 @@ class UserCaptions extends Component {
       layoutContextDispatch,
     } = this.props;
 
-    return ownedLocales.map((ownedLocale) => (
-      if (!ownedLocale) {
+    if (!ownedLocale) {
       return null;
     }
 
