@@ -63,6 +63,13 @@ const propTypes = {
   isResizing: PropTypes.bool.isRequired,
 };
 
+const MultiValueRemove = (props) => {
+  if (props.data.isFixed) {
+    return null;
+  }
+  return <components.MultiValueRemove {...props} />;
+};
+
 const Captions = ({
   locale,
   intl,
@@ -108,13 +115,6 @@ const Captions = ({
         Service.clearTranslation();
         break;
     }
-  };
-
-  const MultiValueRemove = (props) => {
-    if (props.data.isFixed) {
-      return null;
-    }
-    return <components.MultiValueRemove {...props} />;
   };
 
   return (
