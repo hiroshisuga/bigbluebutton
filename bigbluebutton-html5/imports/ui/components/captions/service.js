@@ -118,9 +118,9 @@ const isAutoTranslated = (locale) => {
   return loc.translating;
 };
 
-//const enableAutoTranslation = (locale) => {
-//  makeCall('enableAutoTranslation', locale);
-//};
+const enableAutoTranslation = (locale) => {
+  makeCall('enableAutoTranslation', locale);
+};
 
 const isAutoTranslationEnabled = () => {
   return CAPTIONS_CONFIG.enableAutomaticTranslation;
