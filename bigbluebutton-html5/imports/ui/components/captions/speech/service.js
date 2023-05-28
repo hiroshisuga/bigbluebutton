@@ -1,5 +1,6 @@
 import _ from 'lodash';
 import { makeCall } from '/imports/ui/services/api';
+import Service from '/imports/ui/components/captions/service';
 
 const DEFAULT_LANGUAGE = 'en-US';
 const THROTTLE_TIMEOUT = 2000;
