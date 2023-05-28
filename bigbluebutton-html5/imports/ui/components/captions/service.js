@@ -232,7 +232,7 @@ const whoDonatesTranslatedDictation = (td) => {
       },{
         fields: { dictating: 1, locale: 1 }   
       });
-      //console.log("getCaptionsData:translated by", translator, "from", dictatedLocale.locale);
+      console.log("getCaptionsData:translated by", translator, "from", dictatedLocale.locale);
     }
   });
 }
