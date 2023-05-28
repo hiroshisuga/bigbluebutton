@@ -9,7 +9,6 @@ import Styled from './styles';
 import { PANELS, ACTIONS } from '/imports/ui/components/layout/enums';
 import browserInfo from '/imports/utils/browserInfo';
 import Header from '/imports/ui/components/common/control-header/component';
-import Toggle from '/imports/ui/components/common/switch/component';
 import StyledHeader from '/imports/ui/components/common/control-header//styles';
 import { components } from 'react-select';
 
