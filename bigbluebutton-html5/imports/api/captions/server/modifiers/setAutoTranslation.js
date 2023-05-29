@@ -1,4 +1,4 @@
-//Do we need this? It just sets "translating"
+//Do we need this? It just sets "translating" -> seems yes
 import Captions from '/imports/api/captions';
 import Logger from '/imports/startup/server/logger';
 import { check } from 'meteor/check';
