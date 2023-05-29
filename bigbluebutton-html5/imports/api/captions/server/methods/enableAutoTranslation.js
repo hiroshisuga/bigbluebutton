@@ -1,4 +1,4 @@
-//Do we need this? It just modifies an entry of Captions
+//Do we need this? It just modifies an entry of Captions -> seems yes
 import { check } from 'meteor/check';
 import { extractCredentials } from '/imports/api/common/server/helpers';
 import Logger from '/imports/startup/server/logger';
