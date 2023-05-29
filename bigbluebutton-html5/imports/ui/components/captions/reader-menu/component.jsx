@@ -119,7 +119,7 @@ class ReaderMenu extends PureComponent {
     if (Service.getCaptionsActive() && translatedLocales.some ( locale => locale.locale == Service.getCaptionsActive()) ) {
       initLocale = Service.getCaptionsActive();
     } else {
-      const locale = translatedLocales?[0] ? translatedLocales[0].locale : null;
+      const locale = translatedLocales?.[0] ? translatedLocales[0].locale : null;
       Service.setCaptionsActive(locale);
       initLocale = locale;
     }
