@@ -228,7 +228,9 @@ const whoDonatesTranslatedDictation = (td) => {
       },{
         fields: { dictating: 1, locale: 1 }   
       });
-      console.log("getCaptionsData:translated by", translator, "from", dictatedLocale.locale);
+      if (dictatedLocale) {
+        console.log("getCaptionsData: translated by", translator, "from", dictatedLocale.locale);
+      }
     }
   });
 }
@@ -236,7 +238,7 @@ const whoDonatesTranslatedDictation = (td) => {
 const getCaptionsData = () => {
   const locale = getCaptionsActive();
   if (locale) {
-    const captions = Captions.findOne({
+    const caption = Captions.findOne({
       meetingId: Auth.meetingID,
       locale,
     },{
@@ -244,23 +246,21 @@ const getCaptionsData = () => {
     });
 
     let data = '';
-    if (captions.dictating) {
-      data = captions.transcript;
-    } else {//1.somebodies are donating translated dictations -> transfer the captions.transcript
+    if (caption.dictating) {
+      data = caption.transcript;
+    } else {//1.somebodies are donating translated dictations -> transfer the caption.transcript
             //2.somebodies are directy writing -> pick the pad's tail
-      //whoDonatesTranslatedDictation(captions.translationDoner);
-      if (Object.keys(captions.translationDoner).length == 0) {
+      //whoDonatesTranslatedDictation(caption.translationDoner);
+      if (Object.keys(caption.translationDoner).length == 0) {
         data = PadsService.getPadTail(locale);
       } else {
-        data = captions.transcript;
+        data = caption.transcript;
       }
     }
-
     return formatCaptionsText(data);
   }
-
   return '';
-};
+}
 
 const getCaptionsActive = () => Session.get('captionsActive') || ''
 
