@@ -9,6 +9,8 @@ import Styled from './styles';
 import { PANELS, ACTIONS } from '/imports/ui/components/layout/enums';
 import browserInfo from '/imports/utils/browserInfo';
 import Header from '/imports/ui/components/common/control-header/component';
+import StyledHeader from '/imports/ui/components/common/control-header//styles';
+import { components } from 'react-select';
 
 const intlMessages = defineMessages({
   hide: {
@@ -39,36 +41,81 @@ const intlMessages = defineMessages({
     id: 'app.captions.dictationOffDesc',
     description: 'Aria description for button that turns off speech recognition',
   },
+  autoTranslation: {
+    id: 'app.captions.pad.autoTranslation',
+    description: 'Label for auto translation of closed captions pad',
+  },
+  autoTranslationDesc: {
+    id: 'app.captions.pad.autoTranslationDesc',
+    description: 'Descriotion for auto translation of closed captions pad',
+  },
 });
 
 const propTypes = {
   locale: PropTypes.string.isRequired,
   name: PropTypes.string.isRequired,
-  ownerId: PropTypes.string.isRequired,
   intl: PropTypes.shape({
     formatMessage: PropTypes.func.isRequired,
   }).isRequired,
-  dictation: PropTypes.bool.isRequired,
-  dictating: PropTypes.bool.isRequired,
   isRTL: PropTypes.bool.isRequired,
   hasPermission: PropTypes.bool.isRequired,
   layoutContextDispatch: PropTypes.func.isRequired,
   isResizing: PropTypes.bool.isRequired,
 };
 
+const MultiValueRemove = (props) => {
+  if (props.data.isFixed) {
+    return null;
+  }
+  return <components.MultiValueRemove {...props} />;
+};
+
 const Captions = ({
   locale,
   intl,
-  ownerId,
   name,
-  dictation,
-  dictating,
+  amISpeaker,
   isRTL,
   hasPermission,
   layoutContextDispatch,
   isResizing,
+  isAutoTranslated,
+  //toggleAutoTranslation,
 }) => {
   const { isChrome } = browserInfo;
+
+  const localeOptions = [];
+  const selectedLocales = [];
+  Service.getAvailableLocales().forEach((loc) => {
+    //The current locale not included
+    localeOptions.push({value: loc.locale, label: loc.name});
+    if (loc.translating) {
+      if (loc.locale == locale) {
+        selectedLocales.push({value: loc.locale, label: loc.name, isFixed: true});
+      } else {
+        selectedLocales.push({value: loc.locale, label: loc.name});
+      }
+    }
+  });
+
+  const onTranslationLocaleChanged = (
+    newValue,
+    actionMeta
+  ) => {
+    switch (actionMeta.action) {
+      case 'remove-value':
+      case 'pop-value':
+        Service.removeTranslation(actionMeta.removedValue.value);
+        break;
+      case 'select-option':
+        Service.selectTranslation(actionMeta.option.value);
+        break;
+      case 'clear':
+        //This would't happen..
+        Service.clearTranslation();
+        break;
+    }
+  };
 
   return (
     <Styled.Captions isChrome={isChrome}>
@@ -87,35 +134,56 @@ const Captions = ({
           'aria-label': intl.formatMessage(intlMessages.hide),
           label: name,
         }}
-        customRightButton={Service.amICaptionsOwner(ownerId) ? (
+        customRightButton={
           <span>
             <Button
-              onClick={dictating
+              onClick={amISpeaker
                 ? () => Service.stopDictation(locale)
                 : () => Service.startDictation(locale)}
-              label={dictating
+              label={amISpeaker
                 ? intl.formatMessage(intlMessages.dictationStop)
                 : intl.formatMessage(intlMessages.dictationStart)}
               aria-describedby="dictationBtnDesc"
-              color={dictating ? 'danger' : 'primary'}
-              disabled={!dictation}
+              color={amISpeaker ? 'danger' : 'primary'}
             />
             <div id="dictationBtnDesc" hidden>
-              {dictating
+              {amISpeaker
                 ? intl.formatMessage(intlMessages.dictationOffDesc)
                 : intl.formatMessage(intlMessages.dictationOnDesc)}
             </div>
           </span>
-        ) : (
-          <Button
-            color="primary"
-            tooltipLabel={intl.formatMessage(intlMessages.takeOwnershipTooltip, { 0: name })}
-            onClick={() => Service.updateCaptionsOwner(locale, name)}
-            aria-label={intl.formatMessage(intlMessages.takeOwnership)}
-            label={intl.formatMessage(intlMessages.takeOwnership)}
-          />
-        )}
+        }
       />
+
+      <StyledHeader.RightWrapper>
+        {Service.isAutoTranslationEnabled() && amISpeaker
+          ? (
+              <div>
+                <label>
+                  {intl.formatMessage(intlMessages.autoTranslationDesc)}
+                </label>
+              </div>
+          )
+          : null}
+      </StyledHeader.RightWrapper>
+      <StyledHeader.RightWrapper>
+        {amISpeaker && isAutoTranslated
+          ? (
+              <div>
+                <Styled.SelectTranslation
+                  closeMenuOnSelect={false}
+                  defaultValue={selectedLocales}
+                  isMulti
+                  options={localeOptions}
+                  onChange={onTranslationLocaleChanged}
+                  components= {{ MultiValueRemove }}
+                  isClearable={false}
+                />
+              </div>
+          )
+          : null}
+      </StyledHeader.RightWrapper>
+
       <PadContainer
         externalId={locale}
         hasPermission={hasPermission}

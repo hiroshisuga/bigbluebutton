@@ -7,35 +7,150 @@ import { makeCall } from '/imports/ui/services/api';
 import { Meteor } from 'meteor/meteor';
 import { Session } from 'meteor/session';
 import { isCaptionsEnabled } from '/imports/ui/services/features';
+import logger from '/imports/startup/client/logger';
 
 const CAPTIONS_CONFIG = Meteor.settings.public.captions;
 const ROLE_MODERATOR = Meteor.settings.public.user.role_moderator;
 const LINE_BREAK = '\n';
 
+const getCaptionFromLocale = (loc) => {
+  const { meetingID } = Auth;
+  const caption = Captions.findOne({ meetingId: meetingID, locale: loc });
+  return caption;
+};
+
+/*
+  dictating: Whether there is any speechDoner.userID: true in the locale
+  translating: Whether there is any translationDoner.userID: true in the locale
+               Even the spoken locale being captioned is treated as 'translation' in the API although it's not actually translated
+               So 'translating' can be false when 'dictating' is true if the user dictates but offers no translation,
+                 however, 'translating' practically equals 'dictating' 
+                 because the spoken locale will be passed to the translation function in the API.
+  ownerId: Every new caption creater takes the ownership
+*/
+
+const clearTranslation = () => {
+  const { meetingID, userID } = Auth;
+  const localesOnceTranslated = Captions.find({ meetingId: meetingID, ['translationDoner.'+userID]: {$exists:true} }).fetch();
+  localesOnceTranslated.forEach((c) => {
+    removeTranslation(c.locale);
+  });
+}
+
+const removeTranslation = (loc) => {
+  const { meetingID, userID } = Auth;
+  const modifier = {
+    $set: {
+      ['translationDoner.'+userID]: false,
+    },
+  };
+
+  try {
+    const numberAffected = Captions.update({ meetingId: meetingID, locale: loc }, modifier);
+    if (numberAffected) {
+      logger.info(`Removing translationDoner ${loc} ${userID} meeting=${meetingID} in Captions`);
+    }
+  } catch (err) {
+    logger.error(`Removing translationDoner: ${err} in Captions`);
+  }
+
+  const newcap = Captions.findOne({ meetingId: meetingID, locale: loc }, { fields: { translationDoner: 1 } });
+  const td = newcap.translationDoner;
+  if (!Object.values(td).includes(true)) {
+    const modifier2 = {
+      $set: {
+        translating: false,
+      },
+    };
+    try {
+      const numberAffected = Captions.upsert({ meetingId: meetingID, locale: loc }, modifier2);
+      if (numberAffected) {
+        logger.info(`Updating translating ${loc} ${userID} meeting=${meetingID} in Captions`);
+      }
+      makeCall('disableAutoTranslation', loc);
+    } catch (err) {
+      logger.error(`Updating translating: ${err} in Captions`);
+    }
+  }
+};
+
+const selectTranslation = (loc) => {
+  const { meetingID, userID } = Auth;
+  const modifier = {
+    $set: {
+      ['translationDoner.'+userID]: true,
+      translating: true,
+    },
+  };
+  try {
+    const numberAffected = Captions.upsert({ meetingId: meetingID, locale: loc }, modifier);
+    if (numberAffected) {
+      logger.info(`Adding translationDoner ${loc} ${userID} meeting=${meetingID}`);
+    }
+    makeCall('enableAutoTranslation', loc);
+  } catch (err) {
+    logger.error(`Adding translationDoner: ${err} in Captions`);
+  }
+  //console.log("selectTranslation", Captions.find({ meetingId: meetingID, translating: true }).fetch());
+};
+
+const getMyLocalesAutoTranslated = () => {
+  const { meetingID, userID } = Auth;
+  const localesTranslated = Captions.find(
+    { meetingId: meetingID, translating: true, ['translationDoner.'+userID]: true },
+    { fields: { locale: 1, name: 1 } },
+  ).fetch();
+  return localesTranslated;
+};
+
+const getLocalesAutoTranslated = () => {
+  const { meetingID } = Auth;
+  const localesTranslated = Captions.find(
+    { meetingId: meetingID, translating: true },
+    { fields: { locale: 1, name: 1 } },
+  ).fetch();
+  return localesTranslated;
+};
+
+const isAutoTranslated = (locale) => {
+  const { meetingID } = Auth;
+  const loc = Captions.findOne({ meetingId: meetingID, locale });
+  return loc.translating;
+};
+
+const isAutoTranslationEnabled = () => {
+  return CAPTIONS_CONFIG.enableAutomaticTranslation;
+};
+
 const getAvailableLocales = () => {
   const availableLocales = Captions.find(
-    { meetingId: Auth.meetingID, ownerId: '' },
+    { meetingId: Auth.meetingID },
     { sort: { locale: 1 } },
-    { fields: { ownerId: 1, locale: 1, name: 1 } },
+    { fields: { locale: 1, name: 1 } },
   ).fetch();
 
   return availableLocales;
 };
 
-const getOwnedLocales = () => {
-  const ownedLocales = Captions.find(
-    { meetingId: Auth.meetingID, ownerId: { $not: '' } },
-    { fields: { ownerId: 1, locale: 1, name: 1 } },
-  ).fetch();
-
-  return ownedLocales;
-};
+const getOwnedLocale = () => getCaptionFromLocale(getCaptionsLocale());
 
 const updateCaptionsOwner = (locale, name) => makeCall('updateCaptionsOwner', locale, name);
 
-const startDictation = (locale) => makeCall('startDictation', locale);
+const startDictation = (locale) => {
+  provideSpeech(locale);
+  selectTranslation(locale);
+}
 
-const stopDictation = (locale) => makeCall('stopDictation', locale);
+const stopDictation = (locale) => {
+  retractSpeech(locale);
+  const donatedTranslation = getMyLocalesAutoTranslated();
+  donatedTranslation.forEach((loc) => {
+  //console.log("stopDictation", loc, locale);
+    if (loc.locale !== locale) {
+      removeTranslation(loc.locale);
+    }
+  })
+}
 
 const getCaptionsSettings = () => {
   const settings = Session.get('captionsSettings');
@@ -58,12 +173,14 @@ const setCaptionsSettings = (settings) => Session.set('captionsSettings', settin
 
 const getCaptionsLocale = () => Session.get('captionsLocale') || '';
 
+const setCaptionsLocale = (locale) => Session.set('captionsLocale', locale);
+
 const getCaptions = () => {
   const locale = getCaptionsLocale();
   if (locale) {
     const {
       name,
-      ownerId,
+      speechDoner,
       dictating,
     } = Captions.findOne({
       meetingId: Auth.meetingID,
@@ -73,7 +190,7 @@ const getCaptions = () => {
     return {
       locale,
       name,
-      ownerId,
+      speechDoner,
       dictating,
     };
   }
@@ -81,14 +198,10 @@ const getCaptions = () => {
   return {
     locale,
     name: '',
-    ownerId: '',
+    speechDoner: {},
     dictating: false,
   };
 };
-
-const setCaptionsLocale = (locale) => Session.set('captionsLocale', locale);
-
-const getCaptionsActive = () => Session.get('captionsActive') || '';
 
 const formatCaptionsText = (text) => {
   const splitText = text.split(LINE_BREAK);
@@ -104,35 +217,69 @@ const formatCaptionsText = (text) => {
   return filteredText.join(LINE_BREAK);
 };
 
+const whoDonatesTranslatedDictation = (td) => {
+  //who is donating the translated dictation?
+  Object.keys(td).forEach((translator) => {
+    if (td[translator]) {
+      //what locale the translation doner is speaking?
+      const dictatedLocale = Captions.findOne({
+        meetingId: Auth.meetingID,
+        ['speechDoner.'+translator]: true,
+      },{
+        fields: { dictating: 1, locale: 1 }   
+      });
+      if (dictatedLocale) {
+        console.log("getCaptionsData: translated by", translator, "from", dictatedLocale.locale);
+      }
+    }
+  });
+}
+
 const getCaptionsData = () => {
   const locale = getCaptionsActive();
   if (locale) {
-    const captions = Captions.findOne({
+    const caption = Captions.findOne({
       meetingId: Auth.meetingID,
       locale,
-      dictating: true,
+    },{
+      fields: { dictating: 1, transcript: 1, translationDoner: 1 }
     });
 
     let data = '';
-    if (captions) {
-      data = captions.transcript;
-    } else {
-      data = PadsService.getPadTail(locale);
+    if (caption.dictating) {
+      data = caption.transcript;
+    } else {//1.somebodies are donating translated dictations -> transfer the caption.transcript
+            //2.somebodies are directy writing -> pick the pad's tail
+      //whoDonatesTranslatedDictation(caption.translationDoner);
+      if (Object.keys(caption.translationDoner).length == 0) {
+        data = PadsService.getPadTail(locale);
+      } else {
+        data = caption.transcript;
+      }
     }
-
     return formatCaptionsText(data);
   }
-
   return '';
-};
+}
+
+const getCaptionsActive = () => Session.get('captionsActive') || ''
 
 const setCaptionsActive = (locale) => Session.set('captionsActive', locale);
 
-const amICaptionsOwner = (ownerId) => ownerId === Auth.userID;
+const amISpeaker = (locale) => {
+  const cap = Captions.findOne({
+    meetingId: Auth.meetingID,
+    locale,
+  },{
+    fields: { speechDoner: 1 },
+  });
+  //console.log("amICaptionsOwner", cap);
+  return cap.speechDoner ? cap.speechDoner[Auth.userID] : false;
+}
 
 const isCaptionsAvailable = () => {
   if (isCaptionsEnabled()) {
-    const ownedLocales = getOwnedLocales();
+    const ownedLocales = getLocalesAutoTranslated();
 
     return (ownedLocales.length > 0);
   }
@@ -172,46 +319,114 @@ const getName = (locale) => {
   return captions.name;
 };
 
+const provideSpeech = (loc) => {
+  const { meetingID, userID } = Auth;
+
+  const modifier = {
+    $set: {
+      ['speechDoner.'+userID]: true,
+      dictating: true,
+    },
+  };
+
+  try {
+    const numberAffected = Captions.update({ meetingId: meetingID, locale: loc }, modifier);
+    if (numberAffected) {
+      logger.info(`Adding speechDoner ${loc} ${userID} meeting=${meetingID} in Captions`);
+    }
+    makeCall('startDictation', loc);
+  } catch (err) {
+    logger.error(`Adding speechDoner: ${err} in Captions`);
+  }
+}
+
+const retractSpeech = (loc) => {
+  const { meetingID, userID } = Auth;
+
+  const modifier = {
+    $set: {
+      ['speechDoner.'+userID]: false,
+    },
+  };
+
+  try {
+    const numberAffected = Captions.update({ meetingId: meetingID, locale: loc }, modifier);
+    if (numberAffected) {
+      logger.info(`Removing speechDoner ${loc} ${userID} meeting=${meetingID} in Captions`);
+    }
+  } catch (err) {
+    logger.error(`Removing speechDoner: ${err} in Captions`);
+  }
+
+  const newcap = Captions.findOne({ meetingId: meetingID, locale: loc }, { fields: { speechDoner: 1 } });
+  const sd = newcap.speechDoner;
+  if (!Object.values(sd).includes(true)) {
+    const modifier2 = {
+      $set: {
+        dictating: false,
+      },
+    };
+    try {
+      const numberAffected = Captions.upsert({ meetingId: meetingID, locale: loc }, modifier2);
+      if (numberAffected) {
+        logger.info(`Updating dicatating ${loc} ${userID} meeting=${meetingID} in Captions`);
+      }
+      makeCall('stopDictation', loc);
+    } catch (err) {
+      logger.error(`Updating dictating: ${err} in Captions`);
+    }
+  }
+}
+
 const createCaptions = (locale) => {
   const name = getName(locale);
+  retractSpeech(locale);
+  clearTranslation();
   PadsService.createGroup(locale, CAPTIONS_CONFIG.id, name);
-  updateCaptionsOwner(locale, name);
+  updateCaptionsOwner(locale, name); //every new caption creater takes the ownership
   setCaptionsLocale(locale);
 };
 
 const hasPermission = () => {
-  if (amIModerator()) {
-    const { ownerId } = getCaptions();
-
-    return Auth.userID === ownerId;
-  }
-
-  return false;
+  return true;
 };
 
 const getDictationStatus = () => {
-  if (!CAPTIONS_CONFIG.dictation || !amIModerator()) {
+  // Can be more simple by subscribing 'dictating'.
+  const userId = Auth.userID;
+
+  if (!CAPTIONS_CONFIG.dictation) {
     return {
       locale: '',
       dictating: false,
     };
   }
 
-  const captions = Captions.findOne({
+  const captions = Captions.find({
     meetingId: Auth.meetingID,
-    ownerId: Auth.userID,
+    speechDoner: {$exists: true},
   }, {
     fields: {
       locale: 1,
-      dictating: 1,
+      speechDoner: 1,
     },
-  });
+  }).fetch();
 
   if (captions) {
-    return {
-      locale: captions.locale,
-      dictating: captions.dictating,
-    };
+    let dictatedLocale = '';
+    captions.some(function(cap){
+      if (cap.speechDoner[userId]){
+        dictatedLocale = cap.locale;
+        return true;
+      }
+    });
+
+    if (dictatedLocale !== '') {
+      return {
+        locale: dictatedLocale,
+        dictating: true,
+      };
+    }
   }
 
   return {
@@ -233,7 +448,7 @@ const canIDictateThisPad = (ownerId) => {
 export default {
   ID: CAPTIONS_CONFIG.id,
   getAvailableLocales,
-  getOwnedLocales,
+  getOwnedLocale,
   updateCaptionsOwner,
   startDictation,
   stopDictation,
@@ -241,7 +456,7 @@ export default {
   getCaptionsData,
   getCaptions,
   hasPermission,
-  amICaptionsOwner,
+  amISpeaker,
   isCaptionsEnabled,
   isCaptionsAvailable,
   isCaptionsActive,
@@ -254,4 +469,12 @@ export default {
   setCaptionsLocale,
   getDictationStatus,
   canIDictateThisPad,
+  isAutoTranslated,
+  isAutoTranslationEnabled,
+  getLocalesAutoTranslated,
+  selectTranslation,
+  removeTranslation,
+  clearTranslation,
+  getCaptionsActive,
+  setCaptionsActive,
 };
