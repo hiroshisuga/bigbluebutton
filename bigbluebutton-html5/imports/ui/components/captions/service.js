@@ -22,10 +22,10 @@ const getCaptionFromLocale = (loc) => {
 /*
   dictating: Whether there is any speechDoner.userID: true in the locale
   translating: Whether there is any translationDoner.userID: true in the locale
-               Even the spoken locale being captioned is treated as 'translation' although it's not actually translated
-               So it can be false when dictating is true if the user dictates but offers no translation,
+               Even the spoken locale being captioned is treated as 'translation' in the API although it's not actually translated
+               So 'translating' can be false when 'dictating' is true if the user dictates but offers no translation,
                  however, 'translating' practically equals 'dictating' 
-                 because you cannot remove the spoken locale from the translated locale.
+                 because the spoken locale will be passed to the translation function in the API.
   ownerId: Every new caption creater takes the ownership
 */
 
