@@ -184,7 +184,7 @@ class Speech extends PureComponent {
         finalTranscript = transcript;
         this.speechRecognition.abort();
       } else {
-        Service.pushFinalTranscript(locale, finalTranscript + "X\nX\n\n\n");
+        Service.pushFinalTranscript(locale, finalTranscript);
         this.speechRecognition.stop();
       }
     }
