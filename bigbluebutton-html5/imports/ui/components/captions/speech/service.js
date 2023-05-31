@@ -30,7 +30,7 @@ const throttledTranscriptPush = _.throttle(pushSpeechTranscript, THROTTLE_TIMEOU
 });
 
 const pushInterimTranscript = (locale, transcript) => { 
-  const localesAutoTranslated = Service.getLocalesAutoTranslated();
+  const localesAutoTranslated = Service.getMyLocalesAutoTranslated();
   let locales = [locale];
   for (let localeTrans of localesAutoTranslated) {
     if (localeTrans.locale != locale) {
@@ -41,7 +41,7 @@ const pushInterimTranscript = (locale, transcript) => {
 }
 
 const pushFinalTranscript = (locale, transcript) => {
-  const localesAutoTranslated = Service.getLocalesAutoTranslated();
+  const localesAutoTranslated = Service.getMyLocalesAutoTranslated();
 
   let locales = [locale];
   for (let localeTrans of localesAutoTranslated) {
