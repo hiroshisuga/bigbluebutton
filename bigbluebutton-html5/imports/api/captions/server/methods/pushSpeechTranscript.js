@@ -81,6 +81,7 @@ export default function pushSpeechTranscript(locale, transcript, type, locales) 
       if (!caption) {
         Logger.error(`Could not find the caption's pad for meetingId=${meetingId} locale=${locale}`);
       } else {
+        Logger.debug(`Transcription being translated from ${locale} into ${dstLocale}`);
         translateText(meetingId, requesterUserId, transcript, type, locale, dstLocale);
       }
     });
