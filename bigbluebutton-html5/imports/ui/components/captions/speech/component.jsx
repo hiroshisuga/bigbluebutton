@@ -95,8 +95,8 @@ class Speech extends PureComponent {
   onStart(ev) {
     const {
       intl,
-      locale,
-      dictating,
+      //locale,
+      //dictating,
     } = this.props;
 
     // show notifycation only when the user starts the dictation, but not when dictation restarts
