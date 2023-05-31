@@ -98,7 +98,7 @@ const bringAnnotations = (whiteboardId, selected, up) => {
 
   const selectedAnnotationId2position = new Map(); // IDs of selected annotations -> annotation.position
   // Increase positions of the selected annotations and put them into the container
-  var moved = 0;
+  let moved = 0;
   if (up) {
     // Bringing up (forward)
     for (const s of selected.slice().reverse()) {
