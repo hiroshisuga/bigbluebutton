@@ -455,6 +455,9 @@ public:
     enabled: true
     id: captions
     dictation: false
+    enableAutomaticTranslation: false
+    googleTranslateUrl: https://script.google.com/macros/s/YOUR_ID
+    deeplTranslateUrl: https://api-free.deepl.com/v2/translate?auth_key=YOUR_KEY
     background: '#000000'
     font:
       color: '#ffffff'

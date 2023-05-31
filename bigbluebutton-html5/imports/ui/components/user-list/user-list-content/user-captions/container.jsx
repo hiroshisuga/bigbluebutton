@@ -13,5 +13,5 @@ const Container = (props) => {
 };
 
 export default withTracker(() => ({
-  ownedLocales: CaptionsService.getOwnedLocales(),
+  ownedLocale: CaptionsService.getOwnedLocale(),
 }))(Container);

@@ -4,7 +4,7 @@ import { extractCredentials } from '/imports/api/common/server/helpers';
 import Logger from '/imports/startup/server/logger';
 import setDictation from '/imports/api/captions/server/modifiers/setDictation';
 
-export default function startDictation(locale) {
+export default function retractSpeech(locale) {
   try {
     const { meetingId, requesterUserId } = extractCredentials(this.userId);
 
@@ -14,12 +14,11 @@ export default function startDictation(locale) {
 
     const captions = Captions.findOne({
       meetingId,
-      ownerId: requesterUserId,
       locale,
     });
 
-    if (captions) setDictation(meetingId, locale, true);
+    if (captions) setDictation(meetingId, locale, requesterUserId, false);
   } catch (err) {
-    Logger.error(`Exception while invoking method startDictation ${err.stack}`);
+    Logger.error(`Exception while invoking method retractSpeech ${err.stack}`);
   }
 }

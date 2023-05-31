@@ -12,4 +12,6 @@ export default withModalMounter(withTracker(({ mountModal }) => ({
   handleOnClick: () => (Service.isCaptionsActive()
     ? Service.deactivateCaptions()
     : mountModal(<CaptionsReaderMenuContainer />)),
+  translatedLocales: Service.getLocalesAutoTranslated(),
+  selectedLocale: Service.getCaptionsActive(),
 }))(Container));

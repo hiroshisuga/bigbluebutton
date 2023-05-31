@@ -9,6 +9,8 @@ import SettingsMenuContainer from '/imports/ui/components/settings/container';
 import BBBMenu from '/imports/ui/components/common/menu/component';
 import ShortcutHelpComponent from '/imports/ui/components/shortcut-help/component';
 import withShortcutHelper from '/imports/ui/components/shortcut-help/service';
+import CaptionsService from '/imports/ui/components/captions/service';
+import CaptionsWriterMenu from '/imports/ui/components/captions/writer-menu/container';
 import FullscreenService from '/imports/ui/components/common/fullscreen-button/service';
 import { colorDanger } from '/imports/ui/stylesheets/styled-components/palette';
 import Styled from './styles';
@@ -66,6 +68,14 @@ const intlMessages = defineMessages({
   hotkeysDesc: {
     id: 'app.navBar.settingsDropdown.hotkeysDesc',
     description: 'Describes hotkeys option',
+  },
+  captionsLabel: {
+    id: 'app.actionsBar.actionsDropdown.captionsLabel',
+    description: 'Captions menu toggle label',
+  },
+  captionsDesc: {
+    id: 'app.actionsBar.actionsDropdown.captionsDesc',
+    description: 'Captions menu toggle description',
   },
   helpLabel: {
     id: 'app.navBar.settingsDropdown.helpLabel',
@@ -229,6 +239,16 @@ class SettingsDropdown extends PureComponent {
           onClick: () => window.open(`${helpLink}`),
         },
       );
+    }
+
+    if (CaptionsService.isCaptionsEnabled()) {
+      this.menuItems.push({
+        key: 'list-item-caption',
+        icon: "closed_caption",
+        label: intl.formatMessage(intlMessages.captionsLabel),
+        // description: intl.formatMessage(intlMessages.captionsDesc),
+        onClick: () => mountModal(<CaptionsWriterMenu />),
+      })
     }
 
     this.menuItems.push(

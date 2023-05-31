@@ -46,7 +46,7 @@ class CaptionApp2x(implicit val context: ActorContext) extends RightsManagementT
     }
 
     if (permissionFailed(PermissionCheck.MOD_LEVEL, PermissionCheck.VIEWER_LEVEL, liveMeeting.users2x, msg.header.userId)
-      && isUserCaptionOwner(liveMeeting, msg.header.userId, msg.body.name)) {
+      /*&& isUserCaptionOwner(liveMeeting, msg.header.userId, msg.body.name)*/) {
       val meetingId = liveMeeting.props.meetingProp.intId
       val reason = "No permission to edit caption history in meeting."
       PermissionCheck.ejectUserForFailedPermission(meetingId, msg.header.userId, reason, bus.outGW, liveMeeting)
