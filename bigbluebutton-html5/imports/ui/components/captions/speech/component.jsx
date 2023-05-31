@@ -110,7 +110,7 @@ class Speech extends PureComponent {
     const {
       intl,
       locale,
-      dictating,
+      //dictating,
     } = this.props;
 
 
