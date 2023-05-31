@@ -6,6 +6,7 @@ import akka.actor.SupervisorStrategy.Resume
 import org.bigbluebutton.SystemConfiguration
 import org.bigbluebutton.core.apps.groupchats.GroupChatHdlrs
 import org.bigbluebutton.core.apps.presentationpod._
+import org.bigbluebutton.core.apps.upload.UploadApp2x
 import org.bigbluebutton.core.apps.users._
 import org.bigbluebutton.core.apps.whiteboard.ClientToServerLatencyTracerMsgHdlr
 import org.bigbluebutton.core.domain._
@@ -130,6 +131,7 @@ class MeetingActor(
   val usersApp = new UsersApp(liveMeeting, outGW, eventBus)
   val groupChatApp = new GroupChatHdlrs
   val presentationPodsApp = new PresentationPodHdlrs
+  val uploadApp = new UploadApp2x
   val pollApp = new PollApp2x
   val webcamApp2x = new WebcamApp2x
   val wbApp = new WhiteboardApp2x
@@ -295,6 +297,7 @@ class MeetingActor(
       disablePubChat = lockSettingsProp.disablePublicChat,
       disableNotes = lockSettingsProp.disableNotes,
       hideUserList = lockSettingsProp.hideUserList,
+      hideAnnotations = lockSettingsProp.hideAnnotations,
       lockedLayout = lockSettingsProp.lockedLayout,
       lockOnJoin = lockSettingsProp.lockOnJoin,
       lockOnJoinConfigurable = lockSettingsProp.lockOnJoinConfigurable,
@@ -401,12 +404,16 @@ class MeetingActor(
         updateModeratorsPresence()
 
       // Whiteboard
-      case m: SendCursorPositionPubMsg       => wbApp.handle(m, liveMeeting, msgBus)
-      case m: ClearWhiteboardPubMsg          => wbApp.handle(m, liveMeeting, msgBus)
-      case m: UndoWhiteboardPubMsg           => wbApp.handle(m, liveMeeting, msgBus)
-      case m: ModifyWhiteboardAccessPubMsg   => wbApp.handle(m, liveMeeting, msgBus)
-      case m: SendWhiteboardAnnotationPubMsg => wbApp.handle(m, liveMeeting, msgBus)
-      case m: GetWhiteboardAnnotationsReqMsg => wbApp.handle(m, liveMeeting, msgBus)
+      case m: SendCursorPositionPubMsg           => wbApp.handle(m, liveMeeting, msgBus)
+      case m: ClearWhiteboardPubMsg              => wbApp.handle(m, liveMeeting, msgBus)
+      case m: UndoWhiteboardPubMsg               => wbApp.handle(m, liveMeeting, msgBus)
+      case m: RemoveWhiteboardAnnotationsPubMsg  => wbApp.handle(m, liveMeeting, msgBus)
+      case m: ReorderWhiteboardAnnotationsPubMsg => wbApp.handle(m, liveMeeting, msgBus)
+      case m: MoveWhiteboardAnnotationsPubMsg    => wbApp.handle(m, liveMeeting, msgBus)
+      case m: ModifyWhiteboardAccessPubMsg       => wbApp.handle(m, liveMeeting, msgBus)
+      case m: ModifyWBModePubMsg             => wbApp.handle(m, liveMeeting, msgBus)
+      case m: SendWhiteboardAnnotationPubMsg     => wbApp.handle(m, liveMeeting, msgBus)
+      case m: GetWhiteboardAnnotationsReqMsg     => wbApp.handle(m, liveMeeting, msgBus)
 
       // Poll
       case m: StartPollReqMsg =>
@@ -522,6 +529,10 @@ class MeetingActor(
       case m: EditCaptionHistoryPubMsg                       => captionApp2x.handle(m, liveMeeting, msgBus)
       case m: UpdateCaptionOwnerPubMsg                       => captionApp2x.handle(m, liveMeeting, msgBus)
       case m: SendCaptionHistoryReqMsg                       => captionApp2x.handle(m, liveMeeting, msgBus)
+
+      // Upload
+      case m: UploadRequestReqMsg                      => uploadApp.handle(m, liveMeeting, msgBus)
+      case m: FileUploadedSysMsg                       => uploadApp.handle(m, liveMeeting, msgBus)
 
       // Guests
       case m: GetGuestsWaitingApprovalReqMsg                 => handleGetGuestsWaitingApprovalReqMsg(m)
