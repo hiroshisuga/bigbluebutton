@@ -38,67 +38,23 @@ const clearTranslation = () => {
 }
 
 const removeTranslation = (loc) => {
-  const { meetingID, userID } = Auth;
-  const modifier = {
-    $set: {
-      ['translationDoner.'+userID]: false,
-    },
-  };
-
-  try {
-    const numberAffected = Captions.update({ meetingId: meetingID, locale: loc }, modifier);
-    if (numberAffected) {
-      logger.info(`Removing translationDoner ${loc} ${userID} meeting=${meetingID} in Captions`);
-    }
-  } catch (err) {
-    logger.error(`Removing translationDoner: ${err} in Captions`);
-  }
-
-  const newcap = Captions.findOne({ meetingId: meetingID, locale: loc }, { fields: { translationDoner: 1 } });
-  const td = newcap.translationDoner;
-  if (!Object.values(td).includes(true)) {
-    const modifier2 = {
-      $set: {
-        translating: false,
-      },
-    };
-    try {
-      const numberAffected = Captions.upsert({ meetingId: meetingID, locale: loc }, modifier2);
-      if (numberAffected) {
-        logger.info(`Updating translating ${loc} ${userID} meeting=${meetingID} in Captions`);
-      }
-      makeCall('disableAutoTranslation', loc);
-    } catch (err) {
-      logger.error(`Updating translating: ${err} in Captions`);
-    }
-  }
+  makeCall('removeTranslation', loc);
 };
 
-const selectTranslation = (loc) => {
-  const { meetingID, userID } = Auth;
-  const modifier = {
-    $set: {
-      ['translationDoner.'+userID]: true,
-      translating: true,
-    },
-  };
-  try {
-    const numberAffected = Captions.upsert({ meetingId: meetingID, locale: loc }, modifier);
-    if (numberAffected) {
-      logger.info(`Adding translationDoner ${loc} ${userID} meeting=${meetingID}`);
-    }
-    makeCall('enableAutoTranslation', loc);
-  } catch (err) {
-    logger.error(`Adding translationDoner: ${err} in Captions`);
+const addTranslation = (loc) => {
+  if (!PadsService.hasPad(loc)) {
+    const name = getName(loc);
+    PadsService.createGroup(loc, CAPTIONS_CONFIG.id, name);
+    updateCaptionsOwner(loc, name);
   }
-  //console.log("selectTranslation", Captions.find({ meetingId: meetingID, translating: true }).fetch());
+  makeCall('addTranslation', loc);
 };
 
 const getMyLocalesAutoTranslated = () => {
   const { meetingID, userID } = Auth;
   const localesTranslated = Captions.find(
     { meetingId: meetingID, translating: true, ['translationDoner.'+userID]: true },
-    { fields: { locale: 1, name: 1 } },
+    { fields: { locale: 1, name: 1, translationDoner: 1 } },
   ).fetch();
   return localesTranslated;
 };
@@ -107,7 +63,7 @@ const getLocalesAutoTranslated = () => {
   const { meetingID } = Auth;
   const localesTranslated = Captions.find(
     { meetingId: meetingID, translating: true },
-    { fields: { locale: 1, name: 1 } },
+    { fields: { locale: 1, name: 1, translationDoner: 1 } },
   ).fetch();
   return localesTranslated;
 };
@@ -137,15 +93,15 @@ const getOwnedLocale = () => getCaptionFromLocale(getCaptionsLocale());
 const updateCaptionsOwner = (locale, name) => makeCall('updateCaptionsOwner', locale, name);
 
 const startDictation = (locale) => {
-  provideSpeech(locale);
-  selectTranslation(locale);
+  makeCall('provideSpeech', locale);
+  addTranslation(locale);
 }
 
 const stopDictation = (locale) => {
-  retractSpeech(locale);
+  makeCall('retractSpeech', locale);
   const donatedTranslation = getMyLocalesAutoTranslated();
   donatedTranslation.forEach((loc) => {
-  //console.log("stopDictation", loc, locale);
+    //console.log("stopDictation", loc, locale);
     if (loc.locale !== locale) {
       removeTranslation(loc.locale);
     }
@@ -319,68 +275,9 @@ const getName = (locale) => {
   return captions.name;
 };
 
-const provideSpeech = (loc) => {
-  const { meetingID, userID } = Auth;
-
-  const modifier = {
-    $set: {
-      ['speechDoner.'+userID]: true,
-      dictating: true,
-    },
-  };
-
-  try {
-    const numberAffected = Captions.update({ meetingId: meetingID, locale: loc }, modifier);
-    if (numberAffected) {
-      logger.info(`Adding speechDoner ${loc} ${userID} meeting=${meetingID} in Captions`);
-    }
-    makeCall('startDictation', loc);
-  } catch (err) {
-    logger.error(`Adding speechDoner: ${err} in Captions`);
-  }
-}
-
-const retractSpeech = (loc) => {
-  const { meetingID, userID } = Auth;
-
-  const modifier = {
-    $set: {
-      ['speechDoner.'+userID]: false,
-    },
-  };
-
-  try {
-    const numberAffected = Captions.update({ meetingId: meetingID, locale: loc }, modifier);
-    if (numberAffected) {
-      logger.info(`Removing speechDoner ${loc} ${userID} meeting=${meetingID} in Captions`);
-    }
-  } catch (err) {
-    logger.error(`Removing speechDoner: ${err} in Captions`);
-  }
-
-  const newcap = Captions.findOne({ meetingId: meetingID, locale: loc }, { fields: { speechDoner: 1 } });
-  const sd = newcap.speechDoner;
-  if (!Object.values(sd).includes(true)) {
-    const modifier2 = {
-      $set: {
-        dictating: false,
-      },
-    };
-    try {
-      const numberAffected = Captions.upsert({ meetingId: meetingID, locale: loc }, modifier2);
-      if (numberAffected) {
-        logger.info(`Updating dicatating ${loc} ${userID} meeting=${meetingID} in Captions`);
-      }
-      makeCall('stopDictation', loc);
-    } catch (err) {
-      logger.error(`Updating dictating: ${err} in Captions`);
-    }
-  }
-}
-
 const createCaptions = (locale) => {
   const name = getName(locale);
-  retractSpeech(locale);
+  makeCall('retractSpeech', locale);
   clearTranslation();
   PadsService.createGroup(locale, CAPTIONS_CONFIG.id, name);
   updateCaptionsOwner(locale, name); //every new caption creater takes the ownership
@@ -471,8 +368,9 @@ export default {
   canIDictateThisPad,
   isAutoTranslated,
   isAutoTranslationEnabled,
+  getMyLocalesAutoTranslated,
   getLocalesAutoTranslated,
-  selectTranslation,
+  addTranslation,
   removeTranslation,
   clearTranslation,
   getCaptionsActive,
