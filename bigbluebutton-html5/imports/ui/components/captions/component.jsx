@@ -89,12 +89,13 @@ const Captions = ({
   Service.getAvailableLocales().forEach((loc) => {
     //The current locale not included
     localeOptions.push({value: loc.locale, label: loc.name});
-    if (loc.translating) {
-      if (loc.locale == locale) {
-        selectedLocales.push({value: loc.locale, label: loc.name, isFixed: true});
-      } else {
-        selectedLocales.push({value: loc.locale, label: loc.name});
-      }
+    if (loc.locale === locale) {
+      selectedLocales.push({value: loc.locale, label: loc.name, isFixed: true});
+    }
+  });
+  Service.getMyLocalesAutoTranslated().forEach((loc) => {
+    if (loc.locale !== locale) {
+      selectedLocales.push({value: loc.locale, label: loc.name});
     }
   });
 
@@ -108,7 +109,7 @@ const Captions = ({
         Service.removeTranslation(actionMeta.removedValue.value);
         break;
       case 'select-option':
-        Service.selectTranslation(actionMeta.option.value);
+        Service.addTranslation(actionMeta.option.value);
         break;
       case 'clear':
         //This would't happen..
