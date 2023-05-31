@@ -567,7 +567,7 @@ const annotatorID = (annotation) => {
 const hideAnnotationsForAnnotator = () => {
   const meeting = Meetings.findOne({ meetingId: Auth.meetingID },
     { fields: { 'lockSettingsProps.hideAnnotations': 1 } });
-  return meeting && meeting.lockSettingsProps ? meeting.lockSettingsProps.hideAnnotations : false;
+  return meeting?.lockSettingsProps ? meeting.lockSettingsProps.hideAnnotations : false;
 };
 
 const isPresenter = () => {
