@@ -207,7 +207,7 @@ export default class WhiteboardOverlay extends Component {
           physicalSlideHeight={physicalSlideHeight}
         />
       );
-    } if (tool === 'pencil' || tool === 'marker') {
+    } else if (tool === 'pencil' || tool === 'marker') {
       if (presentationWindow.PointerEvent) {
         return (
           <PencilPointerListener
@@ -237,7 +237,7 @@ export default class WhiteboardOverlay extends Component {
           isPresentationDetached={isPresentationDetached}
         />
       );
-    } if (tool === 'text') {
+    } else if (tool === 'text') {
       return (
         <TextDrawListener
           userId={userId}
