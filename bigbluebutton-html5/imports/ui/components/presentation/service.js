@@ -91,7 +91,7 @@ const bringAnnotations = (whiteboardId, selected, up) => {
     id2idx.set(sortedAnnotations[key].id, key);
   }
 
-  var orderContainer = []; // to get new position <-> annotation.id
+  let orderContainer = []; // to get new position <-> annotation.id
   for (const a of sortedAnnotations) {
     orderContainer.push({position: a.position, id:""});
   }
