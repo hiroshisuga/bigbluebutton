@@ -57,7 +57,7 @@ class PresentationPods extends PureComponent {
     return (
       <PresentationContainer
         podId="DEFAULT_PRESENTATION_POD"
-        key={this.state.isPresentationDetached?.id}
+        key={this.state.isPresentationDetached && this.state.isPresentationDetached.id}
         isPresentationDetached={this.state.isPresentationDetached}
         setPresentationDetached={this.setPresentationDetached}
         togglePresentationDetached={this.togglePresentationDetached}
