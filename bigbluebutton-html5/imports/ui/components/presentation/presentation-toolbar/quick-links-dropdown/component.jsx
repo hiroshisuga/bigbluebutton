@@ -99,8 +99,8 @@ function getAvailableLinks(slideId, videoUrls, urls, videoLabel, urlLabel, isFul
             });
   }
   
-  if (urls?.length ) {
-    if (videoUrls?.length) {
+  if (urls && urls.length ) {
+    if (videoUrls && videoUrls.length) {
       linkItems.push(<DropdownListSeparator key='quickurllinkseparator' />);
     }
     linkItems.push(<DropdownListTitle key='dropurltitle'>{urlLabel}</DropdownListTitle>);
@@ -127,7 +127,7 @@ const QuickLinksDropdown = (props) => {
 //    && !isMobileBrowser
 //    && amIPresenter;
 
-  return amIPresenter && ((videoUrls?.length) || (urls && urls.length)) ? (
+  return amIPresenter && ((videoUrls && videoUrls.length) || (urls && urls.length)) ? (
     <Dropdown>
     <DropdownTrigger tabIndex={0}>
         <Styled.QuickLinksButton
