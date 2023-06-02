@@ -31,8 +31,8 @@ export default function setAutoTranslation(meetingId, locale, userId, selecting)
   }
 
   try {
+    const numberAffected = Captions.update(selector, modifier);
     Logger.info(`Adding/Removing (${selecting}) translationDoner ${locale} from ${userId} meeting=${meetingId}`);
-
     if (numberAffected) {
       Logger.verbose('Captions: updated pad autoTranslation', { locale });
     }
