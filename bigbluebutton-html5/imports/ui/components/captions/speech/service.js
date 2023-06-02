@@ -22,7 +22,11 @@ const initSpeechRecognition = (locale = DEFAULT_LANGUAGE) => {
   return null;
 };
 
-const pushSpeechTranscript = (locale, transcript, type, locales) => makeCall('pushSpeechTranscript', locale, transcript, type, locales);
+const pushSpeechTranscript = (locale, transcript, type, locales) => {
+  if (locale) {
+    makeCall('pushSpeechTranscript', locale, transcript, type, locales);
+  }
+}
 
 const throttledTranscriptPush = _.throttle(pushSpeechTranscript, THROTTLE_TIMEOUT, {
   leading: false,
