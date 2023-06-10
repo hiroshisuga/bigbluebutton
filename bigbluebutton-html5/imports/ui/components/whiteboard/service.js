@@ -367,9 +367,9 @@ const notifyShapeNumberExceeded = (intl, limit) => {
   if (intl) notify(intl.formatMessage(intlMessages.shapeNumberExceeded, { 0: limit }), 'warning', 'whiteboard');
 };
 
-const toggleToolsAnimations = (activeAnim, anim, time) => {
-  const tdTools = document.querySelector("#TD-Tools");
-  const topToolbar = document.getElementById("TD-Styles")?.parentElement;
+const toggleToolsAnimations = (activeAnim, anim, time, presentationWindow) => {
+  const tdTools = presentationWindow.document.querySelector("#TD-Tools");
+  const topToolbar = presentationWindow.document.getElementById("TD-Styles")?.parentElement;
   if (tdTools && topToolbar) {
     tdTools.classList.remove(activeAnim);
     topToolbar.classList.remove(activeAnim);

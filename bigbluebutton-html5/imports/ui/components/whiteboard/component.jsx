@@ -56,6 +56,8 @@ export default function Whiteboard(props) {
     maxStickyNoteLength,
     fontFamily,
     hasShapeAccess,
+    isPresentationDetached,
+    presentationWindow,
     presentationAreaHeight,
     presentationAreaWidth,
     maxNumberOfAnnotations,
@@ -122,7 +124,7 @@ export default function Whiteboard(props) {
 
     setIsToolLocked(false);
 
-    const panButton = document.querySelector('[data-test="panButton"]');
+    const panButton = presentationWindow.document.querySelector('[data-test="panButton"]');
     if (panBtnClicked) {
       const dataZoom = panButton.getAttribute('data-zoom');
       if ((dataZoom <= HUNDRED_PERCENT && !fitToWidth)) {
@@ -139,7 +141,7 @@ export default function Whiteboard(props) {
   };
 
   React.useEffect(() => {
-    const toolbar = document.getElementById('TD-PrimaryTools');
+    const toolbar = presentationWindow.document.getElementById('TD-PrimaryTools');
     const handleClick = (evt) => {
       toggleOffCheck(evt);
     };
@@ -166,9 +168,9 @@ export default function Whiteboard(props) {
 
   React.useEffect(() => {
     if (whiteboardToolbarAutoHide) {
-      toggleToolsAnimations('fade-in', 'fade-out', animations ? '3s' : '0s');
+      toggleToolsAnimations('fade-in', 'fade-out', animations ? '3s' : '0s', presentationWindow);
     } else {
-      toggleToolsAnimations('fade-out', 'fade-in', animations ? '.3s' : '0s');
+      toggleToolsAnimations('fade-out', 'fade-in', animations ? '.3s' : '0s', presentationWindow);
     }
   }, [whiteboardToolbarAutoHide]);
   
@@ -187,9 +189,9 @@ export default function Whiteboard(props) {
 
   const checkClientBounds = (e) => {
     if (
-      e.clientX > document.documentElement.clientWidth
+      e.clientX > presentationWindow.document.documentElement.clientWidth
       || e.clientX < 0
-      || e.clientY > document.documentElement.clientHeight
+      || e.clientY > presentationWindow.document.documentElement.clientHeight
       || e.clientY < 0
     ) {
       if (tldrawAPI?.session) {
@@ -199,7 +201,7 @@ export default function Whiteboard(props) {
   };
 
   const checkVisibility = () => {
-    if (document.visibilityState === 'hidden' && tldrawAPI?.session) {
+    if (presentationWindow.document.visibilityState === 'hidden' && tldrawAPI?.session) {
       tldrawAPI?.completeSession?.();
     }
   };
@@ -225,15 +227,30 @@ export default function Whiteboard(props) {
   }
 
   React.useEffect(() => {
-    document.addEventListener('mouseup', checkClientBounds);
-    document.addEventListener('visibilitychange', checkVisibility);
-
+    if (tldrawAPI && !isPresentationDetached) {
+      // to 'touch' the CSS of side position of the dock
+      tldrawAPI.setSetting('dockPosition', isRTL ? 'left' : 'right');
+    }
+    if (isPresentationDetached && slidePosition) {
+      const newZoom = calculateZoom(slidePosition.viewBoxWidth, slidePosition.viewBoxHeight);
+      if (fitToWidth) {
+        setTimeout(() => {
+          tldrawAPI.setCamera([slidePosition.x, slidePosition.y], newZoom, 'zoomed');
+        }, 50);
+      } else {
+        tldrawAPI?.setCamera([slidePosition.x, slidePosition.y], newZoom);
+      }
+    }
+    presentationWindow.document.addEventListener('mouseup', checkClientBounds);
+    presentationWindow.document.addEventListener('visibilitychange', checkVisibility);
     return () => {
-      document.removeEventListener('mouseup', checkClientBounds);
-      document.removeEventListener('visibilitychange', checkVisibility);
-      const canvas = document.getElementById('canvas');
-      if (canvas) {
-        canvas.removeEventListener('wheel', handleWheelEvent);
+      presentationWindow.document.removeEventListener('mouseup', checkClientBounds);
+      presentationWindow.document.removeEventListener('visibilitychange', checkVisibility);
+      if (!isPresentationDetached) {
+        const canvas = document.getElementById('canvas');
+        if (canvas) {
+          canvas.removeEventListener('wheel', handleWheelEvent);
+        }
       }
     };
   }, [tldrawAPI]);
@@ -395,7 +412,7 @@ export default function Whiteboard(props) {
         }
       }
     }
-  }, [presentationWidth, presentationHeight, curPageId, document?.documentElement?.dir]);
+  }, [presentationWidth, presentationHeight, curPageId, isPresentationDetached ? presentationWindow.document?.documentElement?.dir : document?.documentElement?.dir]);
 
   React.useEffect(() => {
     if (presentationWidth > 0 && presentationHeight > 0 && slidePosition) {
@@ -539,9 +556,11 @@ export default function Whiteboard(props) {
       fullscreenAction,
       fullscreenRef,
       handleToggleFullScreen,
+      isPresentationDetached,
+      presentationWindow,
     } = props;
 
-    handleToggleFullScreen(fullscreenRef);
+    handleToggleFullScreen(isPresentationDetached ? presentationWindow.document.documentElement : fullscreenRef)
     const newElement = isFullscreen ? '' : fullscreenElementId;
 
     layoutContextDispatch({
@@ -594,18 +613,22 @@ export default function Whiteboard(props) {
   };
 
   const onMount = (app) => {
-    const menu = document.getElementById('TD-Styles')?.parentElement;
-    const canvas = document.getElementById('canvas');
-    if (canvas) {
-      canvas.addEventListener('wheel', handleWheelEvent, { capture: true });
-    }
+    const menu = presentationWindow.document.getElementById('TD-Styles')?.parentElement;
 
+    if (!isPresentationDetached) {
+      //when the presentation is detached, the canvas will be found hidden on the top-left corner of the main panel,
+      // instead of the detached window. So we don't use below.
+      const canvas = document.getElementById('canvas');
+      if (canvas) {
+        canvas.addEventListener('wheel', handleWheelEvent, { capture: true });
+      }
+    }
     if (menu) {
       const MENU_OFFSET = '48px';
       menu.style.position = 'relative';
       menu.style.height = presentationMenuHeight;
       menu.setAttribute('id', 'TD-Styles-Parent');
-      if (isRTL) {
+      if (isRTL && !isPresentationDetached) { //a workaround for now..
         menu.style.left = MENU_OFFSET;
       } else {
         menu.style.right = MENU_OFFSET;
@@ -897,7 +920,7 @@ export default function Whiteboard(props) {
     }
 
     if (whiteboardToolbarAutoHide && command && command.id === "change_page") {
-      toggleToolsAnimations('fade-in', 'fade-out', '0s');
+      toggleToolsAnimations('fade-in', 'fade-out', '0s', presentationWindow);
     }
 
     if (command?.id?.includes('style')) {
@@ -1013,6 +1036,21 @@ export default function Whiteboard(props) {
 
   const menuOffset = menuOffsetValues[isRTL][isIphone];
 
+  if (isPresentationDetached) {
+    // inject styles to the detached window as styled component is not inherited..?
+    const styleId = "supplementedTldrawStyle";
+    const tldgsarg = {hasWBAccess, isPresenter, hideContextMenu: !hasWBAccess && !isPresenter, size, isRTL, darkTheme, menuOffset, panSelected};
+    const tldgs = Styled.TldrawGlobalStyleText(tldgsarg);
+    const oldElement = presentationWindow.document.getElementById(styleId);
+    if (oldElement) {
+      presentationWindow.document.head.removeChild(oldElement);
+    }
+    const suppStyle = presentationWindow.document.createElement('style');
+    suppStyle.id = styleId;
+    suppStyle.appendChild(presentationWindow.document.createTextNode(tldgs));
+    presentationWindow.document.head.appendChild(suppStyle);
+  } 
+
   return (
     <div key={`animations=-${animations}`}>
       <Cursors
@@ -1025,6 +1063,8 @@ export default function Whiteboard(props) {
         isPanning={isPanning || panSelected}
         isMoving={isMoving}
         currentTool={currentTool}
+        isPresentationDetached={isPresentationDetached}
+        presentationWindow={presentationWindow}
         whiteboardToolbarAutoHide={whiteboardToolbarAutoHide}
         toggleToolsAnimations={toggleToolsAnimations}
       >
@@ -1053,6 +1093,7 @@ export default function Whiteboard(props) {
             panSelected,
             setPanSelected,
             currentTool,
+            presentationWindow,
           }}
           formatMessage={intl?.formatMessage}
         />
