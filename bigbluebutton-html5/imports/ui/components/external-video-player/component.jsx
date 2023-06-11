@@ -12,6 +12,8 @@ import {
 import deviceInfo from '/imports/utils/deviceInfo';
 
 import logger from '/imports/startup/client/logger';
+import ExternalVideoCloseButton from './externalvideo-close-button/component';
+//import Service from './service';
 
 import Subtitles from './subtitles/component';
 import VolumeSlider from './volume-slider/component';
@@ -104,8 +106,8 @@ class VideoPlayer extends Component {
       file: {
         attributes: {
           controls: isPresenter ? 'controls' : '',
-          autoplay: 'autoplay',
-          playsinline: 'playsinline',
+          autoPlay: 'autoplay',
+          playsInline: 'playsinline',
         },
       },
       facebook: {
@@ -562,6 +564,16 @@ class VideoPlayer extends Component {
     );
   }
 
+  renderExternalVideoClose() {
+    const { isPresenter } = this.props;
+    //const { playing } = this.state;
+    if (isPresenter /*&& playing*/) {
+      return <ExternalVideoCloseButton />;
+    } else {
+      return null;
+    }
+  }
+    
   render() {
     const {
       videoUrl,
@@ -702,6 +714,7 @@ class VideoPlayer extends Component {
               ]
               : null
           }
+          {this.renderExternalVideoClose()}
         </Styled.VideoPlayerWrapper>
       </span>
     );
