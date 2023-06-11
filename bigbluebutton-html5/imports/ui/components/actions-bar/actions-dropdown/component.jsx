@@ -2,6 +2,8 @@ import _ from 'lodash';
 import React, { PureComponent } from 'react';
 import PropTypes from 'prop-types';
 import { defineMessages } from 'react-intl';
+//import Button from '/imports/ui/components/button/component';
+import MediaUploadContainer from '/imports/ui/components/upload/media/container';
 import { withModalMounter } from '/imports/ui/components/common/modal/service';
 import withShortcutHelper from '/imports/ui/components/shortcut-help/service';
 import ExternalVideoModal from '/imports/ui/components/external-video-player/modal/container';
@@ -24,6 +26,7 @@ const propTypes = {
   shortcuts: PropTypes.string,
   handleTakePresenter: PropTypes.func.isRequired,
   allowExternalVideo: PropTypes.bool.isRequired,
+  isMediaUploadEnabled: PropTypes.bool.isRequired,
   stopExternalVideoShare: PropTypes.func.isRequired,
   isMobile: PropTypes.bool.isRequired,
   setMeetingLayout: PropTypes.func.isRequired,
@@ -48,6 +51,14 @@ const intlMessages = defineMessages({
   presentationDesc: {
     id: 'app.actionsBar.actionsDropdown.presentationDesc',
     description: 'adds context to upload presentation option',
+  },
+  uploadMediaLabel: {
+    id: 'app.actionsBar.actionsDropdown.uploadMediaLabel',
+    description: 'Upload media option label',
+  },
+  uploadMediaDesc: {
+    id: 'app.actionsBar.actionsDropdown.uploadMediaDesc',
+    description: 'adds context to upload media option',
   },
   desktopShareDesc: {
     id: 'app.actionsBar.actionsDropdown.desktopShareDesc',
@@ -106,12 +117,14 @@ class ActionsDropdown extends PureComponent {
     super(props);
 
     this.presentationItemId = _.uniqueId('action-item-');
+    this.uploadMediaId = _.uniqueId('action-item-');
     this.pollId = _.uniqueId('action-item-');
     this.takePresenterId = _.uniqueId('action-item-');
     this.selectUserRandId = _.uniqueId('action-item-');
 
     this.handleExternalVideoClick = this.handleExternalVideoClick.bind(this);
     this.makePresentationItems = this.makePresentationItems.bind(this);
+    this.handleUploadMediaClick = this.handleUploadMediaClick.bind(this);
   }
 
   componentDidUpdate(prevProps) {
@@ -132,6 +145,7 @@ class ActionsDropdown extends PureComponent {
       intl,
       amIPresenter,
       allowExternalVideo,
+      isMediaUploadEnabled,
       handleTakePresenter,
       isSharingVideo,
       isPollingEnabled,
@@ -149,6 +163,8 @@ class ActionsDropdown extends PureComponent {
       pollBtnLabel,
       presentationLabel,
       takePresenter,
+      uploadMediaLabel,
+      uploadMediaDesc,
     } = intlMessages;
 
     const {
@@ -241,6 +257,15 @@ class ActionsDropdown extends PureComponent {
       });
     }
     
+    if (amIPresenter && isMediaUploadEnabled) {
+      actions.push({
+        icon: "upload",
+        label: formatMessage(uploadMediaLabel),
+        key: this.uploadMediaId,
+        onClick: this.handleUploadMediaClick,
+      })
+    }
+     
     return actions;
   }
 
@@ -279,6 +304,11 @@ class ActionsDropdown extends PureComponent {
       });
 
     return presentationItemElements;
+  }
+
+  handleUploadMediaClick() {
+    const { mountModal } = this.props;
+    mountModal(<MediaUploadContainer />);
   }
 
   render() {

@@ -12,6 +12,8 @@ import {
 import deviceInfo from '/imports/utils/deviceInfo';
 
 import logger from '/imports/startup/client/logger';
+import ExternalVideoCloseButton from './externalvideo-close-button/component';
+//import Service from './service';
 
 import Subtitles from './subtitles/component';
 import VolumeSlider from './volume-slider/component';
@@ -97,15 +99,15 @@ class VideoPlayer extends Component {
     this.opts = {
       // default option for all players, can be overwritten
       playerOptions: {
-        autoplay: true,
+        autoplay: false,
         playsinline: true,
         controls: isPresenter,
       },
       file: {
         attributes: {
           controls: isPresenter ? 'controls' : '',
-          autoplay: 'autoplay',
-          playsinline: 'playsinline',
+          //autoPlay: 'autoplay',
+          playsInline: 'playsinline',
         },
       },
       facebook: {
@@ -117,8 +119,12 @@ class VideoPlayer extends Component {
         },
       },
       youtube: {
+        //For pic-in-pic, you need to use the browser's function by another right clicking after showing the Youtube's menu.
         playerVars: {
-          autoplay: 1,
+          //with this comment out autoplay stops but the video size would not be adjusted 
+          // thus pic-in-pic option does not appear until you manually start playing
+          //If you close the video before the size is adjusted, the presentation will disappear!
+          //autoplay: 1,
           modestbranding: 1,
           autohide: 1,
           rel: 0,
@@ -562,6 +568,16 @@ class VideoPlayer extends Component {
     );
   }
 
+  renderExternalVideoClose() {
+    const { isPresenter } = this.props;
+    //const { playing } = this.state;
+    if (isPresenter /*&& playing*/) {
+      return <ExternalVideoCloseButton />;
+    } else {
+      return null;
+    }
+  }
+    
   render() {
     const {
       videoUrl,
@@ -702,6 +718,7 @@ class VideoPlayer extends Component {
               ]
               : null
           }
+          {this.renderExternalVideoClose()}
         </Styled.VideoPlayerWrapper>
       </span>
     );
