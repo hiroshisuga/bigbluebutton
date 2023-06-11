@@ -4,6 +4,7 @@ import { defineMessages, injectIntl } from 'react-intl';
 import { toPng } from 'html-to-image';
 import { toast } from 'react-toastify';
 import logger from '/imports/startup/client/logger';
+import { TDShapeType } from '@tldraw/tldraw';
 import Styled from './styles';
 import BBBMenu from '/imports/ui/components/common/menu/component';
 import TooltipContainer from '/imports/ui/components/common/tooltip/container';
@@ -328,12 +329,12 @@ const PresentationMenu = (props) => {
   function toggleDetachPresentation(){
     if (firstReact == 0){
       firstReact = 1;
+      tldrawAPI.selectTool(TDShapeType.Text);
       tldrawAPI.setSetting('keepStyleMenuOpen', true);
       //tldrawAPI.setSetting('dockPosition', isRTL ? 'left' : 'right'); // -> whiteboard/component
       tldrawAPI.createShapes({ id: 'rectdummy', type: 'rectangle', point: [0, 0], size: [0, 0], },
                              { id: 'textdummy', type: 'text', text: ' ', point: [0, 0], },
                              { id: 'stickydummy', type: 'sticky', text: ' ', point: [0, 0], size: [0, 0], });
-      tldrawAPI.selectNone();
       const ms = 50; // a dirty workaround...
       new Promise((resolve) => {
         setTimeout(() => {
@@ -342,6 +343,7 @@ const PresentationMenu = (props) => {
       }).then(() => {
         tldrawAPI.setSetting('keepStyleMenuOpen', false);
         tldrawAPI.delete(['rectdummy', 'textdummy', 'stickydummy']);
+        tldrawAPI.selectNone();
         togglePresentationDetached();
       });
     } else {
