@@ -210,7 +210,7 @@ const QuickPollDropdown = (props) => {
 
         setTimeout(() => {
           handleClickQuickPoll(layoutContextDispatch);
-          if (singlePollType === 'R-' || singlePollType === 'TF' || singlePollType === 'YN') {//from #17827..?
+          if (singlePollType === 'R-' || singlePollType === 'TF' || singlePollType === 'YN') {
             startPoll(singlePollType, currentSlide.id, answers, pollQuestion, multiResponse);
           } else {
             startPoll(
@@ -240,6 +240,7 @@ const QuickPollDropdown = (props) => {
         tooltipLabel={intl.formatMessage(intlMessages.quickPollLabel)}
         onClick={() => null}
         size="lg"
+        data-test="yesNoQuickPoll"
       />
     );
 
