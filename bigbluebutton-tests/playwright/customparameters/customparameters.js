@@ -127,10 +127,9 @@ class CustomParameters extends MultiUsers {
     await expect(notificationBarColor).toBe(colorToRGB);
   }
 
-  async hidePresentation() {
+  async hidePresentationOnJoin() {
     await this.modPage.waitForSelector(e.actions);
-    const checkPresentationButton = await this.modPage.checkElement(e.restorePresentation);
-    await expect(checkPresentationButton).toBeTruthy();
+    await this.modPage.hasElement(e.restorePresentation);
     await this.modPage.wasRemoved(e.presentationPlaceholder);
   }
 
