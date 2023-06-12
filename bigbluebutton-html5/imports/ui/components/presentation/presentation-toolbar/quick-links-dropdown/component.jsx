@@ -30,6 +30,26 @@ const intlMessages = defineMessages({
     id: 'app.externalLinks.urltitle',
     description: 'Quick external links title for URLs',
   },
+  trueOptionLabel: {
+    id: 'app.poll.t',
+    description: 'Poll true option value',
+  },
+  falseOptionLabel: {
+    id: 'app.poll.f',
+    description: 'Poll false option value',
+  },
+  yesOptionLabel: {
+    id: 'app.poll.y',
+    description: 'Poll yes option value',
+  },
+  noOptionLabel: {
+    id: 'app.poll.n',
+    description: 'Poll no option value',
+  },
+  abstentionOptionLabel: {
+    id: 'app.poll.abstention',
+    description: 'Poll Abstention option value',
+  },
 });
 
 //const BROWSER_RESULTS = browser();
@@ -118,7 +138,15 @@ function getAvailableLinks(slideId, videoUrls, urls, videoLabel, urlLabel, isFul
 
 const QuickLinksDropdown = (props) => {
   const { amIPresenter, intl, parseCurrentSlideContent, allowExternalVideo, screenSharingCheck, isFullscreen, fullscreenRef } = props;
-  const parsedSlide = parseCurrentSlideContent();
+  //This is called twice (in actions-bar/quick-poll-dropdown/component.jsx as well),
+  // we could move this to upper component and pass via props in the future.
+  const parsedSlide = parseCurrentSlideContent(
+    intl.formatMessage(intlMessages.yesOptionLabel),
+    intl.formatMessage(intlMessages.noOptionLabel),
+    intl.formatMessage(intlMessages.abstentionOptionLabel),
+    intl.formatMessage(intlMessages.trueOptionLabel),
+    intl.formatMessage(intlMessages.falseOptionLabel),
+  );
 
   const { slideId, videoUrls, urls } = parsedSlide;
 
