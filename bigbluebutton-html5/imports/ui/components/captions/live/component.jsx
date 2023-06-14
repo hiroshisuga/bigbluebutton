@@ -2,6 +2,7 @@ import React, { PureComponent } from 'react';
 import PropTypes from 'prop-types';
 import Service from '/imports/ui/components/captions/service';
 
+const LINEHEIGHT = 1.3
 const CAPTIONS_CONFIG = Meteor.settings.public.captions;
 
 class LiveCaptions extends PureComponent {
@@ -49,6 +50,17 @@ class LiveCaptions extends PureComponent {
       backgroundColor,
     } = this.settings;
 
+    const captionWindow = document.getElementById("caption-window");
+    let regionHeight = 0;
+    let regionFontSize = 0;
+    if (captionWindow) {
+      const captionWindowStyle = window.getComputedStyle(captionWindow);
+      regionHeight = captionWindow.clientHeight;
+      regionFontSize = parseInt(captionWindowStyle.getPropertyValue("font-size"));
+    }
+    const regionMaxHeight = regionFontSize * LINEHEIGHT * 2;
+    const inset = `inset(${regionHeight > regionMaxHeight ? regionHeight-regionMaxHeight : 0}px 0px 0px 0px)`;
+    
     const captionStyles = {
       whiteSpace: 'pre-wrap',
       wordWrap: 'break-word',
@@ -56,6 +68,8 @@ class LiveCaptions extends PureComponent {
       fontSize,
       background: backgroundColor,
       color: fontColor,
+      clipPath: inset,
+      lineHeight: LINEHEIGHT,
     };
 
     const visuallyHidden = {
@@ -71,7 +85,7 @@ class LiveCaptions extends PureComponent {
 
     return (
       <div>
-        <div style={captionStyles}>
+        <div style={captionStyles} id='caption-window'>
           {clear ? '' : data}
         </div>
         <div
