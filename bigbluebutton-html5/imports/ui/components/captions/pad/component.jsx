@@ -210,7 +210,8 @@ class Pad extends PureComponent {
           if (results[i].isFinal) {
             finalTranscript += `${transcript} `;
             //console.log('FINAL   ' + i +' ' + transcript);
-          } else { interimTranscript += transcript;
+          } else {
+            interimTranscript += transcript;
             //console.log('interim ' + i +' ' + transcript);
             intervalInterim = Date.now() - this.timePrevInt;
             this.timePrevInt = Date.now();
