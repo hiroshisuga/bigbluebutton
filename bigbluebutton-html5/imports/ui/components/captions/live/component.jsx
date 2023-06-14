@@ -2,7 +2,7 @@ import React, { PureComponent } from 'react';
 import PropTypes from 'prop-types';
 import Service from '/imports/ui/components/captions/service';
 
-const LINEHEIGHT = 1.3
+const LINEHEIGHT = 1.3 //1.2 - 1.5; when "line-height: normal", 1.2 for western fonts and 1.5 for Japanese fonts. 
 const CAPTIONS_CONFIG = Meteor.settings.public.captions;
 
 class LiveCaptions extends PureComponent {
