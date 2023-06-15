@@ -1,6 +1,8 @@
 import React, { PureComponent } from 'react';
 import PropTypes from 'prop-types';
 import Service from '/imports/ui/components/captions/service';
+import UserContainer from './user/container';
+import Auth from '/imports/ui/services/auth';
 
 const CAPTIONS_CONFIG = Meteor.settings.public.captions;
 
@@ -49,6 +51,10 @@ class LiveCaptions extends PureComponent {
       backgroundColor,
     } = this.settings;
 
+    const wrapperStyles = {
+      display: 'flex',
+    };
+
     const captionStyles = {
       whiteSpace: 'pre-wrap',
       wordWrap: 'break-word',
@@ -70,7 +76,13 @@ class LiveCaptions extends PureComponent {
     };
 
     return (
-      <div>
+      <div style={wrapperStyles}>
+        {clear ? null : (
+          <UserContainer
+            background="#000000a0"
+            userId={Auth.userID}
+          />
+        )}
         <div style={captionStyles}>
           {clear ? '' : data}
         </div>
