@@ -202,6 +202,7 @@ class Pad extends PureComponent {
 
         // Stores the first guess at what was recognised (Not always accurate).
         let interimTranscript = '';
+        let intervalInterim = 0;
 
         // Loops through the results to check if any of the entries have been validated,
         // signaled by the isFinal flag.
