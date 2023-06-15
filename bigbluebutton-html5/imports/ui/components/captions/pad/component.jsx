@@ -70,6 +70,9 @@ const DEBOUNCE_OPTIONS = {
   trailing: false,
 };
 
+const TIME_TO_EMIT_INTERIM = 3000;
+const TIME_TO_STOP_INTERIM = 500;
+
 class Pad extends PureComponent {
   static getDerivedStateFromProps(nextProps) {
     if (nextProps.ownerId !== nextProps.currentUserId) {
@@ -101,6 +104,11 @@ class Pad extends PureComponent {
         }
       });
     }
+    this.timeInt = Date.now();
+    this.timePrevInt = Date.now();
+    this.prevInterim = '';
+    this.subsText = this.subsText.bind(this);
+    this.initialized = true;
   }
 
   componentDidMount() {
@@ -137,6 +145,25 @@ class Pad extends PureComponent {
     PadService.getPadId(locale).then(response => {
       this.setState({ url: PadService.buildPadURL(response) });
     });
+  }
+  
+  subsText(textNew, textOld){
+    console.log("subsText Old", textOld);
+    console.log("subsText New", textNew);
+    let subText = "";
+    for (let i = 0; i < textOld.length; i += 1) {
+      if (textOld.charAt(i) != textNew.charAt(i)) {
+        //console.log("subsText i  ", i);
+        subText = textNew.substr(i);
+        break;
+      }
+    }
+    if (subText == "") {
+      subText = textNew.substr(textOld.length);
+    }
+    console.log("subsText Sub", subText);
+    console.log("");
+    return subText;
   }
 
   handleListen() {
@@ -175,13 +202,21 @@ class Pad extends PureComponent {
 
         // Stores the first guess at what was recognised (Not always accurate).
         let interimTranscript = '';
+        let intervalInterim = 0;
 
         // Loops through the results to check if any of the entries have been validated,
         // signaled by the isFinal flag.
         for (let i = resultIndex; i < results.length; i += 1) {
           const { transcript } = event.results[i][0];
-          if (results[i].isFinal) finalTranscript += `${transcript} `;
-          else interimTranscript += transcript;
+          if (results[i].isFinal) {
+            finalTranscript += `${transcript} `;
+            //console.log('FINAL   ' + i +' ' + transcript);
+          } else {
+            interimTranscript += transcript;
+            //console.log('interim ' + i +' ' + transcript);
+            intervalInterim = Date.now() - this.timePrevInt;
+            this.timePrevInt = Date.now();
+          }
         }
 
         // Adds the interimTranscript text to the iterimResultContainer to show
@@ -190,13 +225,43 @@ class Pad extends PureComponent {
           this.iterimResultContainer.innerHTML = interimTranscript;
         }
 
-        const newEntry = finalTranscript !== '';
+        if (this.initialized && (interimTranscript !== '' && this.prevInterim == '')) {
+        //if (this.initializable && interimTranscript.length < this.prevInterim.length) {
+          this.timeInt = Date.now();
+          this.initialized = false;
+        }
+
+        //const newEntry = finalTranscript !== '';
+        //const newEntry = interimTranscript !== '' || finalTranscript !== '';
+        let newEntry = false;
+        //const newEntry = finalTranscript !== '' || (interimTranscript !== '' && Date.now() - this.timeInt > TIME_TO_EMIT_INTERIM && interimTranscript != this.prevInterim);
+        if (finalTranscript !== '') {
+          newEntry = true;
+        } else if (interimTranscript !== '') {
+          console.log ("IntInterval", intervalInterim) ;
+          if (Date.now() - this.timeInt > TIME_TO_EMIT_INTERIM && interimTranscript != this.prevInterim && intervalInterim > TIME_TO_STOP_INTERIM) {
+            newEntry = true;
+          }
+        }
 
         // Changes to the finalTranscript are shown to in the captions
         if (newEntry) {
-          const text = finalTranscript.trimRight();
-          CaptionsService.appendText(text, locale);
-          finalTranscript = '';
+          let updateText = ''
+          if (finalTranscript !== '') {
+            updateText = this.subsText(finalTranscript, this.prevInterim);
+            this.prevInterim = '';
+            this.initialized = true;
+          } else {
+            updateText = this.subsText(interimTranscript, this.prevInterim);
+            this.prevInterim = interimTranscript;
+            this.timeInt = Date.now();
+          }
+
+          //if (updateText !== '') { // can be the case when the interval between interim text updates is too short
+            const text = updateText.trimRight();
+            CaptionsService.appendText(text, locale);
+            finalTranscript = '';
+          //}
         }
       };
 
