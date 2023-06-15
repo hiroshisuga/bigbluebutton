@@ -12,12 +12,14 @@ const CAPTIONS_CONFIG = Meteor.settings.public.captions;
 function sendTranscript(meetingId, requesterUserId, type, dst, text) {
   const user = Users.findOne({meetingId, userId: requesterUserId}, { fields: {name: 1}});
   //console.log("sendTranscript", text);
-  const textWithName = `${user.name}: ${text}`;
+  //const textWithName = `${user.name}: ${text}`;
   if (type === 'final') {
-    const textLf = `\n${textWithName}`;
+    //const textLf = `\n${textWithName}`;
+    const textLf = `\n${text}`;
     updatePad(meetingId, requesterUserId, dst, textLf); // Pad and recording
   }
-  setTranscript(meetingId, dst, textWithName); // Live
+  //setTranscript(meetingId, dst, textWithName); // Live
+  setTranscript(meetingId, dst, text); // Live
 }
 
 function translateText(meetingId, requesterUserId, textOri, type, src, dst) {
