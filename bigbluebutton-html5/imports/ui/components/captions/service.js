@@ -198,7 +198,7 @@ const getCaptionsData = () => {
       meetingId: Auth.meetingID,
       locale,
     },{
-      fields: { dictating: 1, transcript: 1, translationDoner: 1 }
+      fields: { dictating: 1, transcript: 1, translationDoner: 1, whosText: 1 }
     });
 
     let data = '';
@@ -213,7 +213,8 @@ const getCaptionsData = () => {
         data = caption.transcript;
       }
     }
-    return formatCaptionsText(data);
+    const captionData = { captionText: formatCaptionsText(data), whosText: caption.whosText };
+    return captionData;
   }
   return '';
 }
