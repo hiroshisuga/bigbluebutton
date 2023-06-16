@@ -45,7 +45,7 @@ const TalkingIndicatorButton = styled(Button)`
   @media ${phoneLandscape} {
     height: 1rem;
   }
-  
+
   i,
   span {
     position: relative;
@@ -92,7 +92,7 @@ const TalkingIndicatorButton = styled(Button)`
     opacity: 1;
   }
 
-  ${({ spoke }) => spoke && `
+  ${({ $spoke }) => $spoke && `
     opacity: ${spokeOpacity};
 
     [dir="rtl"]  & {
@@ -100,7 +100,7 @@ const TalkingIndicatorButton = styled(Button)`
     }
   `}
 
-  ${({ muted }) => muted && `
+  ${({ $muted }) => $muted && `
     cursor: default;
   
     i {
@@ -108,7 +108,7 @@ const TalkingIndicatorButton = styled(Button)`
     }
   `}
 
-  ${({ isViewer }) => isViewer && `
+  ${({ $isViewer }) => $isViewer && `
     cursor: default;
   `}
 `;
