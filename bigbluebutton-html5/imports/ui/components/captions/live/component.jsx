@@ -80,18 +80,18 @@ class LiveCaptions extends PureComponent {
         {clear ? null : (
           <UserContainer
             background="#000000a0"
-            userId={Auth.userID}
+            userId={data.whosText}
           />
         )}
         <div style={captionStyles}>
-          {clear ? '' : data}
+          {clear ? '' : data.captionText}
         </div>
         <div
           style={visuallyHidden}
           aria-atomic
           aria-live="polite"
         >
-          {clear ? '' : data}
+          {clear ? '' : data.captionText}
         </div>
       </div>
     );
