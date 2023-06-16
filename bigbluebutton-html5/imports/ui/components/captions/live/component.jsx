@@ -99,7 +99,7 @@ class LiveCaptions extends PureComponent {
 }
 
 LiveCaptions.propTypes = {
-  data: PropTypes.string.isRequired,
+  data: PropTypes.object.isRequired,
 };
 
 export default LiveCaptions;
