@@ -18,8 +18,7 @@ function sendTranscript(meetingId, requesterUserId, type, dst, text) {
     const textLf = `\n${text}`;
     updatePad(meetingId, requesterUserId, dst, textLf); // Pad and recording
   }
-  //setTranscript(meetingId, dst, textWithName); // Live
-  setTranscript(meetingId, dst, text); // Live
+  setTranscript(meetingId, dst, text, requesterUserId); // Live
 }
 
 function translateText(meetingId, requesterUserId, textOri, type, src, dst) {
