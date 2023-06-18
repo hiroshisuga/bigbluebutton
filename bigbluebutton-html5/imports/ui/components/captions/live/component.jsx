@@ -55,12 +55,13 @@ class LiveCaptions extends PureComponent {
       display: 'flex',
     };
 
+    const backgroundColorAlpha = backgroundColor.match(/^#[0-9a-fA-F]{6}$/) ? backgroundColor + 'a0' : backgroundColor;
     const captionStyles = {
       whiteSpace: 'pre-wrap',
       wordWrap: 'break-word',
       fontFamily,
       fontSize,
-      background: backgroundColor,
+      background: backgroundColorAlpha,
       color: fontColor,
     };
 
