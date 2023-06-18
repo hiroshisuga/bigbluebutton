@@ -24,6 +24,23 @@ class LiveCaptions extends PureComponent {
         this.setState({ clear: false });
       }
     } else {
+      // Set clip-path to limit max 2 lines
+      let regionHeight = 0;
+      let regionFontSize = 0;
+      const captionWindow = document.getElementById("caption-window");
+      if (captionWindow) {
+        const captionWindowStyle = window.getComputedStyle(captionWindow);
+        regionHeight = captionWindow.clientHeight;
+        regionFontSize = parseInt(captionWindowStyle.getPropertyValue("font-size"));
+        const regionMaxHeight = regionFontSize * LINEHEIGHT * 2;
+        // The below line was necessary when the avatar size was defined in user/component;
+        //  the number 46px seemed to have determinied by the avatar size.
+        //  After the avatar size became not hard-coded, the regionHeight is regionFontSize * LINEHEIGHT * (number of lines)
+        //regionMaxHeight = regionMaxHeight < 46 ? 46 : regionMaxHeight;
+        const inset = `inset(${regionHeight > regionMaxHeight ? regionHeight-regionMaxHeight : 0}px 0px 0px 0px)`;
+        //console.log("CapRender", regionHeight, regionFontSize, regionMaxHeight, inset);
+        captionWindow.style.clipPath = inset;
+      }
       this.resetTimer();
       this.timer = setTimeout(() => this.setState({ clear: true }), CAPTIONS_CONFIG.time);
     }
@@ -50,17 +67,6 @@ class LiveCaptions extends PureComponent {
       backgroundColor,
     } = this.settings;
 
-    const captionWindow = document.getElementById("caption-window");
-    let regionHeight = 0;
-    let regionFontSize = 0;
-    if (captionWindow) {
-      const captionWindowStyle = window.getComputedStyle(captionWindow);
-      regionHeight = captionWindow.clientHeight;
-      regionFontSize = parseInt(captionWindowStyle.getPropertyValue("font-size"));
-    }
-    const regionMaxHeight = regionFontSize * LINEHEIGHT * 2;
-    const inset = `inset(${regionHeight > regionMaxHeight ? regionHeight-regionMaxHeight : 0}px 0px 0px 0px)`;
-    
     const captionStyles = {
       whiteSpace: 'pre-wrap',
       wordWrap: 'break-word',
@@ -68,7 +74,7 @@ class LiveCaptions extends PureComponent {
       fontSize,
       background: backgroundColor,
       color: fontColor,
-      clipPath: inset,
+      //clipPath: inset, -> set later at componentDidUpdate
       lineHeight: LINEHEIGHT,
     };
 
