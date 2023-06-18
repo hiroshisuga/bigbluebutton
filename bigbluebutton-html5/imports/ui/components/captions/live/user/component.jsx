@@ -12,7 +12,7 @@ const User = ({
   <div
     style={{
       background,
-      minHeight: '3.25rem',
+      //minHeight: '3.25rem',
       //padding: '.5rem',
       textTransform: 'capitalize',
       //width: '3.25rem',
