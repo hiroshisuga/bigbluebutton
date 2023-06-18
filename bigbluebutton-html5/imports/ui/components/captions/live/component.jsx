@@ -53,6 +53,7 @@ class LiveCaptions extends PureComponent {
 
     const wrapperStyles = {
       display: 'flex',
+      alignItems: 'flex-end',
     };
 
     const backgroundColorAlpha = backgroundColor.match(/^#[0-9a-fA-F]{6}$/) ? backgroundColor + 'a0' : backgroundColor;
@@ -80,7 +81,6 @@ class LiveCaptions extends PureComponent {
       <div style={wrapperStyles}>
         {clear ? null : (
           <UserContainer
-            background="#000000a0"
             userId={data.whosText}
           />
         )}
