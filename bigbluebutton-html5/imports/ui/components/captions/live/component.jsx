@@ -54,6 +54,7 @@ class LiveCaptions extends PureComponent {
     const wrapperStyles = {
       display: 'flex',
       alignItems: 'flex-end',
+      gap: '0em 0.5em',
     };
 
     const backgroundColorAlpha = backgroundColor.match(/^#[0-9a-fA-F]{6}$/) ? backgroundColor + 'a0' : backgroundColor;
