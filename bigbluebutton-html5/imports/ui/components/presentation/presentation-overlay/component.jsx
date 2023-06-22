@@ -1,5 +1,6 @@
 import React, { Component } from 'react';
 import PropTypes from 'prop-types';
+import FullscreenService from '/imports/ui/components/common/fullscreen-button/service';
 import { throttle } from 'lodash';
 import SlideCalcUtil, {
   HUNDRED_PERCENT, MAX_PERCENT, STEP,
@@ -676,6 +677,10 @@ export default class PresentationOverlay extends Component {
     const {
       pressed,
     } = this.state;
+
+    if (event.detail == 2) {
+      FullscreenService.toggleFullScreen(presentationWindow.document.documentElement);
+    }
 
     const isLeftClick = event.button === 0;
 
