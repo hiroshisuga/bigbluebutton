@@ -113,6 +113,12 @@ function getAvailableLinks(slideId, videoUrls, urls, videoLabel, urlLabel, isFul
                 />);
             });
   }
+
+  if (linkItems.length == 0) {
+    linkItems.push(
+                <DropdownListItem
+                />);
+  }
   return(linkItems);
 }
 
@@ -127,7 +133,7 @@ const QuickLinksDropdown = (props) => {
 //    && !isMobileBrowser
 //    && amIPresenter;
 
-  return amIPresenter && ((videoUrls && videoUrls.length) || (urls && urls.length)) ? (
+  return amIPresenter ? (
     <Dropdown>
     <DropdownTrigger tabIndex={0}>
         <Styled.QuickLinksButton
@@ -138,6 +144,7 @@ const QuickLinksDropdown = (props) => {
           label={intl.formatMessage(intlMessages.quickLinksLabel)}
           onClick={() => null}
           size="md"
+          aria-disabled={ (!videoUrls || (videoUrls && videoUrls.length == 0)) && (!urls || (urls && urls.length == 0)) ? true : false }
         />
       </DropdownTrigger>
       <DropdownContent placement="top left">
