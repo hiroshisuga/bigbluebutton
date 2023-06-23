@@ -145,6 +145,7 @@ const QuickLinksDropdown = (props) => {
           onClick={() => null}
           size="md"
           aria-disabled={ (!videoUrls || (videoUrls && videoUrls.length == 0)) && (!urls || (urls && urls.length == 0)) ? true : false }
+          style={{ pointerEvents: (!videoUrls || (videoUrls && videoUrls.length == 0)) && (!urls || (urls && urls.length == 0)) ? 'none' : 'unset' }}
         />
       </DropdownTrigger>
       <DropdownContent placement="top left">
