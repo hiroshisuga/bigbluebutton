@@ -23,7 +23,7 @@ const PresentationToolbarWrapper = styled.div`
   min-width: fit-content;
   width: 100%;
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
 
   select {
     &:-moz-focusring {
@@ -189,6 +189,67 @@ const PresentationZoomControls = styled.div`
   }
 `;
 
+const QuickLinksButton = styled(Button)`
+  border: none !important;
+
+  & > i {
+    font-size: 1.2rem;
+
+    [dir="rtl"] & {
+      -webkit-transform: scale(-1, 1);
+      -moz-transform: scale(-1, 1);
+      -ms-transform: scale(-1, 1);
+      -o-transform: scale(-1, 1);
+      transform: scale(-1, 1);
+    }
+  }
+  margin-left: ${whiteboardToolbarMargin};
+  margin-right: ${whiteboardToolbarMargin};
+
+  position: relative;
+  color: ${toolbarButtonColor};
+  background-color: ${colorOffWhite};
+  border-radius: 0;
+  box-shadow: none !important;
+  border: 0;
+
+  &:focus {
+    background-color: ${colorOffWhite};
+    border: 0;
+  }
+`;
+
+const DetachWindowButton = styled(Button)`
+  border: none !important;
+
+  & > i {
+    font-size: 1.2rem;
+
+    [dir="rtl"] & {
+      -webkit-transform: scale(-1, 1);
+      -moz-transform: scale(-1, 1);
+      -ms-transform: scale(-1, 1);
+      -o-transform: scale(-1, 1);
+      transform: scale(-1, 1);
+    }
+  }
+
+  margin-left: ${whiteboardToolbarMargin};
+  margin-right: ${whiteboardToolbarMargin};
+
+  position: relative;
+  color: ${toolbarButtonColor};
+  background-color: ${colorOffWhite};
+  border-radius: 0;
+  box-shadow: none !important;
+  border: 0;
+
+  &:focus {
+    background-color: ${colorOffWhite};
+    border: 0;
+  }
+`;
+  
 const FitToWidthButton = styled(Button)`
   border: none !important;
 
@@ -228,5 +289,7 @@ export default {
   NextSlideButton,
   SkipSlideSelect,
   PresentationZoomControls,
+  QuickLinksButton,
+  DetachWindowButton,
   FitToWidthButton,
 };

@@ -31,6 +31,7 @@ export default withTracker((params) => {
   return {
     setTextShapeValue: TextShapeService.setTextShapeValue,
     resetTextShapeActiveId: TextShapeService.resetTextShapeActiveId,
+    setTextShapeOffset: TextShapeService.setTextShapeOffset,
     isMultiUser,
     activeTextShapeId,
   };
