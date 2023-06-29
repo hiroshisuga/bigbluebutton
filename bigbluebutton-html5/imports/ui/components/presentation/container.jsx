@@ -69,7 +69,7 @@ const PRELOAD_NEXT_SLIDE = APP_CONFIG.preloadNextSlides;
 const fetchedpresentation = {};
 
 export default lockContextContainer(
-  withTracker(({ podId, presentationIsOpen, userLocks }) => {
+  withTracker(({ podId, presentationIsOpen, userLocks, isPresentationDetached, setPresentationDetached }) => {
     const currentSlide = PresentationService.getCurrentSlide(podId);
     const numPages = PresentationService.getSlidesLength(podId);
     const presentationIsDownloadable = PresentationService.isPresentationDownloadable(podId);
@@ -133,6 +133,8 @@ export default lockContextContainer(
       notify,
       zoomSlide: PresentationToolbarService.zoomSlide,
       podId,
+      isPresentationDetached,
+      setPresentationDetached,
       publishedPoll: Meetings.findOne({ meetingId: Auth.meetingID }, {
         fields: {
           publishedPoll: 1,

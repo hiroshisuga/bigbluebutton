@@ -32,6 +32,7 @@ class ActionsBar extends PureComponent {
       isRaiseHandButtonEnabled,
       isThereCurrentPresentation,
       allowExternalVideo,
+      isMediaUploadEnabled,
       setEmojiStatus,
       currentUser,
       layoutContextDispatch,
@@ -58,6 +59,7 @@ class ActionsBar extends PureComponent {
             isPollingEnabled,
             isSelectRandomUserEnabled,
             allowExternalVideo,
+            isMediaUploadEnabled,
             handleTakePresenter,
             intl,
             isSharingVideo,
@@ -74,11 +76,7 @@ class ActionsBar extends PureComponent {
               <CaptionsButtonContainer {...{ intl }} />
             )
             : null}
-          { !deviceInfo.isMobile
-            ? (
-              <AudioCaptionsButtonContainer />
-            )
-            : null }
+          <AudioCaptionsButtonContainer />
         </Styled.Left>
         <Styled.Center>
           <AudioControlsContainer />
