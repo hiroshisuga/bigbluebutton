@@ -12,12 +12,7 @@ const ROLE_MODERATOR = Meteor.settings.public.user.role_moderator;
 const WriterMenuContainer = (props) => {
   const layoutContextDispatch = layoutDispatch();
 
-  const usingUsersContext = useContext(UsersContext);
-  const { users } = usingUsersContext;
-  const currentUser = users[Auth.meetingID][Auth.userID];
-  const amIModerator = currentUser.role === ROLE_MODERATOR;
-
-  return amIModerator && <WriterMenu {...{ layoutContextDispatch, ...props }} />;
+  return <WriterMenu {...{ layoutContextDispatch, ...props }} />;
 };
 
 export default withModalMounter(withTracker(({ mountModal }) => ({
