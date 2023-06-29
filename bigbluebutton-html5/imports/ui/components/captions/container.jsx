@@ -13,18 +13,6 @@ const Container = (props) => {
 
   const { amIModerator } = props;
 
-  if (!amIModerator) {
-    layoutContextDispatch({
-      type: ACTIONS.SET_SIDEBAR_CONTENT_IS_OPEN,
-      value: false,
-    });
-    layoutContextDispatch({
-      type: ACTIONS.SET_SIDEBAR_CONTENT_PANEL,
-      value: PANELS.NONE,
-    });
-    return null;
-  }
-
   return <Captions {...{ layoutContextDispatch, isResizing, ...props }} />;
 };
 
@@ -33,19 +21,16 @@ export default withTracker(() => {
   const {
     locale,
     name,
-    ownerId,
-    dictating,
   } = Service.getCaptions();
 
   return {
     locale,
     name,
-    ownerId,
-    dictation: Service.canIDictateThisPad(ownerId),
-    dictating,
+    amISpeaker: Service.amISpeaker(locale),
     currentUserId: Auth.userID,
     isRTL,
     hasPermission: Service.hasPermission(),
     amIModerator: Service.amIModerator(),
+    isAutoTranslated: Service.isAutoTranslated(locale),
   };
 })(Container);

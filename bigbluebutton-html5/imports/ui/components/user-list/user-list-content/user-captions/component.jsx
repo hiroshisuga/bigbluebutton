@@ -6,7 +6,6 @@ import { defineMessages, injectIntl } from 'react-intl';
 import Styled from './styles';
 
 const propTypes = {
-  ownedLocales: PropTypes.arrayOf(PropTypes.object).isRequired,
   sidebarContentPanel: PropTypes.string.isRequired,
   layoutContextDispatch: PropTypes.func.isRequired,
 };
@@ -21,12 +20,16 @@ const intlMessages = defineMessages({
 class UserCaptions extends Component {
   renderCaptions() {
     const {
-      ownedLocales,
+      ownedLocale,
       sidebarContentPanel,
       layoutContextDispatch,
     } = this.props;
 
-    return ownedLocales.map((ownedLocale) => (
+    if (!ownedLocale) {
+      return null;
+    }
+
+    return (
       <CSSTransition
         classNames="transition"
         appear
@@ -48,16 +51,16 @@ class UserCaptions extends Component {
           />
         </Styled.ListTransition>
       </CSSTransition>
-    ));
+    );
   }
 
   render() {
     const {
       intl,
-      ownedLocales,
+      ownedLocale,
     } = this.props;
 
-    if (ownedLocales.length < 1) return null;
+    if (!ownedLocale || ownedLocale === "") return null;
 
     return (
       <Styled.Messages>
