@@ -24,10 +24,20 @@ const intlMessages = defineMessages({
     id: 'app.audio.captions.button.transcription',
     description: 'Audio speech transcription label',
   },
+  translation: {
+    id: 'app.audio.captions.button.translation',
+    description: 'Audio speech translation label',
+  },
   transcriptionOn: {
     id: 'app.switch.onLabel',
   },
   transcriptionOff: {
+    id: 'app.switch.offLabel',
+  },
+  translationOn: {
+    id: 'app.switch.onLabel',
+  },
+  translationOff: {
     id: 'app.switch.offLabel',
   },
   language: {
@@ -85,24 +95,39 @@ const CaptionsButton = ({
   isRTL,
   enabled,
   currentSpeechLocale,
+  currentTranslationLocale,
   availableVoices,
+  availableTranslations,
   isSupported,
   isVoiceUser,
 }) => {
   const isTranscriptionDisabled = () => (
     currentSpeechLocale === DISABLED
   );
+  const isTranslationDisabled = () => (
+    currentTranslationLocale === DISABLED
+  );
+
+  const isTranslationActivated = () => (
+    Meteor.settings.public.captions.enableAutomaticTranslation
+  );
 
   const fallbackLocale = availableVoices.includes(navigator.language)
     ? navigator.language : DEFAULT_LOCALE;
 
   const getSelectedLocaleValue = (isTranscriptionDisabled() ? fallbackLocale : currentSpeechLocale);
+  const getSelectedTranslationLocaleValue = (isTranslationDisabled() ? fallbackLocale : currentTranslationLocale);
 
   const selectedLocale = useRef(getSelectedLocaleValue);
+  const selectedTranslationLocale = useRef(getSelectedTranslationLocaleValue);
 
   useEffect(() => {
     if (!isTranscriptionDisabled()) selectedLocale.current = getSelectedLocaleValue;
   }, [currentSpeechLocale]);
+  
+  useEffect(() => {
+    if (!isTranslationDisabled()) selectedTranslationLocale.current = getSelectedTranslationLocaleValue;
+  }, [currentTranslationLocale]);
 
   if (!enabled) return null;
 
@@ -115,12 +140,28 @@ const CaptionsButton = ({
         label: intl.formatMessage(intlMessages[availableVoice]),
         key: availableVoice,
         iconRight: selectedLocale.current === availableVoice ? 'check' : null,
-        customStyles: (selectedLocale.current === availableVoice) && Styled.SelectedLabel,
+        customStyles: (selectedLocale.current === availableVoice) ? Styled.SelectedLabel : Styled.NormalLabel,
         disabled: isTranscriptionDisabled(),
-        dividerTop: availableVoice === availableVoices[0],
         onClick: () => {
           selectedLocale.current = availableVoice;
           SpeechService.setSpeechLocale(selectedLocale.current);
+        },
+      }
+    ))
+  );
+  
+  const getAvailableTranslationLocales = () => (
+    availableTranslations.map((availableTranslation) => (
+      {
+        icon: '',
+        label: intl.formatMessage(intlMessages[availableTranslation]),
+        key: availableTranslation,
+        iconRight: selectedTranslationLocale.current === availableTranslation ? 'check' : null,
+        customStyles: (selectedTranslationLocale.current === availableTranslation) ? Styled.SelectedLabel : Styled.NormalLabel,
+        disabled: isTranscriptionDisabled() || isTranslationDisabled(),
+        onClick: () => {
+          selectedTranslationLocale.current = availableTranslation;
+          SpeechService.setTranslationLocale(selectedTranslationLocale.current);
         },
       }
     ))
@@ -130,34 +171,57 @@ const CaptionsButton = ({
     SpeechService.setSpeechLocale(isTranscriptionDisabled() ? selectedLocale.current : DISABLED);
   };
 
-  const getAvailableLocalesList = () => (
-    [{
-      key: 'availableLocalesList',
-      label: intl.formatMessage(intlMessages.language),
-      customStyles: Styled.TitleLabel,
-      disabled: true,
-      dividerTop: false,
-    },
-    ...getAvailableLocales(),
-    {
-      key: 'divider',
-      label: intl.formatMessage(intlMessages.transcription),
-      customStyles: Styled.TitleLabel,
-      disabled: true,
-    }, {
-      key: 'transcriptionStatus',
-      label: intl.formatMessage(
-        isTranscriptionDisabled()
-          ? intlMessages.transcriptionOn
-          : intlMessages.transcriptionOff,
-      ),
-      customStyles: isTranscriptionDisabled()
-        ? Styled.EnableTrascription : Styled.DisableTrascription,
-      disabled: false,
-      dividerTop: true,
-      onClick: toggleTranscription,
-    }]
-  );
+  const toggleTranslation = () => {
+    SpeechService.setTranslationLocale(isTranslationDisabled() ? selectedTranslationLocale.current : DISABLED);
+  };
+
+  const getAvailableLocalesList = () => {
+    let items = [{
+        key: 'divider',
+        label: intl.formatMessage(intlMessages.transcription),
+        customStyles: Styled.TitleLabel,
+        disabled: true,
+      },
+      ...getAvailableLocales(),
+      {
+        key: 'transcriptionStatus',
+        label: intl.formatMessage(
+          isTranscriptionDisabled()
+            ? intlMessages.transcriptionOn
+            : intlMessages.transcriptionOff,
+        ),
+        customStyles: isTranscriptionDisabled()
+          ? Styled.EnableTrascription : Styled.DisableTrascription,
+        disabled: false,
+        onClick: toggleTranscription,
+      }];
+
+    if (isTranslationActivated()) {
+      items = items.concat([
+        {
+          key: 'divider',
+          label: intl.formatMessage(intlMessages.translation),
+          customStyles: Styled.TitleLabel,
+          disabled: true,
+          dividerTop: true,
+        },
+        ...getAvailableTranslationLocales(),
+        {
+          key: 'translationStatus',
+          label: intl.formatMessage(
+            isTranslationDisabled()
+              ? intlMessages.translationOn
+              : intlMessages.translationOff,
+          ),
+          customStyles: isTranslationDisabled()
+            ? Styled.EnableTraslation : Styled.DisableTraslation,
+          disabled: isTranscriptionDisabled(),
+          onClick: toggleTranslation,
+        }
+      ]);
+    }
+    return items;
+  };
 
   const onToggleClick = (e) => {
     e.stopPropagation();
@@ -219,6 +283,7 @@ CaptionsButton.propTypes = {
   isRTL: PropTypes.bool.isRequired,
   enabled: PropTypes.bool.isRequired,
   currentSpeechLocale: PropTypes.string.isRequired,
+  currentTranslationLocale: PropTypes.string.isRequired,
   availableVoices: PropTypes.arrayOf(PropTypes.string).isRequired,
   isSupported: PropTypes.bool.isRequired,
   isVoiceUser: PropTypes.bool.isRequired,

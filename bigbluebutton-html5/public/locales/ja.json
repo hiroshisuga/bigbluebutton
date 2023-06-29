@@ -714,6 +714,7 @@
     "app.audio.captions.button.stop": "字幕を停止",
     "app.audio.captions.button.language": "言語",
     "app.audio.captions.button.transcription": "文字起こし",
+    "app.audio.captions.button.translation": "翻訳",
     "app.audio.captions.button.transcriptionSettings": "文字起こし設定",
     "app.audio.captions.speech.title": "自動文字起こし",
     "app.audio.captions.speech.disabled": "無効",

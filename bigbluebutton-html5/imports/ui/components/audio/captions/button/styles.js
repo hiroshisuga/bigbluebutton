@@ -32,6 +32,12 @@ const TranscriptionToggle = styled(Toggle)`
   padding-left: 1em;
 `;
 
+const TranslationToggle = styled(Toggle)`
+  display: flex;
+  justify-content: flex-start;
+  padding-left: 1em;
+`;
+
 const TitleLabel = {
   fontWeight: 'bold',
   opacity: 1,
@@ -39,23 +45,44 @@ const TitleLabel = {
 
 const EnableTrascription = {
   color: colorSuccess,
+  textIndent: '1em',
 };
 
 const DisableTrascription = {
   color: colorDangerDark,
+  textIndent: '1em',
+};
+
+const EnableTraslation = {
+  color: colorSuccess,
+  textIndent: '1em',
+};
+
+const DisableTraslation = {
+  color: colorDangerDark,
+  textIndent: '1em',
+};
+
+const NormalLabel = {
+  textIndent: '1em',
 };
 
 const SelectedLabel = {
   color: colorPrimary,
   backgroundColor: colorOffWhite,
+  textIndent: '1em',
 };
 
 export default {
   ClosedCaptionToggleButton,
   SpanButtonWrapper,
   TranscriptionToggle,
+  TranslationToggle,
   TitleLabel,
   EnableTrascription,
   DisableTrascription,
+  EnableTraslation,
+  DisableTraslation,
+  NormalLabel,
   SelectedLabel,
 };
