@@ -28,7 +28,7 @@ function translateText(meetingId, requesterUserId, textOri, type, src, dst) {
     let url = '';
     if (CAPTIONS_CONFIG.googleTranslateUrl) {
       url = CAPTIONS_CONFIG.googleTranslateUrl + '/exec?' +
-            'text=' + encodeURIComponent(textOri) + '&source=' + src + '&target=' + dst;
+            'text=' + encodeURIComponent(textOri) + '&source=' + src + '&target=' + dst.replace(/-..$/,'');
     } else if (CAPTIONS_CONFIG.deeplTranslateUrl) {
       url = CAPTIONS_CONFIG.deeplTranslateUrl +
             '&text=' + encodeURIComponent(textOri) + '&source_lang=' + src.replace(/-..$/,'').toUpperCase() +
