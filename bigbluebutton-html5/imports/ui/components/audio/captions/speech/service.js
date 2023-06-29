@@ -128,7 +128,7 @@ const translateTranscript = (id, text, src, dst) => {
     let url = '';
     if (CAPTIONS_CONFIG.googleTranslateUrl) {
       url = CAPTIONS_CONFIG.googleTranslateUrl + '/exec?' +
-            'text=' + encodeURIComponent(textDecap) + '&source=' + src + '&target=' + dst;
+            'text=' + encodeURIComponent(textDecap) + '&source=' + src + '&target=' + dst.replace(/-..$/,'');
     } else if (CAPTIONS_CONFIG.deeplTranslateUrl) {
       url = CAPTIONS_CONFIG.deeplTranslateUrl +
             '&text=' + encodeURIComponent(textDecap) + '&source_lang=' + src.replace(/-..$/,'').toUpperCase() +
