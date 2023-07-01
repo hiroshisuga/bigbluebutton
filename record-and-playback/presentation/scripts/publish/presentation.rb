@@ -801,6 +801,7 @@ def process_presentation(package_dir)
   slides = []
   panzooms = []
   cursors = []
+  cursors_all = {}
   shapes = {}
 
   # Iterate through the events.xml and store the events, building the
@@ -868,12 +869,10 @@ def process_presentation(package_dir)
 
     when 'WhiteboardCursorMoveEvent'
       user_id = event.at_xpath('userId')&.text
-      # Only draw cursor for current presentor. TODO multi-cursor support
-      if !user_id || user_id == presenter
-        cursor_x = event.at_xpath('xOffset').text.to_f
-        cursor_y = event.at_xpath('yOffset').text.to_f
-        cursor_visible = cursor_changed = true
-      end
+      cursor_x = event.at_xpath('xOffset').text.to_f
+      cursor_y = event.at_xpath('yOffset').text.to_f
+      cursor_visible = cursor_changed = true
+      cursor_userId = user_id if user_id && user_id != presenter
     end
     # Perform slide finalization
     if slide_changed
@@ -965,6 +964,20 @@ def process_presentation(package_dir)
           in: timestamp,
         }
         cursors << cursor
+
+        if !cursor_userId && presenter
+          if cursors_all[presenter]
+            cursors_all[presenter].push(cursor)
+          else
+            cursors_all[presenter] = [cursor]
+          end
+        elsif cursor_userId && cursor_userId != ""
+          if cursors_all[cursor_userId]
+            cursors_all[cursor_userId].push(cursor)
+          else
+            cursors_all[cursor_userId] = [cursor]
+          end
+        end
       end
     end
   end
@@ -984,6 +997,21 @@ def process_presentation(package_dir)
   cursors_doc.instruct!
   cursors_doc.recording(id: 'cursor_events') { |xml| xml << cursors_rec.target! }
 
+  cursors_all.each do |uid, cs|
+    cs.last[:out] = last_timestamp
+  end
+  cursors_all_doc = Nokogiri::XML::Builder.new do |xml|
+    xml.recording(:id => 'cursor_all_events') do
+      cursors_all.each do |uid, cs|
+        xml.user(:userId => uid) do |user|
+          cs.each do |c|
+            cursors_emit_event(user, c)
+          end
+        end
+      end
+    end
+  end
+
   panzooms_doc = Builder::XmlMarkup.new(indent: 2)
   panzooms_doc.instruct!
   panzooms_doc.recording(id: 'panzoom_events') { |xml| xml << panzooms_rec.target! }
@@ -992,6 +1020,7 @@ def process_presentation(package_dir)
   File.write("#{package_dir}/#{@shapes_svg_filename}", shapes_doc.to_xml)
   File.write("#{package_dir}/#{@panzooms_xml_filename}", panzooms_doc.target!)
   File.write("#{package_dir}/#{@cursor_xml_filename}", cursors_doc.target!)
+  File.write("#{package_dir}/#{@cursors_xml_filename}", cursors_all_doc.to_xml)
 end
 
 def process_chat_messages(events, bbb_props)
@@ -1169,6 +1198,7 @@ end
 @shapes_svg_filename = 'shapes.svg'
 @panzooms_xml_filename = 'panzooms.xml'
 @cursor_xml_filename = 'cursor.xml'
+@cursors_xml_filename = 'cursors.xml'
 @deskshare_xml_filename = 'deskshare.xml'
 @svg_shape_id = 1
 @svg_shape_unique_id = 1
