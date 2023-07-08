@@ -803,6 +803,8 @@ def process_presentation(package_dir)
   cursors = []
   cursors_all = {}
   shapes = {}
+  presenters = []
+  participants = {}
 
   # Iterate through the events.xml and store the events, building the
   # xml files as we go
@@ -861,6 +863,12 @@ def process_presentation(package_dir)
       presenter = event.at_xpath('userid').text
       cursor_visible = false
       cursor_changed = true
+      presenter_changed = true
+
+    when 'ParticipantJoinEvent'
+      name_participant = event.at_xpath('name').text
+      userId_participant = event.at_xpath('userId').text
+      participants[userId_participant] = name_participant
 
     when 'CursorMoveEvent'
       cursor_x = event.at_xpath('xOffset').text.to_f
@@ -899,6 +907,13 @@ def process_presentation(package_dir)
         events_get_image_info(slide)
         slides << slide
       end
+    end
+
+    # Presenter finalization
+    if presenter_changed &&
+      (presenters.empty? ||
+        (presenters[-1][:timestamp] != timestamp || presenters[-1][:userId] != presenter))
+      presenters << {timestamp: timestamp, userId: presenter}
     end
 
     # Perform panzoom finalization
@@ -1011,6 +1026,29 @@ def process_presentation(package_dir)
       end
     end
   end
+  #BigBlueButton.logger.info("CURSORALL #{cursors_all}")
+
+  #BigBlueButton.logger.info("PRESENTERS #{presenters}")
+  presenters_doc = Nokogiri::XML::Builder.new do |xml|
+    xml.recording(:id => 'assign_presenter_events') do
+      presenters.each do |p|
+        xml.event(:timestamp => p[:timestamp]) do
+          xml.userId(p[:userId])
+        end
+      end
+    end
+  end
+
+  #BigBlueButton.logger.info("PARTICIPANTS #{participants}")
+  participants_doc = Nokogiri::XML::Builder.new do |xml|
+    xml.recording(:id => 'participants_names') do
+      participants.each do |k, v|
+        xml.participant(:userId => k) do
+          xml.name(v)
+        end
+      end
+    end
+  end
 
   panzooms_doc = Builder::XmlMarkup.new(indent: 2)
   panzooms_doc.instruct!
@@ -1021,6 +1059,8 @@ def process_presentation(package_dir)
   File.write("#{package_dir}/#{@panzooms_xml_filename}", panzooms_doc.target!)
   File.write("#{package_dir}/#{@cursor_xml_filename}", cursors_doc.target!)
   File.write("#{package_dir}/#{@cursors_xml_filename}", cursors_all_doc.to_xml)
+  File.write("#{package_dir}/#{@presenters_xml_filename}", presenters_doc.to_xml)
+  File.write("#{package_dir}/#{@participants_xml_filename}", participants_doc.to_xml)
 end
 
 def process_chat_messages(events, bbb_props)
@@ -1199,6 +1239,8 @@ end
 @panzooms_xml_filename = 'panzooms.xml'
 @cursor_xml_filename = 'cursor.xml'
 @cursors_xml_filename = 'cursors.xml'
+@presenters_xml_filename = 'presenters.xml'
+@participants_xml_filename = 'participants.xml'
 @deskshare_xml_filename = 'deskshare.xml'
 @svg_shape_id = 1
 @svg_shape_unique_id = 1
