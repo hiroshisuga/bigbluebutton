@@ -1188,7 +1188,7 @@ def process_external_video_events(_events, package_dir)
 
       updates = []
       event[:updates].each do |update|
-        update[:timestamp] = (translate_timestamp(update[:timestamp]) / 1000).to_i
+        update[:timestamp] = (translate_timestamp(update[:timestamp]) / 1000)
         update[:type] = update[:status]
         update.delete(:status)
         update[:playing] = update[:state] == 0 ? false : true
@@ -1197,8 +1197,8 @@ def process_external_video_events(_events, package_dir)
       end
 
       external_videos_play << {
-        start_timestamp: (translate_timestamp(event[:start_timestamp]) / 1000).to_i,
-        stop_timestamp: (translate_timestamp(event[:stop_timestamp]) / 1000).to_i,
+        start_timestamp: (translate_timestamp(event[:start_timestamp]) / 1000),
+        stop_timestamp: (translate_timestamp(event[:stop_timestamp]) / 1000),
         url: event[:external_video_url],
         updates: updates
       }
