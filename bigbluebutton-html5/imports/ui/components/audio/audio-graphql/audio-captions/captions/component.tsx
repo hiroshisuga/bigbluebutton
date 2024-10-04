@@ -51,6 +51,10 @@ const intlMessages = defineMessages({
     id: 'app.audio.captions.select.hi-ID',
     description: 'Audio speech recognition indian language',
   },
+  'id-ID': {
+    id: 'app.audio.captions.select.id-ID',
+    description: 'Audio speech recognition indonesian language',
+  },
   'it-IT': {
     id: 'app.audio.captions.select.it-IT',
     description: 'Audio speech recognition italian language',
