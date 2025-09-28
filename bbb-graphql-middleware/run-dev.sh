@@ -1,2 +1,4 @@
 #!/bin/bash
-nodemon --exec go run cmd/bbb-graphql-middleware/main.go  --signal SIGTERM
+
+sudo systemctl stop bbb-graphql-middleware
+go run cmd/bbb-graphql-middleware/main.go  --signal SIGTERM

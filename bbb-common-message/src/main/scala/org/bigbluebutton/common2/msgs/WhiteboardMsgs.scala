@@ -5,10 +5,8 @@ case class AnnotationVO(id: String, annotationInfo: scala.collection.immutable.M
 
 case class PresentationPageForExport(
   page: Int,
-  xOffset: Double,
-  yOffset: Double,
-  widthRatio: Double,
-  heightRatio: Double,
+  width: Double,
+  height: Double,
   annotations: Array[AnnotationVO],
 )
 
@@ -22,6 +20,7 @@ case class ExportJob(
   jobId: String,
   jobType: String,
   filename: String,
+  serverSideFilename: String,
   presId: String,
   presLocation: String,
   allPages: Boolean,
@@ -53,7 +52,7 @@ case class SendCursorPositionPubMsgBody(whiteboardId: String, xPercent: Double, 
 
 object SendWhiteboardAnnotationsPubMsg { val NAME = "SendWhiteboardAnnotationsPubMsg" }
 case class SendWhiteboardAnnotationsPubMsg(header: BbbClientMsgHeader, body: SendWhiteboardAnnotationsPubMsgBody) extends StandardMsg
-case class SendWhiteboardAnnotationsPubMsgBody(whiteboardId: String, annotations: Array[AnnotationVO], html5InstanceId: String)
+case class SendWhiteboardAnnotationsPubMsgBody(whiteboardId: String, annotations: Array[AnnotationVO])
 
 object DeleteWhiteboardAnnotationsPubMsg { val NAME = "DeleteWhiteboardAnnotationsPubMsg" }
 case class DeleteWhiteboardAnnotationsPubMsg(header: BbbClientMsgHeader, body: DeleteWhiteboardAnnotationsPubMsgBody) extends StandardMsg
@@ -83,7 +82,7 @@ case class ModifyWhiteboardAccessEvtMsgBody(whiteboardId: String, multiUser: Arr
 
 object SendCursorPositionEvtMsg { val NAME = "SendCursorPositionEvtMsg" }
 case class SendCursorPositionEvtMsg(header: BbbClientMsgHeader, body: SendCursorPositionEvtMsgBody) extends BbbCoreMsg
-case class SendCursorPositionEvtMsgBody(whiteboardId: String, xPercent: Double, yPercent: Double)
+case class SendCursorPositionEvtMsgBody(whiteboardId: String, userIsViewer: Boolean, xPercent: Double, yPercent: Double)
 
 object SendWhiteboardAnnotationsEvtMsg { val NAME = "SendWhiteboardAnnotationsEvtMsg" }
 case class SendWhiteboardAnnotationsEvtMsg(header: BbbClientMsgHeader, body: SendWhiteboardAnnotationsEvtMsgBody) extends BbbCoreMsg

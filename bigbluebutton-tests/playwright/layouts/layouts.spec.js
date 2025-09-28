@@ -1,20 +1,14 @@
-const { test } = require('@playwright/test');
-const { encodeCustomParams } = require('../customparameters/util');
-const { PARAMETER_HIDE_PRESENTATION_TOAST } = require('../core/constants');
+const { test } = require('../fixtures');
+const { fullyParallel } = require('../playwright.config');
 const { Layouts } = require('./layouts');
+const { initializePages } = require('../core/helpers');
 
-const hidePresentationToast = encodeCustomParams(PARAMETER_HIDE_PRESENTATION_TOAST);
-
-const CUSTOM_MEETING_ID = 'layout_management_meeting';
-
-test.describe.serial('Layout management', () => {
+test.describe('Layout', { tag: '@ci' }, () => {
   const layouts = new Layouts();
 
-  test.beforeAll(async ({ browser }) => {
-    const context = await browser.newContext();
-    const page = await context.newPage();
-    await layouts.initModPage(page, true,  { customParameter: hidePresentationToast, customMeetingId: CUSTOM_MEETING_ID });
-    await layouts.initUserPage(true, context, { customParameter: hidePresentationToast });
+  test.describe.configure({ mode: fullyParallel ? 'parallel' : 'serial' });
+  test[fullyParallel ? 'beforeEach' : 'beforeAll'](async ({ browser }) => {
+    await initializePages(layouts, browser, { isMultiUser: true });
     await layouts.modPage.shareWebcam();
     await layouts.userPage.shareWebcam();
   });
@@ -23,8 +17,8 @@ test.describe.serial('Layout management', () => {
     await layouts.focusOnPresentation();
   });
 
-  test('Focus on video', async () => {
-    await layouts.focusOnVideo();
+  test('Grid Layout', async () => {
+    await layouts.gridLayout();
   });
 
   test('Smart layout', async () => {
@@ -35,7 +29,11 @@ test.describe.serial('Layout management', () => {
     await layouts.customLayout();
   });
 
-  test('Push layout to all', async () => {
-    await layouts.pushLayout();
+  test("Update everyone's layout", async () => {
+    await layouts.updateEveryone();
+  });
+
+  test("Video Pagination", async ({ browser }) => {
+    await layouts.videoPagination(browser);
   });
 });

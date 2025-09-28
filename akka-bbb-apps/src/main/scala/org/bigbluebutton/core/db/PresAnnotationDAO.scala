@@ -1,72 +1,73 @@
 package org.bigbluebutton.core.db
 
 import org.bigbluebutton.common2.msgs.AnnotationVO
-import PostgresProfile.api._
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.util.{ Failure, Success }
+import slick.jdbc.PostgresProfile.api._
 
 case class PresAnnotationDbModel(
-    annotationId:        String,
-    pageId:              String,
-    userId:              String,
-    annotationInfo:      String,
-    lastHistorySequence: Int,
-    lastUpdatedAt:       java.sql.Timestamp = new java.sql.Timestamp(System.currentTimeMillis())
+    annotationId:   String,
+    pageId:         String,
+    meetingId:      String,
+    userId:         String,
+    annotationInfo: String,
+    lastUpdatedAt:  java.sql.Timestamp = new java.sql.Timestamp(System.currentTimeMillis())
 )
 
 class PresAnnotationDbTableDef(tag: Tag) extends Table[PresAnnotationDbModel](tag, None, "pres_annotation") {
   val annotationId = column[String]("annotationId", O.PrimaryKey)
   val pageId = column[String]("pageId")
+  val meetingId = column[String]("meetingId")
   val userId = column[String]("userId")
   val annotationInfo = column[String]("annotationInfo")
-  val lastHistorySequence = column[Int]("lastHistorySequence")
   val lastUpdatedAt = column[java.sql.Timestamp]("lastUpdatedAt")
-  //  def whiteboard = foreignKey("whiteboard_fk", whiteboardId, Whiteboards)(_.whiteboardId, onDelete = ForeignKeyAction.Cascade)
-  def * = (annotationId, pageId, userId, annotationInfo, lastHistorySequence, lastUpdatedAt) <> (PresAnnotationDbModel.tupled, PresAnnotationDbModel.unapply)
+  def * = (annotationId, pageId, meetingId, userId, annotationInfo, lastUpdatedAt) <> (PresAnnotationDbModel.tupled, PresAnnotationDbModel.unapply)
 }
 
 object PresAnnotationDAO {
-  def insertOrUpdate(annotation: AnnotationVO, annotationDiff: AnnotationVO) = {
-    PresAnnotationHistoryDAO.insert(annotationDiff).onComplete {
-      case Success(sequence) => {
-        DatabaseConnection.logger.debug(s"Sequence generated to PresAnnotationHistory record: $sequence")
-        DatabaseConnection.db.run(
-          TableQuery[PresAnnotationDbTableDef].insertOrUpdate(
-            PresAnnotationDbModel(
-              annotationId = annotation.id,
-              pageId = annotation.wbId,
-              userId = annotation.userId,
-              annotationInfo = JsonUtils.mapToJson(annotation.annotationInfo),
-              lastHistorySequence = sequence.getOrElse(0),
-              lastUpdatedAt = new java.sql.Timestamp(System.currentTimeMillis())
-            )
+  // Helper method adds the synced flag into the meta field of annotations.
+  def addSynced(info: Map[String, Any]): Map[String, Any] = {
+    val currentMeta = info.get("meta") match {
+      case Some(meta: Map[String, Any] @unchecked) => meta
+      case _                                       => Map.empty[String, Any]
+    }
+    val newMeta = currentMeta ++ Map("synced" -> true)
+    info.updated("meta", newMeta)
+  }
+
+  def insertOrUpdateMap(meetingId: String, annotations: Array[AnnotationVO], annotationUpdatedAt: Long): Unit = {
+    for (annotation <- annotations) {
+      val infoWithSyncedFlag = addSynced(annotation.annotationInfo)
+
+      DatabaseConnection.enqueue(
+        sqlu"""
+          WITH upsert AS (
+            UPDATE pres_annotation
+            SET
+              "annotationInfo" = ${JsonUtils.mapToJson(infoWithSyncedFlag).compactPrint},
+              "lastUpdatedAt"  = ${new java.sql.Timestamp(annotationUpdatedAt)}
+            WHERE "annotationId" = ${annotation.id}
+            RETURNING *
           )
-        ).onComplete {
-            case Success(rowsAffected) => DatabaseConnection.logger.debug(s"$rowsAffected row(s) inserted on PresAnnotation table!")
-            case Failure(e)            => DatabaseConnection.logger.debug(s"Error inserting PresAnnotation: $e")
-          }
-
-      }
-      case Failure(e) => DatabaseConnection.logger.error(s"Error inserting PresAnnotationHistory: $e")
+          INSERT INTO pres_annotation
+            ("annotationId", "pageId", "meetingId", "userId", "annotationInfo", "lastUpdatedAt")
+          SELECT
+            ${annotation.id},
+            ${annotation.wbId},
+            $meetingId,
+            ${annotation.userId},
+            ${JsonUtils.mapToJson(infoWithSyncedFlag).compactPrint},
+            ${new java.sql.Timestamp(annotationUpdatedAt)}
+          WHERE NOT EXISTS (SELECT * FROM upsert)
+        """
+      )
     }
   }
 
-  def delete(wbId: String, userId: String, annotationId: String) = {
-
-    PresAnnotationHistoryDAO.delete(wbId, userId, annotationId).onComplete {
-      case Success(sequence) => {
-        DatabaseConnection.db.run(
-          TableQuery[PresAnnotationDbTableDef]
-            .filter(_.annotationId === annotationId)
-            .map(a => (a.annotationInfo, a.lastHistorySequence, a.lastUpdatedAt))
-            .update("", sequence.getOrElse(0), new java.sql.Timestamp(System.currentTimeMillis()))
-        ).onComplete {
-            case Success(rowsAffected) => DatabaseConnection.logger.debug(s"$rowsAffected row(s) updated annotationInfo=null on PresAnnotation table!")
-            case Failure(e)            => DatabaseConnection.logger.debug(s"Error updating annotationInfo=null PresAnnotation: $e")
-          }
-      }
-      case Failure(e) => DatabaseConnection.logger.error(s"Error inserting PresAnnotationHistory: $e")
-    }
+  def deleteAnnotations(meetingId: String, userId: String, annotationIds: Array[String], annotationUpdatedAt: Long) = {
+    DatabaseConnection.enqueue(
+      TableQuery[PresAnnotationDbTableDef]
+        .filter(_.annotationId inSet annotationIds)
+        .map(a => (a.annotationInfo, a.meetingId, a.userId, a.lastUpdatedAt))
+        .update("", meetingId, userId, new java.sql.Timestamp(annotationUpdatedAt))
+    )
   }
-
 }

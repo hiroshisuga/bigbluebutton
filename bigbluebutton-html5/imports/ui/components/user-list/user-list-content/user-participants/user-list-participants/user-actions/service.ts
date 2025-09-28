@@ -1,21 +1,15 @@
-
 import { User } from '/imports/ui/Types/user';
-import { Meeting } from '/imports/ui/Types/meeting';
-import {LockSettings, UsersPolicies} from '/imports/ui/Types/meeting';
+import {
+  LockSettings,
+  UsersPolicies,
+} from '/imports/ui/Types/meeting';
 import Auth from '/imports/ui/services/auth';
-import { EMOJI_STATUSES } from '/imports/utils/statuses';
-import { makeCall } from '/imports/ui/services/api';
-import GroupChat from '/imports/api/group-chat';
-import { indexOf, without } from '/imports/utils/array-utils';
-import AudioService from '/imports/ui/components/audio/service';
 import logger from '/imports/startup/client/logger';
-import { Session } from 'meteor/session';
-import WhiteboardService from '/imports/ui/components/whiteboard/service';
-import { throttle } from 'radash';
+import { toggleMuteMicrophone } from '/imports/ui/components/audio/audio-graphql/audio-controls/input-stream-live-selector/service';
+import { useIsPrivateChatEnabled } from '/imports/ui/services/features';
+import getFromUserSettings from '/imports/ui/services/users-settings';
 
-const PIN_WEBCAM = Meteor.settings.public.kurento.enableVideoPin;
-
-export const isVoiceOnlyUser = (userId:string) => userId.toString().startsWith('v_');
+export const isVoiceOnlyUser = (userId: string) => typeof userId === 'string' && userId.startsWith('v_');
 
 export const isMe = (userId: string) => userId === Auth.userID;
 
@@ -25,98 +19,92 @@ export const generateActionsPermissions = (
   lockSettings: LockSettings,
   usersPolicies: UsersPolicies,
   isBreakout: boolean,
-  ) => {
-
+  isMuted: boolean,
+) => {
   const subjectUserVoice = subjectUser.voice;
-
+  const subjectUserInAudio = subjectUserVoice?.joined && !subjectUserVoice?.deafened;
   const amIModerator = currentUser.isModerator;
   const isDialInUser = isVoiceOnlyUser(subjectUser.userId);
   const amISubjectUser = isMe(subjectUser.userId);
   const isSubjectUserModerator = subjectUser.isModerator;
+  // Breakout rooms mess up with role permissions
+  // A breakout room user that has a moderator role in it's parent room
+  const parentRoomModerator = getFromUserSettings('bbb_parent_room_moderator', false);
   const isSubjectUserGuest = subjectUser.guest;
   const hasAuthority = currentUser.isModerator || amISubjectUser;
-  const allowedToChatPrivately = !amISubjectUser && !isDialInUser;
-  
+  const allowedToChatPrivately = !amISubjectUser && !isDialInUser && useIsPrivateChatEnabled();
   const allowedToMuteAudio = hasAuthority
-    && subjectUserVoice?.joined
-    && !subjectUserVoice?.muted
+    && subjectUserInAudio
+    && !isMuted
     && !subjectUserVoice?.listenOnly;
 
-    const allowedToUnmuteAudio = hasAuthority
-    && subjectUserVoice?.joined
-    && !subjectUserVoice.listenOnly
-    && subjectUserVoice.muted
-    && (amISubjectUser || usersPolicies.allowModsToUnmuteUsers);  
+  const allowedToUnmuteAudio = hasAuthority
+    && subjectUserInAudio
+    && !subjectUserVoice?.listenOnly
+    && isMuted
+    && (amISubjectUser || usersPolicies?.allowModsToUnmuteUsers);
 
-    const allowedToResetStatus = hasAuthority
-    && subjectUser.emoji !== EMOJI_STATUSES.none
-    && !isDialInUser;
-
-    // if currentUser is a moderator, allow removing other users
-    const allowedToRemove = amIModerator
+  // if currentUser is a moderator, allow removing other users
+  const allowedToRemove = amIModerator
     && !amISubjectUser
-    && !isBreakout;
+    && (!isBreakout || parentRoomModerator);
 
-    const allowedToPromote = amIModerator
+  const allowedToPromote = amIModerator
     && !amISubjectUser
     && !isSubjectUserModerator
     && !isDialInUser
     && !isBreakout
-    && !(isSubjectUserGuest && usersPolicies.authenticatedGuest);
+    && !(isSubjectUserGuest && usersPolicies?.authenticatedGuest && !usersPolicies?.allowPromoteGuestToModerator);
 
-    const allowedToDemote = amIModerator
+  const allowedToDemote = amIModerator
     && !amISubjectUser
     && isSubjectUserModerator
     && !isDialInUser
     && !isBreakout
-    && !(isSubjectUserGuest && usersPolicies.authenticatedGuest);
+    && !(isSubjectUserGuest && usersPolicies?.authenticatedGuest && !usersPolicies?.allowPromoteGuestToModerator);
 
-    const allowedToChangeStatus = amISubjectUser;
-
-    const allowedToChangeUserLockStatus = amIModerator
+  const allowedToChangeUserLockStatus = amIModerator
     && !isSubjectUserModerator
-    && lockSettings.hasActiveLockSetting;
+    && lockSettings?.hasActiveLockSetting;
 
-    const allowedToChangeWhiteboardAccess = currentUser.presenter
+  const allowedToChangeWhiteboardAccess = currentUser.presenter
     && !amISubjectUser;
 
-    const allowedToEjectCameras = amIModerator
+  const allowedToEjectCameras = amIModerator
     && !amISubjectUser
-    && usersPolicies.allowModsToEjectCameras;
+    && usersPolicies?.allowModsToEjectCameras;
 
-    const allowedToSetPresenter = amIModerator
+  const allowedToSetPresenter = amIModerator
     && !subjectUser.presenter
     && !isDialInUser;
-    const allowUserLookup = Meteor.settings.public.app.allowUserLookup;
-    return {
-      allowedToChatPrivately,
-      allowedToMuteAudio,
-      allowedToUnmuteAudio,
-      allowedToResetStatus,
-      allowedToRemove,
-      allowedToSetPresenter,
-      allowedToPromote,
-      allowedToDemote,
-      allowedToChangeStatus,
-      allowedToChangeUserLockStatus,
-      allowedToChangeWhiteboardAccess,
-      allowedToEjectCameras,
-      allowUserLookup,
-    };
+
+  return {
+    allowedToChatPrivately,
+    allowedToMuteAudio,
+    allowedToUnmuteAudio,
+    allowedToRemove,
+    allowedToSetPresenter,
+    allowedToPromote,
+    allowedToDemote,
+    allowedToChangeUserLockStatus,
+    allowedToChangeWhiteboardAccess,
+    allowedToEjectCameras,
+  };
 };
 
 export const isVideoPinEnabledForCurrentUser = (
   currentUser: User,
   isBreakout: boolean,
 ) => {
-  const isModerator = currentUser;
+  const { isModerator } = currentUser;
+
+  const PIN_WEBCAM = window.meetingClientSettings.public.kurento.enableVideoPin;
   const isPinEnabled = PIN_WEBCAM;
 
   return !!(isModerator
     && isPinEnabled
     && !isBreakout);
-}
-
+};
 
 // actions
 // disclaimer: For the first version of the userlist using graphql
@@ -124,39 +112,18 @@ export const isVideoPinEnabledForCurrentUser = (
 // so this code is duplicated from the old userlist service
 // session for chats the current user started
 
-export const sendCreatePrivateChat = (receiver: User) => {
-  makeCall('createGroupChat', receiver);
-};
-
-export const setEmojiStatus = throttle({ interval: 1000 }, (userId, emoji) => {
-  const statusAvailable = (Object.keys(EMOJI_STATUSES).includes(emoji));
-  return statusAvailable
-    ? makeCall('setEmojiStatus', Auth.userID, emoji)
-    : makeCall('setEmojiStatus', userId, 'none');
-});
-
-export const toggleVoice = (userId: string) => {
+export const toggleVoice = (
+  userId: string,
+  muted: boolean,
+  voiceToggle: (userId: string, muted: boolean) => void,
+) => {
   if (userId === Auth.userID) {
-    AudioService.toggleMuteMicrophone();
+    toggleMuteMicrophone(!muted, voiceToggle);
   } else {
-    makeCall('toggleVoice', userId);
+    voiceToggle(userId, muted);
     logger.info({
       logCode: 'usermenu_option_mute_toggle_audio',
       extraInfo: { logType: 'moderator_action', userId },
     }, 'moderator muted user microphone');
   }
 };
-
-export const changeWhiteboardAccess = (userId:string, whiteboardAccess:boolean) => {
-  WhiteboardService.changeWhiteboardAccess(userId, !whiteboardAccess);
-};
-
-export const removeUser = (userId: string, banUser: boolean) => {
-  if (isVoiceOnlyUser(userId)) {
-    makeCall('ejectUserFromVoice', userId, banUser);
-  } else {
-    makeCall('removeUser', userId, banUser);
-  }
-};
-
-

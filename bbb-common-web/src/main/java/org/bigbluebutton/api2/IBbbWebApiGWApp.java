@@ -11,6 +11,7 @@ import org.bigbluebutton.api.messaging.converters.messages.EndMeetingMessage;
 import org.bigbluebutton.api.messaging.converters.messages.PublishedRecordingMessage;
 import org.bigbluebutton.api.messaging.converters.messages.UnpublishedRecordingMessage;
 import org.bigbluebutton.api.messaging.converters.messages.DeletedRecordingMessage;
+import org.bigbluebutton.api.messaging.messages.ChatMessageFromApi;
 import org.bigbluebutton.presentation.messages.IDocConversionMsg;
 
 public interface IBbbWebApiGWApp {
@@ -24,10 +25,29 @@ public interface IBbbWebApiGWApp {
                      Integer meetingCameraCap,
                      Integer userCameraCap,
                      Integer maxPinnedCameras,
-                     String moderatorPass, String viewerPass, String learningDashboardAccessToken, Long createTime,
-                     String createDate, Boolean isBreakout, Integer sequence, Boolean freejoin, Map<String, String> metadata,
-                     String guestPolicy, Boolean authenticatedGuest, String meetingLayout, String welcomeMsgTemplate, String welcomeMsg, String modOnlyMessage,
-                     String dialNumber, Integer maxUsers, Integer maxUserConcurrentAccesses,
+                     String cameraBridge,
+                     String screenShareBridge,
+                     String audioBridge,
+                     String moderatorPass,
+                     String viewerPass,
+                     String learningDashboardAccessToken,
+                     Long createTime,
+                     String createDate,
+                     Boolean isBreakout,
+                     Integer sequence,
+                     Boolean freejoin,
+                     Map<String, String> metadata,
+                     String guestPolicy,
+                     Boolean authenticatedGuest,
+                     Boolean allowPromoteGuestToModerator,
+                     Long waitingGuestUsersTimeout,
+                     String meetingLayout,
+                     String welcomeMsgTemplate,
+                     String welcomeMsg,
+                     String welcomeMsgForModerators,
+                     String dialNumber,
+                     Integer maxUsers,
+                     Integer maxUserConcurrentAccesses,
                      Integer meetingExpireIfNoUserJoinedInMinutes,
                      Integer meetingExpireWhenLastUserLeftInMinutes,
                      Integer userInactivityInspectTimerInMinutes,
@@ -41,18 +61,27 @@ public interface IBbbWebApiGWApp {
                      Boolean keepEvents,
                      BreakoutRoomsParams breakoutParams,
                      LockSettingsParams lockSettingsParams,
-                     Integer html5InstanceId,
+                     String loginUrl,
+                     String logoutUrl,
+                     String customLogoURL,
+                     String customDarkLogoURL,
+                     String bannerText,
+                     String bannerColor,
                      ArrayList<Group> groups,
                      ArrayList<String> disabledFeatures,
                      Boolean notifyRecordingIsOn,
                      String presentationUploadExternalDescription,
-                     String presentationUploadExternalUrl);
+                     String presentationUploadExternalUrl,
+                     Map<String, Object> plugins,
+                     String html5PluginSdkVersion,
+                     String overrideClientSettings);
 
-  void registerUser(String meetingID, String internalUserId, String fullname, String role,
-                    String externUserID, String authToken, String sessionToken, String avatarURL,
-                    Boolean guest, Boolean authed, String guestStatus, Boolean excludeFromDashboard,
-                    Map<String, String> customParameters);
-  void guestWaitingLeft(String meetingID, String internalUserId);
+  void registerUser(String meetingID, String internalUserId, String fullname, String firstName, String lastName, String role,
+                    String externUserID, String authToken, String sessionToken, String avatarURL, String webcamBackgroundURL,
+                    Boolean bot, Boolean guest, Boolean authed, String guestStatus, Boolean excludeFromDashboard,
+                    String enforceLayout, String logoutUrl, Map<String, String> userMetadata);
+  void registerUserSessionToken(String meetingID, String internalUserId, String sessionToken, String sessionName,
+                                String replaceSessionToken, String enforceLayout, Map<String, String> userSessionMetadata);
 
   void destroyMeeting(DestroyMeetingMessage msg);
   void endMeeting(EndMeetingMessage msg);
@@ -61,4 +90,5 @@ public interface IBbbWebApiGWApp {
   void unpublishedRecording(UnpublishedRecordingMessage msg);
   void deletedRecording(DeletedRecordingMessage msg);
   void sendDocConversionMsg(IDocConversionMsg msg);
+  void sendChatMessage(ChatMessageFromApi msg);
 }

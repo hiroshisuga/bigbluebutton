@@ -5,14 +5,6 @@ import org.bigbluebutton.core2.{ MeetingStatus2x }
 import scala.collection.immutable.HashMap
 
 object Pads {
-  def hasCaptionsAccess(liveMeeting: LiveMeeting, userId: String, captions: String): Boolean = {
-    // Is user a moderator AND
-    // Is user the captions' owner
-    Users2x.findWithIntId(liveMeeting.users2x, userId) match {
-      case Some(user) => user.role == "MODERATOR" && liveMeeting.captionModel.isUserCaptionOwner(userId, captions)
-      case _          => false
-    }
-  }
 
   def hasNotesAccess(liveMeeting: LiveMeeting, userId: String): Boolean = {
     // Is user a moderator OR
@@ -28,9 +20,8 @@ object Pads {
     getGroup(liveMeeting.pads, externalId) match {
       case Some(group) => {
         group.model match {
-          case "captions" => hasCaptionsAccess(liveMeeting, userId, group.name)
-          case "notes"    => hasNotesAccess(liveMeeting, userId)
-          case _          => false
+          case "notes" => hasNotesAccess(liveMeeting, userId)
+          case _       => false
         }
       }
       case _ => false
@@ -45,6 +36,10 @@ object Pads {
 
   def setGroupId(pads: Pads, externalId: String, groupId: String): Unit = pads.setGroupId(externalId, groupId)
 
+  def setPadId(pads: Pads, externalId: String, padId: String): Unit = pads.setGroupPadId(externalId, padId)
+
+  def setRev(pads: Pads, externalId: String, rev: Int): Unit = pads.setGroupRev(externalId, rev)
+
   def getGroupById(pads: Pads, groupId: String): Option[PadGroup] = pads.getGroupById(groupId)
 }
 
@@ -54,13 +49,31 @@ class Pads {
   def addGroup(externalId: String, model: String, name: String, userId: String): Unit = groups += externalId -> new PadGroup(externalId, model, name, userId)
 
   def setGroupId(externalId: String, groupId: String): Unit = {
-    groups.get(externalId) match {
-      case Some(group) => groups += externalId -> new PadGroup(externalId, group.model, group.name, group.userId, groupId)
-      case _           =>
+    for {
+      group <- groups.get(externalId)
+    } yield {
+      groups += externalId -> group.copy(groupId = groupId)
+    }
+  }
+
+  def setGroupPadId(externalId: String, padId: String): Unit = {
+    for {
+      group <- groups.get(externalId)
+    } yield {
+      groups += externalId -> group.copy(padId = padId)
+    }
+  }
+
+  def setGroupRev(externalId: String, rev: Int): Unit = {
+    for {
+      group <- groups.get(externalId)
+    } yield {
+      groups += externalId -> group.copy(rev = rev)
     }
   }
 
   def getGroupById(groupId: String): Option[PadGroup] = groups.values.find(_.groupId == groupId)
+
 }
 
-class PadGroup(val externalId: String, val model: String, val name: String, val userId: String, val groupId: String = "")
+case class PadGroup(val externalId: String, val model: String, val name: String, val userId: String, val groupId: String = "", padId: String = "", rev: Int = 0)

@@ -1,11 +1,9 @@
 import React, { PureComponent } from 'react';
 import PropTypes from 'prop-types';
 import { defineMessages, injectIntl } from 'react-intl';
-import { Meteor } from 'meteor/meteor';
-import { Session } from 'meteor/session';
-import AudioManager from '/imports/ui/services/audio-manager';
-import logger from '/imports/startup/client/logger';
+import Session from '/imports/ui/services/storage/in-memory';
 import Styled from './styles';
+import intlHolder from '../../core/singletons/intlHolder';
 
 const intlMessages = defineMessages({
   503: {
@@ -73,48 +71,68 @@ const intlMessages = defineMessages({
   able_to_rejoin_user_disconnected_reason: {
     id: 'app.error.disconnected.rejoin',
   },
+  user_not_found: {
+    id: 'app.error.userNotFound',
+  },
+  request_timeout: {
+    id: 'app.error.requestTimeout',
+  },
+  meeting_not_found: {
+    id: 'app.error.meetingNotFound',
+  },
+  session_token_replaced: {
+    id: 'app.error.sessionTokenReplaced',
+  },
+  internal_error: {
+    id: 'app.error.serverInternalError',
+  },
+  param_missing: {
+    id: 'app.error.paramMissing',
+  },
+  too_many_connections: {
+    id: 'app.error.tooManyConnections',
+  },
+  server_closed: {
+    id: 'app.error.serverClosed',
+  },
 });
 
 const propTypes = {
-  code: PropTypes.oneOfType([
-    PropTypes.string,
-    PropTypes.number,
-  ]),
+  error: PropTypes.object,
 };
 
 const defaultProps = {
-  code: '500',
-  callback: async () => {},
+  callback: () => {},
+  endedReason: null,
+  error: {},
 };
 
 class ErrorScreen extends PureComponent {
   componentDidMount() {
-    const { code, callback } = this.props;
-    const log = code === '403' ? 'warn' : 'error';
-    AudioManager.exitAudio();
-    callback().finally(() => {
-      Meteor.disconnect();
-    });
-    logger[log]({ logCode: 'startup_client_usercouldnotlogin_error' }, `User could not log in HTML5, hit ${code}`);
+    const { callback, endedReason } = this.props;
+    // stop audio
+    callback(endedReason, () => {});
   }
 
   render() {
     const {
-      intl,
-      code,
       children,
+      error,
     } = this.props;
+    const formatedMessage = 'Oops, something went wrong';
+    let errorMessageDescription = Session.getItem('errorMessageDescription');
+    const intl = intlHolder.getIntl();
 
-    let formatedMessage = intl.formatMessage(intlMessages[defaultProps.code]);
-
-    if (code in intlMessages) {
-      formatedMessage = intl.formatMessage(intlMessages[code]);
+    if (error) {
+      errorMessageDescription = error.message;
     }
 
-    let errorMessageDescription = Session.get('errorMessageDescription');
+    if (intl) {
+      errorMessageDescription = Session.getItem('errorMessageDescription');
 
-    if (errorMessageDescription in intlMessages) {
-      errorMessageDescription = intl.formatMessage(intlMessages[errorMessageDescription]);
+      if (errorMessageDescription in intlMessages) {
+        errorMessageDescription = intl.formatMessage(intlMessages[errorMessageDescription]);
+      }
     }
 
     return (
@@ -131,10 +149,6 @@ class ErrorScreen extends PureComponent {
             </Styled.SessionMessage>
           )
         }
-        <Styled.Separator />
-        <Styled.CodeError>
-          {code}
-        </Styled.CodeError>
         <div>
           {children}
         </div>
@@ -144,6 +158,8 @@ class ErrorScreen extends PureComponent {
 }
 
 export default injectIntl(ErrorScreen);
+
+export { ErrorScreen };
 
 ErrorScreen.propTypes = propTypes;
 ErrorScreen.defaultProps = defaultProps;

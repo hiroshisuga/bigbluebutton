@@ -1,6 +1,6 @@
 import styled from 'styled-components';
-import { colorDanger, colorGrayDark } from '/imports/ui/stylesheets/styled-components/palette';
-import { borderSize } from '/imports/ui/stylesheets/styled-components/general';
+import { colorGrayDark } from '/imports/ui/stylesheets/styled-components/palette';
+import { smPaddingY } from '/imports/ui/stylesheets/styled-components/general';
 import { fontSizeSmaller, fontSizeBase } from '/imports/ui/stylesheets/styled-components/typography';
 
 const SingleTyper = styled.span`
@@ -38,31 +38,15 @@ const TypingIndicator = styled.span`
 `;
 
 const TypingIndicatorWrapper = styled.div`
-  ${({ error }) => error && `
-    color: ${colorDanger};
-    font-size: calc(${fontSizeBase} * .75);
-    color: ${colorGrayDark};
-    text-align: left;
-    padding: ${borderSize} 0;
-    position: relative;
-    height: .93rem;
-    max-height: .93rem;
-  `}
-
-  ${({ info }) => info && `
-    font-size: calc(${fontSizeBase} * .75);
-    color: ${colorGrayDark};
-    text-align: left;
-    padding: ${borderSize} 0;
-    position: relative;
-    height: .93rem;
-    max-height: .93rem;
-  `}
-
-  ${({ spacer }) => spacer && `
-    height: .93rem;
-    max-height: .93rem;
-  `}
+  font-size: calc(${fontSizeBase} * .75);
+  color: ${colorGrayDark};
+  text-align: left;
+  vertical-align: top;
+  padding: ${smPaddingY} ${smPaddingY} 0;
+  height: 1.5rem;
+  max-height: 1.5rem;
+  line-height: 1;
+  overflow-y: hidden;
 `;
 
 export default {

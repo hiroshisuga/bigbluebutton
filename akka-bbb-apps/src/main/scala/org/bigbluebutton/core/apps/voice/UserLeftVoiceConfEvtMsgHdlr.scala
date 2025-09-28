@@ -4,6 +4,7 @@ import org.bigbluebutton.common2.msgs._
 import org.bigbluebutton.core.models._
 import org.bigbluebutton.core.apps.users.UsersApp
 import org.bigbluebutton.core.apps.breakout.BreakoutHdlrHelpers
+import org.bigbluebutton.core.db.UserDAO
 import org.bigbluebutton.core.running.{ LiveMeeting, MeetingActor, OutMsgRouter }
 
 trait UserLeftVoiceConfEvtMsgHdlr {
@@ -39,14 +40,25 @@ trait UserLeftVoiceConfEvtMsgHdlr {
         UsersApp.guestWaitingLeft(liveMeeting, user.intId, outGW)
       }
       Users2x.remove(liveMeeting.users2x, user.intId)
+      UserDAO.softDelete(user.meetingId, user.intId)
       VoiceApp.removeUserFromVoiceConf(liveMeeting, outGW, msg.body.voiceUserId)
     }
 
     for {
       user <- VoiceUsers.findWithVoiceUserId(liveMeeting.voiceUsers, msg.body.voiceUserId)
     } yield {
-      VoiceUsers.removeWithIntId(liveMeeting.voiceUsers, user.intId)
+      AudioFloorManager.handleUserLeftVoice(
+        user.intId,
+        System.currentTimeMillis(),
+        liveMeeting,
+        outGW
+      )
+      VoiceUsers.removeWithIntId(liveMeeting.voiceUsers, liveMeeting.props.meetingProp.intId, user.intId)
       broadcastEvent(user)
+
+      if (!user.listenOnly) {
+        VoiceApp.enforceMuteOnStartThreshold(liveMeeting, outGW)
+      }
     }
 
     if (liveMeeting.props.meetingProp.isBreakout) {

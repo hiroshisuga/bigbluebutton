@@ -4,6 +4,7 @@ import org.bigbluebutton.core.running.MeetingActor
 import java.net.URLEncoder
 import scala.collection.SortedSet
 import org.apache.commons.codec.digest.DigestUtils
+import org.bigbluebutton.SystemConfiguration
 
 trait BreakoutApp2x extends BreakoutRoomCreatedMsgHdlr
   with BreakoutRoomsListMsgHdlr
@@ -15,6 +16,7 @@ trait BreakoutApp2x extends BreakoutRoomCreatedMsgHdlr
   with SendMessageToAllBreakoutRoomsMsgHdlr
   with SendMessageToBreakoutRoomInternalMsgHdlr
   with RequestBreakoutJoinURLReqMsgHdlr
+  with SetBreakoutRoomInviteDismissedReqMsgHdlr
   with SendBreakoutUsersUpdateMsgHdlr
   with TransferUserToMeetingRequestHdlr
   with EndBreakoutRoomInternalMsgHdlr
@@ -26,7 +28,7 @@ trait BreakoutApp2x extends BreakoutRoomCreatedMsgHdlr
 
 }
 
-object BreakoutRoomsUtil {
+object BreakoutRoomsUtil extends SystemConfiguration {
   def createMeetingIds(id: String, index: Int): (String, String) = {
     val timeStamp = System.currentTimeMillis()
     val externalHash = DigestUtils.sha1Hex(id.concat("-").concat(timeStamp.toString()).concat("-").concat(index.toString()))
@@ -48,20 +50,36 @@ object BreakoutRoomsUtil {
   //checksum() -- Return a checksum based on SHA-1 digest
   //
   def checksum(s: String): String = {
-    DigestUtils.sha256Hex(s);
+    checkSumAlgorithmForBreakouts match {
+      case "sha1"   => DigestUtils.sha1Hex(s);
+      case "sha256" => DigestUtils.sha256Hex(s);
+      case "sha384" => DigestUtils.sha384Hex(s);
+      case "sha512" => DigestUtils.sha512Hex(s);
+      case _        => DigestUtils.sha256Hex(s); // default
+    }
   }
 
   def calculateChecksum(apiCall: String, baseString: String, sharedSecret: String): String = {
     checksum(apiCall.concat(baseString).concat(sharedSecret))
   }
 
-  def joinParams(username: String, userId: String, isBreakout: Boolean, breakoutMeetingId: String,
-                 password: String): (collection.immutable.Map[String, String], collection.immutable.Map[String, String]) = {
+  def joinParams(
+      username:          String,
+      userId:            String,
+      isBreakout:        Boolean,
+      breakoutMeetingId: String,
+      avatarURL:         String,
+      role:              String,
+      password:          String
+  ): (collection.immutable.Map[String, String], collection.immutable.Map[String, String]) = {
+    val moderator = role == "MODERATOR"
     val params = collection.immutable.HashMap(
       "fullName" -> urlEncode(username),
       "userID" -> urlEncode(userId),
       "isBreakout" -> urlEncode(isBreakout.toString()),
       "meetingID" -> urlEncode(breakoutMeetingId),
+      "avatarURL" -> urlEncode(avatarURL),
+      "userdata-bbb_parent_room_moderator" -> urlEncode(moderator.toString()),
       "password" -> urlEncode(password),
       "redirect" -> urlEncode("true")
     )

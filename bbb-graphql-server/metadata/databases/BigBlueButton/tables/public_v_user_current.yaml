@@ -7,32 +7,35 @@ configuration:
   custom_name: user_current
   custom_root_fields: {}
 object_relationships:
-  - name: breakoutRooms
+  - name: breakoutRoomsSummary
     using:
       manual_configuration:
         column_mapping:
-          meetingId: parentMeetingId
+          meetingId: meetingId
+          userId: userId
         insertion_order: null
         remote_table:
-          name: v_breakoutRoom
+          name: v_breakoutRoom_user_summary
           schema: public
   - name: connectionStatus
     using:
       manual_configuration:
         column_mapping:
+          meetingId: meetingId
           userId: userId
         insertion_order: null
         remote_table:
-          name: user_connectionStatus
+          name: v_user_connectionStatus
           schema: public
-  - name: customParameters
+  - name: guestStatusDetails
     using:
       manual_configuration:
         column_mapping:
+          meetingId: meetingId
           userId: userId
         insertion_order: null
         remote_table:
-          name: v_user_customParameter
+          name: v_user_guest
           schema: public
   - name: lastBreakoutRoom
     using:
@@ -43,14 +46,15 @@ object_relationships:
         remote_table:
           name: v_user_breakoutRoom
           schema: public
-  - name: localSettings
+  - name: livekit
     using:
       manual_configuration:
         column_mapping:
+          meetingId: meetingId
           userId: userId
         insertion_order: null
         remote_table:
-          name: user_localSettings
+          name: v_user_livekit
           schema: public
   - name: meeting
     using:
@@ -59,22 +63,103 @@ object_relationships:
           meetingId: meetingId
         insertion_order: null
         remote_table:
-          name: meeting
+          name: v_meeting
+          schema: public
+  - name: sessionCurrent
+    using:
+      manual_configuration:
+        column_mapping:
+          meetingId: meetingId
+          userId: userId
+        insertion_order: null
+        remote_table:
+          name: v_user_session_current
+          schema: public
+  - name: sharedNotesSession
+    using:
+      manual_configuration:
+        column_mapping:
+          meetingId: meetingId
+          userId: userId
+        insertion_order: null
+        remote_table:
+          name: v_sharedNotes_session
+          schema: public
+  - name: transcriptionError
+    using:
+      manual_configuration:
+        column_mapping:
+          meetingId: meetingId
+          userId: userId
+        insertion_order: null
+        remote_table:
+          name: v_user_transcriptionError
+          schema: public
+  - name: userClientSettings
+    using:
+      manual_configuration:
+        column_mapping:
+          meetingId: meetingId
+          userId: userId
+        insertion_order: null
+        remote_table:
+          name: v_user_clientSettings
+          schema: public
+  - name: userLockSettings
+    using:
+      manual_configuration:
+        column_mapping:
+          meetingId: meetingId
+          userId: userId
+        insertion_order: null
+        remote_table:
+          name: v_user_lockSettings
+          schema: public
+  - name: userMetadata
+    using:
+      manual_configuration:
+        column_mapping:
+          meetingId: meetingId
+          userId: userId
+        insertion_order: null
+        remote_table:
+          name: v_user_metadata
           schema: public
   - name: voice
     using:
       manual_configuration:
         column_mapping:
+          meetingId: meetingId
           userId: userId
         insertion_order: null
         remote_table:
           name: v_user_voice
           schema: public
+  - name: welcomeMsgs
+    using:
+      manual_configuration:
+        column_mapping:
+          meetingId: meetingId
+          userId: userId
+        insertion_order: null
+        remote_table:
+          name: v_user_welcomeMsgs
+          schema: public
 array_relationships:
+  - name: breakoutRooms
+    using:
+      manual_configuration:
+        column_mapping:
+          meetingId: parentMeetingId
+        insertion_order: null
+        remote_table:
+          name: v_breakoutRoom
+          schema: public
   - name: cameras
     using:
       manual_configuration:
         column_mapping:
+          meetingId: meetingId
           userId: userId
         insertion_order: null
         remote_table:
@@ -84,6 +169,7 @@ array_relationships:
     using:
       manual_configuration:
         column_mapping:
+          meetingId: meetingId
           userId: userId
         insertion_order: null
         remote_table:
@@ -103,28 +189,53 @@ select_permissions:
   - role: bbb_client
     permission:
       columns:
+        - authToken
         - authed
         - avatar
+        - webcamBackground
+        - away
         - banned
+        - captionLocale
         - clientType
         - color
-        - emoji
+        - disconnected
+        - echoTestRunningAt
+        - ejectReason
+        - ejectReasonCode
+        - ejected
+        - enforceLayout
+        - logoutUrl
+        - expired
         - extId
         - guest
         - guestStatus
         - hasDrawPermissionOnCurrentPage
+        - inactivityWarningDisplay
+        - inactivityWarningTimeoutSecs
         - isDialIn
         - isModerator
+        - currentlyInMeeting
+        - isRunningEchoTest
+        - joinErrorCode
+        - joinErrorMessage
         - joined
-        - disconnected
         - locked
         - loggedOut
         - mobile
         - name
+        - nameSortable
+        - firstName
+        - firstNameSortable
+        - lastName
+        - lastNameSortable
         - pinned
         - presenter
+        - raiseHand
+        - reactionEmoji
+        - registeredAt
         - registeredOn
         - role
+        - speechLocale
         - userId
       filter:
         _and:
@@ -132,3 +243,61 @@ select_permissions:
               _eq: X-Hasura-MeetingId
           - userId:
               _eq: X-Hasura-UserId
+  - role: bbb_client_not_in_meeting
+    permission:
+      columns:
+        - authToken
+        - authed
+        - avatar
+        - away
+        - banned
+        - captionLocale
+        - clientType
+        - color
+        - currentlyInMeeting
+        - disconnected
+        - echoTestRunningAt
+        - ejectReason
+        - ejectReasonCode
+        - ejected
+        - enforceLayout
+        - expired
+        - extId
+        - firstName
+        - firstNameSortable
+        - guest
+        - guestStatus
+        - hasDrawPermissionOnCurrentPage
+        - inactivityWarningDisplay
+        - inactivityWarningTimeoutSecs
+        - isDialIn
+        - isModerator
+        - isRunningEchoTest
+        - joinErrorCode
+        - joinErrorMessage
+        - joined
+        - lastName
+        - lastNameSortable
+        - locked
+        - loggedOut
+        - logoutUrl
+        - mobile
+        - name
+        - nameSortable
+        - pinned
+        - presenter
+        - raiseHand
+        - reactionEmoji
+        - registeredAt
+        - registeredOn
+        - role
+        - speechLocale
+        - userId
+        - webcamBackground
+      filter:
+        _and:
+          - meetingId:
+              _eq: X-Hasura-MeetingId
+          - userId:
+              _eq: X-Hasura-UserId
+    comment: ""

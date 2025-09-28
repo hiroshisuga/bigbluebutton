@@ -1,6 +1,10 @@
 package org.bigbluebutton
 
-import scala.util.Try
+import java.util.concurrent.TimeUnit
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
+
+import scala.util.{ Failure, Success, Try }
 import com.typesafe.config.ConfigFactory
 
 trait SystemConfiguration {
@@ -10,9 +14,13 @@ trait SystemConfiguration {
   lazy val bbbWebPort = Try(config.getInt("services.bbbWebPort")).getOrElse(8888)
   lazy val bbbWebAPI = Try(config.getString("services.bbbWebAPI")).getOrElse("localhost")
   lazy val bbbWebSharedSecret = Try(config.getString("services.sharedSecret")).getOrElse("changeme")
+  lazy val checkSumAlgorithmForBreakouts = Try(config.getString("services.checkSumAlgorithmForBreakouts")).getOrElse("sha256")
   lazy val bbbWebModeratorPassword = Try(config.getString("services.moderatorPassword")).getOrElse("changeme")
   lazy val bbbWebViewerPassword = Try(config.getString("services.viewerPassword")).getOrElse("changeme")
   lazy val keysExpiresInSec = Try(config.getInt("redis.keyExpiry")).getOrElse(14 * 86400) // 14 days
+
+  // Graphql Middleware API url
+  lazy val graphqlMiddlewareAPI = Try(config.getString("services.graphqlMiddlewareAPI")).getOrElse("http://127.0.0.1:8378")
 
   lazy val expireLastUserLeft = Try(config.getInt("expire.lastUserLeft")).getOrElse(60) // 1 minute
   lazy val expireNeverJoined = Try(config.getInt("expire.neverJoined")).getOrElse(5 * 60) // 5 minutes
@@ -37,10 +45,25 @@ trait SystemConfiguration {
 
   lazy val voiceConfRecordPath = Try(config.getString("voiceConf.recordPath")).getOrElse("/var/freeswitch/meetings")
   lazy val voiceConfRecordCodec = Try(config.getString("voiceConf.recordCodec")).getOrElse("wav")
+  lazy val voiceConfRecordEnableFileSplitter = Try(config.getBoolean("voiceConf.recordEnableFileSplitter")).getOrElse(false)
+  lazy val voiceConfRecordFileSplitterIntervalInMinutes = Try(config.getInt("voiceConf.recordFileSplitterIntervalInMinutes")).getOrElse(15)
   lazy val checkVoiceRecordingInterval = Try(config.getInt("voiceConf.checkRecordingInterval")).getOrElse(19)
   lazy val syncVoiceUsersStatusInterval = Try(config.getInt("voiceConf.syncUserStatusInterval")).getOrElse(43)
   lazy val ejectRogueVoiceUsers = Try(config.getBoolean("voiceConf.ejectRogueVoiceUsers")).getOrElse(true)
   lazy val dialInApprovalAudioPath = Try(config.getString("voiceConf.dialInApprovalAudioPath")).getOrElse("ivr/ivr-please_hold_while_party_contacted.wav")
+  lazy val toggleListenOnlyAfterMuteTimer = Try(config.getInt("voiceConf.toggleListenOnlyAfterMuteTimer")).getOrElse(4)
+  lazy val transparentListenOnlyThreshold = Try(config.getInt("voiceConf.transparentListenOnlyThreshold")).getOrElse(0)
+  lazy val muteOnStartThreshold = Try(config.getInt("voiceConf.muteOnStartThreshold")).getOrElse(0)
+  lazy val dialInEnforceGuestPolicy = Try(config.getBoolean("voiceConf.dialInEnforceGuestPolicy")).getOrElse(true)
+  lazy val floorEnabled = Try(config.getBoolean("voiceConf.floorControl.enabled")).getOrElse(false)
+  lazy val minTalkingDuration = Try(config.getDuration(
+    "voiceConf.floorControl.minTalkingDuration",
+    java.util.concurrent.TimeUnit.MILLISECONDS
+  )).getOrElse(2000L)
+  lazy val floorSwitchCooldown = Try(config.getDuration(
+    "voiceConf.floorControl.floorSwitchCooldown",
+    java.util.concurrent.TimeUnit.MILLISECONDS
+  )).getOrElse(500L)
 
   lazy val recordingChapterBreakLengthInMinutes = Try(config.getInt("recording.chapterBreakLengthInMinutes")).getOrElse(0)
 
@@ -75,6 +98,13 @@ trait SystemConfiguration {
   lazy val fromBbbWebRedisChannel = Try(config.getString("redis.fromBbbWebRedisChannel")).getOrElse("from-bbb-web-redis-channel")
 
   lazy val analyticsIncludeChat = Try(config.getBoolean("analytics.includeChat")).getOrElse(true)
+
+  lazy val clientSettingsPath = Try(config.getString("client.clientSettingsFilePath")).getOrElse(
+    "/usr/share/bigbluebutton/html5-client/private/config/settings.yml"
+  )
+  lazy val clientSettingsPathOverride = Try(config.getString("client.clientSettingsOverrideFilePath")).getOrElse(
+    "/etc/bigbluebutton/bbb-html5.yml"
+  )
 
   // Grab the "interface" parameter from the http config
   val httpHost = config.getString("http.interface")

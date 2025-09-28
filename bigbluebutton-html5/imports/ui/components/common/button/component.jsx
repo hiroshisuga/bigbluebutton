@@ -5,6 +5,7 @@ import TooltipContainer from '/imports/ui/components/common/tooltip/container';
 import Styled from './styles';
 import BaseButton from './base/component';
 import ButtonEmoji from './button-emoji/ButtonEmoji';
+import { getSettingsSingletonInstance } from '/imports/ui/services/settings';
 
 const SIZES = [
   'jumbo', 'lg', 'md', 'sm',
@@ -55,6 +56,13 @@ const propTypes = {
   icon: PropTypes.string,
 
   /**
+   * Defines the button svg icon
+   * @defaultValue undefined
+   */
+
+  svgIcon: PropTypes.string,
+
+  /**
    * Defines the button icon is on the right side
    * @defaultValue false
    */
@@ -70,9 +78,22 @@ const propTypes = {
    * Optional SVG / html object can be passed to the button as an icon
    * Has to be styled before being sent to the Button
    * (e.g width, height, position and percentage-based object's coordinates)
-   * @defaultvalue undefined
+   * @defaultValue undefined
    */
   customIcon: PropTypes.node,
+
+  /**
+   * Defines the button loading state
+   * @defaultValue false
+   */
+  loading: PropTypes.bool,
+
+  /**
+   * Defines a data-test attribute for testing purposes
+   * @type {string}
+   * @defaultValue ''
+   */
+  dataTest: PropTypes.string,
 };
 
 const defaultProps = {
@@ -85,12 +106,15 @@ const defaultProps = {
   iconRight: false,
   hideLabel: false,
   tooltipLabel: '',
+  loading: false,
+  dataTest: '',
 };
 
 export default class Button extends BaseButton {
   _cleanProps(otherProps) {
     const remainingProps = Object.assign({}, otherProps);
     delete remainingProps.icon;
+    delete remainingProps.svgIcon;
     delete remainingProps.customIcon;
     delete remainingProps.size;
     delete remainingProps.color;
@@ -154,6 +178,8 @@ export default class Button extends BaseButton {
       ghost,
       circle,
       block,
+      loading,
+      dataTest,
       ...otherProps
     } = this.props;
 
@@ -168,6 +194,8 @@ export default class Button extends BaseButton {
         block={block}
         className={className}
         iconRight={iconRight}
+        loading={loading}
+        data-test={dataTest}
         {...remainingProps}
       >
         {this.renderIcon()}
@@ -186,10 +214,14 @@ export default class Button extends BaseButton {
       ghost,
       circle,
       block,
+      loading,
+      dataTest,
       ...otherProps
     } = this.props;
 
     const remainingProps = this._cleanProps(otherProps);
+    const Settings = getSettingsSingletonInstance();
+    const animations = Settings?.application?.animations;
 
     return (
       <Styled.ButtonWrapper
@@ -199,6 +231,9 @@ export default class Button extends BaseButton {
         ghost={ghost}
         circle={circle}
         block={block}
+        loading={loading}
+        data-test={dataTest}
+        animations={animations}
         {...remainingProps}
       >
         {this.renderButtonEmojiSibling()}
@@ -229,8 +264,13 @@ export default class Button extends BaseButton {
   renderIcon() {
     const {
       icon: iconName,
+      svgIcon,
       customIcon,
     } = this.props;
+
+    if (svgIcon) {
+      return (<Styled.ButtonSvgIcon iconName={svgIcon} wrapped />);
+    }
 
     if (iconName) {
       return (<Styled.ButtonIcon iconName={iconName} />);
@@ -243,6 +283,8 @@ export default class Button extends BaseButton {
 
   renderLabel() {
     const { label, hideLabel } = this.props;
+
+    if (!label) return null;
 
     return (
       <Styled.ButtonLabel hideLabel={hideLabel}>

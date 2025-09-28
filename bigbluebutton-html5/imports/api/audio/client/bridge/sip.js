@@ -14,42 +14,18 @@ import {
   logSelectedCandidate,
   forceDisableStereo,
 } from '/imports/utils/sdpUtils';
-import { Tracker } from 'meteor/tracker';
-import VoiceCallStates from '/imports/api/voice-call-states';
-import CallStateOptions from '/imports/api/voice-call-states/utils/callStates';
-import Auth from '/imports/ui/services/auth';
 import browserInfo from '/imports/utils/browserInfo';
 import {
-  getCurrentAudioSessionNumber,
   getAudioSessionNumber,
   getAudioConstraints,
   filterSupportedConstraints,
   doGUM,
+  stereoUnsupported,
 } from '/imports/api/audio/client/bridge/service';
-import SpeechService from '/imports/ui/components/audio/captions/speech/service';
 
-const MEDIA = Meteor.settings.public.media;
-const MEDIA_TAG = MEDIA.mediaTag;
-const CALL_HANGUP_TIMEOUT = MEDIA.callHangupTimeout;
-const CALL_HANGUP_MAX_RETRIES = MEDIA.callHangupMaximumRetries;
-const SIPJS_HACK_VIA_WS = MEDIA.sipjsHackViaWs;
-const SIPJS_ALLOW_MDNS = MEDIA.sipjsAllowMdns || false;
-const IPV4_FALLBACK_DOMAIN = Meteor.settings.public.app.ipv4FallbackDomain;
 const CALL_CONNECT_TIMEOUT = 20000;
 const ICE_NEGOTIATION_TIMEOUT = 20000;
-const USER_AGENT_RECONNECTION_ATTEMPTS = MEDIA.audioReconnectionAttempts || 3;
-const USER_AGENT_RECONNECTION_DELAY_MS = MEDIA.audioReconnectionDelay || 5000;
-const USER_AGENT_CONNECTION_TIMEOUT_MS = MEDIA.audioConnectionTimeout || 5000;
-const ICE_GATHERING_TIMEOUT = MEDIA.iceGatheringTimeout || 5000;
 const BRIDGE_NAME = 'sip';
-const WEBSOCKET_KEEP_ALIVE_INTERVAL = MEDIA.websocketKeepAliveInterval || 0;
-const WEBSOCKET_KEEP_ALIVE_DEBOUNCE = MEDIA.websocketKeepAliveDebounce || 10;
-const TRACE_SIP = MEDIA.traceSip || false;
-const SDP_SEMANTICS = MEDIA.sdpSemantics;
-const FORCE_RELAY = MEDIA.forceRelay;
-
-const UA_SERVER_VERSION = Meteor.settings.public.app.bbbServerVersion;
-const UA_CLIENT_VERSION = Meteor.settings.public.app.html5ClientBuild;
 
 /**
   * Get error code from SIP.js websocket messages.
@@ -137,6 +113,8 @@ class SIPSession {
 
   get outputDeviceId() {
     if (!this._outputDeviceId) {
+      const MEDIA = window.meetingClientSettings.public.media;
+      const MEDIA_TAG = MEDIA.mediaTag;
       const audioElement = document.querySelector(MEDIA_TAG);
       if (audioElement) {
         this._outputDeviceId = audioElement.sinkId;
@@ -272,7 +250,7 @@ class SIPSession {
     *
     * sessionSupportRTPPayloadDtmf
     * tells if browser support RFC4733 DTMF.
-    * Safari 13 doens't support it yet
+    * Safari 13 doesn't support it yet
     */
   sessionSupportRTPPayloadDtmf(session) {
     try {
@@ -310,6 +288,10 @@ class SIPSession {
       this._hangupFlag = false;
 
       this.userRequestedHangup = true;
+
+      const MEDIA = window.meetingClientSettings.public.media;
+      const CALL_HANGUP_TIMEOUT = MEDIA.callHangupTimeout;
+      const CALL_HANGUP_MAX_RETRIES = MEDIA.callHangupMaximumRetries;
 
       const tryHangup = () => {
         if (this._hangupFlag) {
@@ -383,7 +365,7 @@ class SIPSession {
     if (this.preloadedInputStream && this.preloadedInputStream.active) {
       return Promise.resolve(this.preloadedInputStream);
     }
-    // The rest of this mimicks the default factory behavior.
+    // The rest of this mimics the default factory behavior.
     if (!constraints.audio && !constraints.video) {
       return Promise.resolve(new MediaStream());
     }
@@ -393,6 +375,18 @@ class SIPSession {
 
   createUserAgent(iceServers) {
     return new Promise((resolve, reject) => {
+      const MEDIA = window.meetingClientSettings.public.media;
+      const SIPJS_HACK_VIA_WS = MEDIA.sipjsHackViaWs;
+      const USER_AGENT_RECONNECTION_ATTEMPTS = MEDIA.audioReconnectionAttempts || 3;
+      const USER_AGENT_CONNECTION_TIMEOUT_MS = MEDIA.audioConnectionTimeout || 5000;
+      const WEBSOCKET_KEEP_ALIVE_INTERVAL = MEDIA.websocketKeepAliveInterval || 0;
+      const WEBSOCKET_KEEP_ALIVE_DEBOUNCE = MEDIA.websocketKeepAliveDebounce || 10;
+      const TRACE_SIP = MEDIA.traceSip || false;
+      const SDP_SEMANTICS = MEDIA.sdpSemantics;
+      const FORCE_RELAY = MEDIA.forceRelay;
+      const UA_SERVER_VERSION = window.meetingClientSettings.public.app.bbbServerVersion;
+      const UA_CLIENT_VERSION = window.meetingClientSettings.public.app.html5ClientBuild;
+
       if (this.userRequestedHangup === true) reject();
 
       const {
@@ -498,7 +492,7 @@ class SIPSession {
                 extraInfo: {
                   callerIdName: this.user.callerIdName,
                 },
-              }, 'User agent succesfully reconnected');
+              }, 'User agent successfully reconnected');
             }).catch(() => {
               if (userAgentConnected) {
                 error = 1001;
@@ -531,7 +525,7 @@ class SIPSession {
           extraInfo: {
             callerIdName: this.user.callerIdName,
           },
-        }, 'User agent succesfully connected');
+        }, 'User agent successfully connected');
 
         window.addEventListener('beforeunload', this.onBeforeUnload.bind(this));
 
@@ -567,7 +561,7 @@ class SIPSession {
             extraInfo: {
               callerIdName: this.user.callerIdName,
             },
-          }, 'User agent succesfully reconnected');
+          }, 'User agent successfully reconnected');
 
           resolve();
         }).catch(() => {
@@ -579,7 +573,7 @@ class SIPSession {
               callerIdName: this.user.callerIdName,
             },
           }, 'User agent failed to reconnect after'
-          + ` ${USER_AGENT_RECONNECTION_ATTEMPTS} attemps`);
+          + ` ${USER_AGENT_RECONNECTION_ATTEMPTS} attempts`);
 
           this.callback({
             status: this.baseCallStates.failed,
@@ -603,6 +597,10 @@ class SIPSession {
       if (this._reconnecting) {
         return resolve();
       }
+
+      const MEDIA = window.meetingClientSettings.public.media;
+      const USER_AGENT_RECONNECTION_ATTEMPTS = MEDIA.audioReconnectionAttempts || 3;
+      const USER_AGENT_RECONNECTION_DELAY_MS = MEDIA.audioReconnectionDelay || 5000;
 
       if (attempts > USER_AGENT_RECONNECTION_ATTEMPTS) {
         return reject({
@@ -715,6 +713,10 @@ class SIPSession {
         filterValidIceCandidates.bind(this, this.validIceCandidates),
       ];
 
+      const MEDIA = window.meetingClientSettings.public.media;
+      const SIPJS_ALLOW_MDNS = MEDIA.sipjsAllowMdns || false;
+      const ICE_GATHERING_TIMEOUT = MEDIA.iceGatheringTimeout || 5000;
+
       if (!SIPJS_ALLOW_MDNS) iceModifiers.push(stripMDnsCandidates);
 
       // The current Vosk provider does not support stereo when transcribing
@@ -722,7 +724,7 @@ class SIPSession {
       // via SDP munging. Having it disabled on server side FS _does not suffice_
       // because the stereo parameter is client-mandated (ie replicated in the
       // answer)
-      if (SpeechService.stereoUnsupported()) {
+      if (stereoUnsupported()) {
         logger.debug({
           logCode: 'sipjs_transcription_disable_stereo',
         }, 'Transcription provider does not support stereo, forcing stereo=0');
@@ -773,6 +775,8 @@ class SIPSession {
       let sessionTerminated = false;
 
       const setupRemoteMedia = () => {
+        const MEDIA = window.meetingClientSettings.public.media;
+        const MEDIA_TAG = MEDIA.mediaTag;
         const mediaElement = document.querySelector(MEDIA_TAG);
         const { sdp } = this.currentSession.sessionDescriptionHandler
           .peerConnection.remoteDescription;
@@ -1013,7 +1017,7 @@ class SIPSession {
         }
 
         // if session hasn't even started, we let audio-modal to handle
-        // any possile errors
+        // any possible errors
         if (!this._currentSessionState) return false;
 
 
@@ -1080,34 +1084,6 @@ class SIPSession {
         this._currentSessionState = state;
       });
 
-      Tracker.autorun((c) => {
-        const selector = {
-          meetingId: Auth.meetingID,
-          userId: Auth.userID,
-          clientSession: getCurrentAudioSessionNumber(),
-        };
-
-        const query = VoiceCallStates.find(selector);
-        const callback = (id, fields) => {
-          if (!fsReady && ((this.inEchoTest && fields.callState === CallStateOptions.IN_ECHO_TEST)
-            || (!this.inEchoTest && fields.callState === CallStateOptions.IN_CONFERENCE))) {
-            fsReady = true;
-            checkIfCallReady();
-          }
-
-          if (fields.callState === CallStateOptions.CALL_ENDED) {
-            fsReady = false;
-            c.stop();
-            checkIfCallStopped();
-          }
-        };
-
-        query.observeChanges({
-          added: (id, fields) => callback(id, fields),
-          changed: (id, fields) => callback(id, fields),
-        });
-      });
-
       resolve();
     });
   }
@@ -1164,6 +1140,8 @@ export default class SIPBridge extends BaseAudioBridge {
   constructor(userData) {
     super(userData);
 
+    const MEDIA = window.meetingClientSettings.public.media;
+
     const {
       userId,
       username,
@@ -1219,6 +1197,7 @@ export default class SIPBridge extends BaseAudioBridge {
     validIceCandidates,
     inputStream,
   }, managerCallback) {
+    const IPV4_FALLBACK_DOMAIN = window.meetingClientSettings.public.app.ipv4FallbackDomain;
     const hasFallbackDomain = typeof IPV4_FALLBACK_DOMAIN === 'string' && IPV4_FALLBACK_DOMAIN !== '';
 
     return new Promise((resolve, reject) => {
@@ -1327,5 +1306,3 @@ export default class SIPBridge extends BaseAudioBridge {
     return this.activeSession.updateAudioConstraints(constraints);
   }
 }
-
-module.exports = SIPBridge;

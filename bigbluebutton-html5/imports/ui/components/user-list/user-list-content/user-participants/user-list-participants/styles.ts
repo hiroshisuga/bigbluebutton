@@ -3,7 +3,6 @@ import {
   userIndicatorsOffset,
   mdPaddingY,
   indicatorPadding,
-  borderSize,
 } from '/imports/ui/stylesheets/styled-components/general';
 import {
   colorPrimary,
@@ -16,10 +15,27 @@ import {
 
 import {
   ScrollboxVertical,
-  VirtualizedScrollboxVertical,
 } from '/imports/ui/stylesheets/styled-components/scrollable';
 
-const Avatar = styled.div`
+interface AvatarProps {
+  color: string;
+  animations?: boolean;
+  moderator?: boolean;
+  presenter?: boolean;
+  isChrome?: boolean;
+  isFirefox?: boolean;
+  isEdge?: boolean;
+  whiteboardAccess?: boolean;
+  voice?: boolean;
+  muted?: boolean;
+  listenOnly?: boolean;
+  noVoice?: boolean;
+  avatar: string;
+  emoji: string;
+  talking?: boolean;
+}
+
+const Avatar = styled.div<AvatarProps>`
   position: relative;
   height: 2.25rem;
   width: 2.25rem;
@@ -233,7 +249,7 @@ const UserListColumn = styled.div`
   flex-grow: 1;
 `;
 
-const pulse = (color: String) => keyframes`
+const pulse = (color: string) => keyframes`
     0% {
       box-shadow: 0 0 0 0 ${color}80;
     }
@@ -243,7 +259,7 @@ const pulse = (color: String) => keyframes`
   }
 `;
 
-const VirtualizedList = styled(VirtualizedScrollboxVertical)`
+const VirtualizedList = styled(ScrollboxVertical)`
   background: linear-gradient(#f3f6f9 30%, rgba(255,255,255,0)),
     linear-gradient(rgba(255,255,255,0), #f3f6f9 70%) 0 100%,
     /* Shadows */
@@ -251,6 +267,15 @@ const VirtualizedList = styled(VirtualizedScrollboxVertical)`
     radial-gradient(farthest-side at 50% 100%, rgba(0,0,0,.2), rgba(0,0,0,0)) 0 100%;
 
   outline: none;
+  overflow-x: hidden;
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
+`;
+
+const UserListItem = styled.li`
+  padding: .25em 0;
+  margin-left: .5rem;
 `;
 
 export default {
@@ -258,4 +283,5 @@ export default {
   Skeleton,
   UserListColumn,
   VirtualizedList,
-}
+  UserListItem,
+};

@@ -1,4 +1,5 @@
 import { User } from './user';
+
 export interface Chat {
   chatId: string;
   meetingId: string;
@@ -8,4 +9,5 @@ export interface Chat {
   totalUnread: number;
   userId: string;
   participant?: User;
+  lastSeenAt: string;
 }

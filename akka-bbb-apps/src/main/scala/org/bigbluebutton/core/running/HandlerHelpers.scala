@@ -7,7 +7,7 @@ import org.bigbluebutton.core.apps.groupchats.GroupChatApp
 import org.bigbluebutton.core.apps.users.UsersApp
 import org.bigbluebutton.core.apps.voice.VoiceApp
 import org.bigbluebutton.core.bus.{ BigBlueButtonEvent, InternalEventBus }
-import org.bigbluebutton.core.db.{ BreakoutRoomUserDAO, UserBreakoutRoomDAO }
+import org.bigbluebutton.core.db.{ BreakoutRoomUserDAO, MeetingDAO, MeetingRecordingDAO, NotificationDAO, UserBreakoutRoomDAO }
 import org.bigbluebutton.core.domain.{ MeetingEndReason, MeetingState2x }
 import org.bigbluebutton.core.models._
 import org.bigbluebutton.core2.MeetingStatus2x
@@ -15,16 +15,6 @@ import org.bigbluebutton.core2.message.senders.{ MsgBuilder, UserJoinedMeetingEv
 import org.bigbluebutton.core.util.TimeUtil
 
 trait HandlerHelpers extends SystemConfiguration {
-
-  def trackUserJoin(
-      liveMeeting: LiveMeeting,
-      regUser:     RegisteredUser,
-  ): Unit = {
-    if (!regUser.joined) {
-      RegisteredUsers.updateUserJoin(liveMeeting.registeredUsers, regUser, joined = true)
-    }
-
-  }
 
   def sendUserLeftFlagUpdatedEvtMsg(
       outGW:       OutMsgRouter,
@@ -40,14 +30,12 @@ trait HandlerHelpers extends SystemConfiguration {
     }
   }
 
-  def userJoinMeeting(outGW: OutMsgRouter, authToken: String, clientType: String,
+  def userJoinMeeting(outGW: OutMsgRouter, authToken: String, clientType: String, mobile: Boolean,
                       liveMeeting: LiveMeeting, state: MeetingState2x): MeetingState2x = {
 
     val nu = for {
       regUser <- RegisteredUsers.findWithToken(authToken, liveMeeting.registeredUsers)
     } yield {
-      trackUserJoin(liveMeeting, regUser)
-
       // Flag that an authed user had joined the meeting in case
       // we need to end meeting when all authed users have left.
       if (regUser.authed) {
@@ -57,24 +45,26 @@ trait HandlerHelpers extends SystemConfiguration {
       UserState(
         intId = regUser.id,
         extId = regUser.externId,
+        meetingId = regUser.meetingId,
         name = regUser.name,
         role = regUser.role,
+        bot = regUser.bot,
         guest = regUser.guest,
         authed = regUser.authed,
         guestStatus = regUser.guestStatus,
-        emoji = "none",
         reactionEmoji = "none",
         raiseHand = false,
         away = false,
         pin = false,
-        mobile = false,
+        mobile = mobile,
         presenter = false,
         locked = MeetingStatus2x.getPermissions(liveMeeting.status).lockOnJoin,
         avatar = regUser.avatarURL,
+        webcamBackground = regUser.webcamBackgroundURL,
         color = regUser.color,
         clientType = clientType,
-        pickExempted = false,
-        userLeftFlag = UserLeftFlag(false, 0)
+        userLeftFlag = UserLeftFlag(false, 0),
+        userMetadata = regUser.userMetadata
       )
     }
 
@@ -99,9 +89,10 @@ trait HandlerHelpers extends SystemConfiguration {
               "user",
               "app.notification.userJoinPushAlert",
               "Notification for a user joins the meeting",
-              Vector(s"${newUser.name}")
+              Map("userName"->s"${newUser.name}")
             )
             outGW.send(notifyEvent)
+            NotificationDAO.insert(notifyEvent)
 
             val newState = startRecordingIfAutoStart2x(outGW, liveMeeting, state)
             if (!Users2x.hasPresenter(liveMeeting.users2x)) {
@@ -122,6 +113,7 @@ trait HandlerHelpers extends SystemConfiguration {
       liveMeeting.props.recordProp.autoStartRecording && Users2x.numUsers(liveMeeting.users2x) == 1) {
 
       MeetingStatus2x.recordingStarted(liveMeeting.status)
+      MeetingRecordingDAO.insertRecording(liveMeeting.props.meetingProp.intId, "")
 
       val tracker = state.recordingTracker.startTimer(TimeUtil.timeNowInMs())
 
@@ -151,6 +143,7 @@ trait HandlerHelpers extends SystemConfiguration {
       liveMeeting.props.recordProp.autoStartRecording && Users2x.numUsers(liveMeeting.users2x) == 0) {
 
       MeetingStatus2x.recordingStopped(liveMeeting.status)
+      MeetingRecordingDAO.updateStopped(liveMeeting.props.meetingProp.intId, "")
 
       val tracker = state.recordingTracker.pauseTimer(TimeUtil.timeNowInMs())
 
@@ -204,6 +197,8 @@ trait HandlerHelpers extends SystemConfiguration {
 
     val endedEvnt = buildMeetingEndedEvtMsg(liveMeeting.props.meetingProp.intId)
     outGW.send(endedEvnt)
+
+    MeetingDAO.setMeetingEnded(liveMeeting.props.meetingProp.intId, reason, userId)
   }
 
   def destroyMeeting(eventBus: InternalEventBus, meetingId: String): Unit = {
@@ -233,7 +228,7 @@ trait HandlerHelpers extends SystemConfiguration {
     } yield {
       model.rooms.values.foreach { room =>
         eventBus.publish(BigBlueButtonEvent(room.id, EndBreakoutRoomInternalMsg(liveMeeting.props.meetingProp.intId, room.id, reason)))
-        UserBreakoutRoomDAO.updateLastBreakoutRoom(Vector(), room)
+        UserBreakoutRoomDAO.updateLastBreakoutRoom(liveMeeting.props.meetingProp.intId, Vector(), room)
       }
     }
 
@@ -315,4 +310,94 @@ trait HandlerHelpers extends SystemConfiguration {
     BbbCommonEnvCoreMsg(envelope, event)
   }
 
+  def buildGroupChatMessageEditedEvtMsg(meetingId: String, chatId: String, userId: String, msg: GroupChatMessage): BbbCommonEnvCoreMsg = {
+    val routing = Routing.addMsgToClientRouting(MessageTypes.BROADCAST_TO_MEETING, meetingId, userId)
+    val envelope = BbbCoreEnvelope(GroupChatMessageEditedEvtMsg.NAME, routing)
+    val header = BbbClientMsgHeader(GroupChatMessageEditedEvtMsg.NAME, meetingId, userId)
+    val body = GroupChatMessageEditedEvtMsgBody(chatId, msg.id, msg.message)
+    val event = GroupChatMessageEditedEvtMsg(header, body)
+    BbbCommonEnvCoreMsg(envelope, event)
+  }
+
+  def buildGroupChatMessageDeletedEvtMsg(meetingId: String, chatId: String, userId: String, messageId: String): BbbCommonEnvCoreMsg = {
+    val routing = Routing.addMsgToClientRouting(MessageTypes.BROADCAST_TO_MEETING, meetingId, userId)
+    val envelope = BbbCoreEnvelope(GroupChatMessageDeletedEvtMsg.NAME, routing)
+    val header = BbbClientMsgHeader(GroupChatMessageDeletedEvtMsg.NAME, meetingId, userId)
+    val body = GroupChatMessageDeletedEvtMsgBody(chatId, messageId)
+    val event = GroupChatMessageDeletedEvtMsg(header, body)
+    BbbCommonEnvCoreMsg(envelope, event)
+  }
+
+  def buildGroupChatMessageReactionSentEvtMsg(meetingId: String, userId: String, chatId: String, messageId: String, reactionEmoji: String): BbbCommonEnvCoreMsg = {
+    val routing = Routing.addMsgToClientRouting(MessageTypes.BROADCAST_TO_MEETING, meetingId, userId)
+    val envelope = BbbCoreEnvelope(GroupChatMessageReactionSentEvtMsg.NAME, routing)
+    val header = BbbClientMsgHeader(GroupChatMessageReactionSentEvtMsg.NAME, meetingId, userId)
+    val body = GroupChatMessageReactionSentEvtMsgBody(chatId, messageId, reactionEmoji)
+    val event = GroupChatMessageReactionSentEvtMsg(header, body)
+    BbbCommonEnvCoreMsg(envelope, event)
+  }
+
+  def buildGroupChatMessageReactionDeletedEvtMsg(meetingId: String, userId: String, chatId: String, messageId: String, reactionEmoji: String): BbbCommonEnvCoreMsg = {
+    val routing = Routing.addMsgToClientRouting(MessageTypes.BROADCAST_TO_MEETING, meetingId, userId)
+    val envelope = BbbCoreEnvelope(GroupChatMessageReactionDeletedEvtMsg.NAME, routing)
+    val header = BbbClientMsgHeader(GroupChatMessageReactionDeletedEvtMsg.NAME, meetingId, userId)
+    val body = GroupChatMessageReactionDeletedEvtMsgBody(chatId, messageId, reactionEmoji)
+    val event = GroupChatMessageReactionDeletedEvtMsg(header, body)
+    BbbCommonEnvCoreMsg(envelope, event)
+  }
+
+  def isUsingLiveKit(liveMeeting: LiveMeeting): Boolean = {
+    isUsingLiveKitAudio(liveMeeting) ||
+    liveMeeting.props.meetingProp.cameraBridge == "livekit" ||
+    liveMeeting.props.meetingProp.screenShareBridge == "livekit"
+  }
+
+  def isUsingLiveKitAudio(liveMeeting: LiveMeeting): Boolean = {
+    liveMeeting.props.meetingProp.audioBridge == "livekit"
+  }
+
+  def buildLiveKitTokenGrant(
+    room: String,
+    canPublish: Boolean,
+    canSubscribe: Boolean,
+    agent: Boolean = false,
+    canPublishData: Boolean = false,
+    canPublishSources: List[TrackSource] = List(),
+    canUpdateOwnMetadata: Boolean = false,
+    hidden: Boolean = false,
+    ingressAdmin: Boolean = false,
+    recorder: Boolean = false,
+    roomAdmin: Boolean = false,
+    roomCreate: Boolean = false,
+    roomJoin: Boolean = true,
+    roomList: Boolean = false,
+    roomRecord: Boolean = false
+  ): LiveKitGrant = {
+    LiveKitGrant(
+      agent = agent,
+      canPublish = canPublish,
+      canPublishData = canPublishData,
+      canPublishSources = canPublishSources,
+      canSubscribe = canSubscribe,
+      canUpdateOwnMetadata = canUpdateOwnMetadata,
+      hidden = hidden,
+      ingressAdmin = ingressAdmin,
+      recorder = recorder,
+      room = room,
+      roomAdmin = roomAdmin,
+      roomCreate = roomCreate,
+      roomJoin = roomJoin,
+      roomList = roomList,
+      roomRecord = roomRecord,
+    )
+  }
+
+  def buildLiveKitParticipantMetadata(
+    liveMeeting: LiveMeeting,
+  ): LiveKitParticipantMetadata = {
+    LiveKitParticipantMetadata(
+      meetingId = liveMeeting.props.meetingProp.intId,
+      voiceConf = liveMeeting.props.voiceProp.voiceConf
+    )
+  }
 }

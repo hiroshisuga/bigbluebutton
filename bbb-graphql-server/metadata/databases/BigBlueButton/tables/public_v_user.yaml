@@ -11,10 +11,11 @@ object_relationships:
     using:
       manual_configuration:
         column_mapping:
+          meetingId: meetingId
           userId: userId
         insertion_order: null
         remote_table:
-          name: user_connectionStatus
+          name: v_user_connectionStatus
           schema: public
   - name: lastBreakoutRoom
     using:
@@ -32,12 +33,23 @@ object_relationships:
           meetingId: meetingId
         insertion_order: null
         remote_table:
-          name: meeting
+          name: v_meeting
+          schema: public
+  - name: userLockSettings
+    using:
+      manual_configuration:
+        column_mapping:
+          meetingId: meetingId
+          userId: userId
+        insertion_order: null
+        remote_table:
+          name: v_user_lockSettings
           schema: public
   - name: voice
     using:
       manual_configuration:
         column_mapping:
+          meetingId: meetingId
           userId: userId
         insertion_order: null
         remote_table:
@@ -48,6 +60,7 @@ array_relationships:
     using:
       manual_configuration:
         column_mapping:
+          meetingId: meetingId
           userId: userId
         insertion_order: null
         remote_table:
@@ -69,45 +82,51 @@ select_permissions:
       columns:
         - authed
         - avatar
+        - away
+        - awayTime
         - banned
+        - captionLocale
         - clientType
         - color
-        - emoji
-        - emojiTime
+        - disconnected
+        - expired
         - extId
+        - bot
         - guest
         - guestStatus
         - hasDrawPermissionOnCurrentPage
         - isDialIn
         - isModerator
-        - isOnline
+        - currentlyInMeeting
+        - isRunningEchoTest
         - joined
-        - disconnected
         - locked
         - loggedOut
         - mobile
         - name
+        - nameSortable
+        - firstName
+        - firstNameSortable
+        - lastName
+        - lastNameSortable
         - pinned
         - presenter
+        - raiseHand
+        - raiseHandTime
+        - reactionEmoji
+        - registeredAt
         - registeredOn
         - role
+        - speechLocale
         - userId
+        - meetingId
       filter:
         _and:
           - meetingId:
               _eq: X-Hasura-MeetingId
           - _or:
-              - meetingId:
-                  _eq: X-Hasura-ModeratorInMeeting
               - isModerator:
                   _eq: true
               - meetingId:
-                  _neq: X-Hasura-LockedInMeeting
-              - _exists:
-                  _table:
-                    name: v_meeting_showUserlist
-                    schema: public
-                  _where:
-                    meetingId:
-                      _eq: X-Hasura-MeetingId
+                  _eq: X-Hasura-UserListNotLockedInMeeting
       allow_aggregations: true

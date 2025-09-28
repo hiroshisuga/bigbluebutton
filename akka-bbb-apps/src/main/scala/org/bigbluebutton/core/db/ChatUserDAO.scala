@@ -2,31 +2,29 @@ package org.bigbluebutton.core.db
 
 import slick.jdbc.PostgresProfile.api._
 import org.bigbluebutton.common2.msgs.GroupChatUser
-import org.bigbluebutton.core.models.VoiceUserState
-
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.util.{ Failure, Success }
 
 case class ChatUserDbModel(
-    chatId:     String,
-    meetingId:  String,
-    userId:     String,
-    lastSeenAt: Long,
-    typingAt:   Option[java.sql.Timestamp],
-    visible:    Boolean
+    chatId:          String,
+    meetingId:       String,
+    userId:          String,
+    lastSeenAt:      Option[java.sql.Timestamp],
+    startedTypingAt: Option[java.sql.Timestamp],
+    lastTypingAt:    Option[java.sql.Timestamp],
+    visible:         Boolean
 )
 
 class ChatUserDbTableDef(tag: Tag) extends Table[ChatUserDbModel](tag, None, "chat_user") {
   val chatId = column[String]("chatId", O.PrimaryKey)
   val meetingId = column[String]("meetingId", O.PrimaryKey)
   val userId = column[String]("userId", O.PrimaryKey)
-  val lastSeenAt = column[Long]("lastSeenAt")
-  val typingAt = column[Option[java.sql.Timestamp]]("typingAt")
+  val lastSeenAt = column[Option[java.sql.Timestamp]]("lastSeenAt")
+  val startedTypingAt = column[Option[java.sql.Timestamp]]("startedTypingAt")
+  val lastTypingAt = column[Option[java.sql.Timestamp]]("lastTypingAt")
   val visible = column[Boolean]("visible")
   //  val chat = foreignKey("chat_message_chat_fk", (chatId, meetingId), ChatTable.chats)(c => (c.chatId, c.meetingId), onDelete = ForeignKeyAction.Cascade)
   //  val sender = foreignKey("chat_message_sender_fk", senderId, UserTable.users)(_.userId, onDelete = ForeignKeyAction.SetNull)
 
-  override def * = (chatId, meetingId, userId, lastSeenAt, typingAt, visible) <> (ChatUserDbModel.tupled, ChatUserDbModel.unapply)
+  override def * = (chatId, meetingId, userId, lastSeenAt, startedTypingAt, lastTypingAt, visible) <> (ChatUserDbModel.tupled, ChatUserDbModel.unapply)
 }
 
 object ChatUserDAO {
@@ -40,52 +38,56 @@ object ChatUserDAO {
   }
 
   def insertUser(meetingId: String, chatId: String, userId: String, visible: Boolean) = {
-    DatabaseConnection.db.run(
+    DatabaseConnection.enqueue(
       TableQuery[ChatUserDbTableDef].insertOrUpdate(
         ChatUserDbModel(
           userId = userId,
           chatId = chatId,
           meetingId = meetingId,
-          lastSeenAt = 0,
-          typingAt = None,
+          lastSeenAt = None,
+          startedTypingAt = None,
+          lastTypingAt = None,
           visible = visible
         )
       )
-    ).onComplete {
-        case Success(rowsAffected) => DatabaseConnection.logger.debug(s"$rowsAffected row(s) inserted on ChatUser table!")
-        case Failure(e)            => DatabaseConnection.logger.debug(s"Error inserting ChatUser: $e")
-      }
+    )
   }
 
   def updateUserTyping(meetingId: String, chatId: String, userId: String) = {
-    DatabaseConnection.db.run(
+    DatabaseConnection.enqueue(
       TableQuery[ChatUserDbTableDef]
         .filter(_.meetingId === meetingId)
         .filter(_.chatId === (if (chatId == "public") "MAIN-PUBLIC-GROUP-CHAT" else chatId))
         .filter(_.userId === userId)
-        .map(u => (u.typingAt))
+        .map(u => (u.lastTypingAt))
         .update(Some(new java.sql.Timestamp(System.currentTimeMillis())))
-    ).onComplete {
-        case Success(rowsAffected) => DatabaseConnection.logger.debug(s"$rowsAffected row(s) updated typingAt on chat_user table!")
-        case Failure(e)            => DatabaseConnection.logger.debug(s"Error updating typingAt on chat_user table: $e")
-      }
+    )
   }
 
-  def updateChatVisible(meetingId: String, chatId: String, userId: String = ""): Unit = {
+  def updateChatVisible(meetingId: String, chatId: String, userId: String = "", visible: Boolean): Unit = {
     if (chatId != "MAIN-PUBLIC-GROUP-CHAT" && chatId != "public") { //Public chat is always visible
       val baseQuery = TableQuery[ChatUserDbTableDef]
         .filter(_.meetingId === meetingId)
         .filter(_.chatId === chatId)
-        .filter(_.visible === false)
+        .filter(_.visible === !visible)
       val updateQuery = if (userId.nonEmpty) {
-        baseQuery.filter(_.userId === userId).map(_.visible).update(true)
+        baseQuery.filter(_.userId === userId).map(_.visible).update(visible)
       } else {
-        baseQuery.map(_.visible).update(true)
+        baseQuery.map(_.visible).update(visible)
       }
-      DatabaseConnection.db.run(updateQuery).onComplete {
-        case Success(rowsAffected) => DatabaseConnection.logger.debug(s"$rowsAffected row(s) updated visible on chat_user table!")
-        case Failure(e)            => DatabaseConnection.logger.debug(s"Error updating visible on chat_user table: $e")
-      }
+      DatabaseConnection.enqueue(updateQuery)
     }
   }
+
+  def updateChatLastSeen(meetingId: String, chatId: String, userId: String, lastSeenAt: java.sql.Timestamp) = {
+    DatabaseConnection.enqueue(
+      TableQuery[ChatUserDbTableDef]
+        .filter(_.meetingId === meetingId)
+        .filter(_.chatId === (if (chatId == "public") "MAIN-PUBLIC-GROUP-CHAT" else chatId))
+        .filter(_.userId === userId)
+        .map(u => (u.lastSeenAt))
+        .update(Some(lastSeenAt))
+    )
+  }
+
 }

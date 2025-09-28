@@ -22,11 +22,11 @@ done
 
 mkdir -p staging/usr/local/bigbluebutton/bbb-webhooks
 
-find -maxdepth 1 ! -path . ! -name staging $(printf "! -name %s " $(cat .build-files)) -exec cp -r {} staging/usr/local/bigbluebutton/bbb-webhooks/ \;
+find -maxdepth 1 ! -path . ! -name staging ! -name .git $(printf "! -name %s " $(cat .build-files)) -exec cp -r {} staging/usr/local/bigbluebutton/bbb-webhooks/ \;
 
 pushd .
 cd staging/usr/local/bigbluebutton/bbb-webhooks/
-npm install --production
+npm ci --omit=dev
 popd
 
 cp webhooks.nginx staging/usr/share/bigbluebutton/nginx/webhooks.nginx
@@ -45,4 +45,5 @@ fpm -s dir -C ./staging -n $PACKAGE                 \
     --before-remove before-remove.sh                \
     --description "BigBlueButton Webhooks"          \
     $DIRECTORIES                                    \
-    $OPTS
+    $OPTS                                           \
+    -d 'nodejs (>= 18)' -d 'nodejs (<< 23)'

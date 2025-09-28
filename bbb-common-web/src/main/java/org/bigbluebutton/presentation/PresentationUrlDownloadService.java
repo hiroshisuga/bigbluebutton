@@ -12,14 +12,12 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Stream;
-
-import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.apache.http.client.ClientProtocolException;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.entity.ContentType;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClients;
@@ -43,6 +41,7 @@ public class PresentationUrlDownloadService {
     private String defaultUploadedPresentation;
     private List<String> insertDocumentSupportedProtocols;
     private List<String> insertDocumentBlockedHosts;
+    private int presDownloadReadTimeoutInMs = 60000;
 
     private ScheduledExecutorService scheduledThreadPool = Executors.newScheduledThreadPool(3);
 
@@ -50,7 +49,7 @@ public class PresentationUrlDownloadService {
         scheduledThreadPool.shutdownNow();
     }
 
-    public void processUploadedPresentation(final UploadedPresentation uploadedPres) {
+    public void processUploadedPresentation(final UploadedPresentation uploadedPres, final boolean scanUploadedPresentationFiles) {
         /**
          * We delay processing of the presentation to make sure that the meeting has already been created.
          * Otherwise, the meeting won't get the conversion events.
@@ -58,7 +57,7 @@ public class PresentationUrlDownloadService {
         ScheduledFuture scheduledFuture =
                 scheduledThreadPool.schedule(new Runnable() {
                     public void run() {
-                        documentConversionService.processDocument(uploadedPres);
+                        documentConversionService.processDocument(uploadedPres, scanUploadedPresentationFiles);
                     }
                 }, 5, TimeUnit.SECONDS);
 
@@ -66,7 +65,7 @@ public class PresentationUrlDownloadService {
 
     public void processUploadedFile(String podId, String meetingId, String presId,
                                     String filename, File presFile, Boolean current, String authzToken,
-                                    Boolean uploadFailed, ArrayList<String> uploadFailReasons) {
+                                    Boolean uploadFailed, ArrayList<String> uploadFailReasons, Boolean scanUploadedPresentationFiles) {
         // TODO add podId
         UploadedPresentation uploadedPres = new UploadedPresentation(
           podId,
@@ -79,11 +78,11 @@ public class PresentationUrlDownloadService {
           uploadFailed,
           uploadFailReasons);
         uploadedPres.setUploadedFile(presFile);
-        processUploadedPresentation(uploadedPres);
+        processUploadedPresentation(uploadedPres, scanUploadedPresentationFiles);
     }
 
     public void extractPresentationPage(final String sourceMeetingId, final String presentationId,
-                                        final Integer presentationSlide, final String destinationMeetingId)  {
+                                        final Integer presentationSlide, final String destinationMeetingId, final Boolean scanUploadedPresentationFiles)  {
         /**
          * We delay processing of the presentation to make sure that the meeting has already been created.
          * Otherwise, the meeting won't get the conversion events.
@@ -91,13 +90,14 @@ public class PresentationUrlDownloadService {
         ScheduledFuture scheduledFuture =
                 scheduledThreadPool.schedule(new Runnable() {
                     public void run() {
-                        extractPage(sourceMeetingId, presentationId, presentationSlide, destinationMeetingId) ;
+                        extractPage(sourceMeetingId, presentationId, presentationSlide, destinationMeetingId, scanUploadedPresentationFiles);
                     }
                 }, 5, TimeUnit.SECONDS);
     }
 
+    // A negative presentationSlide indicates the entire presentation deck should be used.
     private void extractPage(final String sourceMeetingId, final String presentationId,
-                             final Integer presentationSlide, final String destinationMeetingId) {
+                             final Integer presentationSlide, final String destinationMeetingId, final Boolean scanUploadedPresentationFiles) {
 
         Boolean uploadFailed = false;
         ArrayList<String> uploadFailedReasons = new ArrayList<String>();
@@ -148,7 +148,7 @@ public class PresentationUrlDownloadService {
                 + newFilename;
         File newPresentation = new File(newFilePath);
 
-        if (sourcePresentationFile.getName().toLowerCase().endsWith("pdf")) {
+        if (sourcePresentationFile.getName().toLowerCase().endsWith("pdf") && presentationSlide >= 0) {
             pageExtractor.extractPage(sourcePresentationFile, new File(
                     newFilePath), presentationSlide);
         } else {
@@ -169,7 +169,8 @@ public class PresentationUrlDownloadService {
           true,
           "breakout-authz-token",
           uploadFailed,
-          uploadFailedReasons);
+          uploadFailedReasons,
+          scanUploadedPresentationFiles);
     }
 
     private String followRedirect(String meetingId, String redirectUrl,
@@ -194,9 +195,10 @@ public class PresentationUrlDownloadService {
         HttpURLConnection conn;
         try {
             conn = (HttpURLConnection) presUrl.openConnection();
-            conn.setReadTimeout(60000);
+            conn.setReadTimeout(presDownloadReadTimeoutInMs);
             conn.addRequestProperty("Accept-Language", "en-US,en;q=0.8");
             conn.addRequestProperty("User-Agent", "Mozilla");
+            conn.setInstanceFollowRedirects(false);
 
             // normally, 3xx is redirect
             int status = conn.getResponseCode();
@@ -287,10 +289,21 @@ public class PresentationUrlDownloadService {
         String finalUrl = followRedirect(meetingId, urlString, 0, urlString);
 
         if (finalUrl == null) return false;
+        if(!finalUrl.equals(urlString)) {
+            log.info("Redirected to Final URL [{}]", finalUrl);
+        }
 
         boolean success = false;
 
-        CloseableHttpAsyncClient httpclient = HttpAsyncClients.createDefault();
+        //Disable follow redirect since finalUrl already did it
+        RequestConfig requestConfig = RequestConfig.custom()
+                .setRedirectsEnabled(false)
+                .build();
+
+        CloseableHttpAsyncClient httpclient = HttpAsyncClients.custom()
+                .setDefaultRequestConfig(requestConfig)
+                .build();
+
         try {
             httpclient.start();
             File download = new File(filename);
@@ -360,4 +373,7 @@ public class PresentationUrlDownloadService {
         this.insertDocumentBlockedHosts = new ArrayList<>(Arrays.asList(insertDocumentBlockedHosts.split(",")));
     }
 
+    public void setPresDownloadReadTimeoutInMs(int presDownloadReadTimeoutInMs) {
+        this.presDownloadReadTimeoutInMs = presDownloadReadTimeoutInMs;
+    }
 }

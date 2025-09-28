@@ -3,26 +3,33 @@ import React, { Component } from 'react';
 import {
   defineMessages, injectIntl, FormattedMessage,
 } from 'react-intl';
-import Button from '/imports/ui/components/common/button/component';
 import VirtualBgSelector from '/imports/ui/components/video-preview/virtual-background/component'
 import logger from '/imports/startup/client/logger';
 import browserInfo from '/imports/utils/browserInfo';
 import PreviewService from './service';
-import VideoService from '../video-provider/service';
+import VideoService from '/imports/ui/components/video-provider/service';
 import Styled from './styles';
 import deviceInfo from '/imports/utils/deviceInfo';
 import MediaStreamUtils from '/imports/utils/media-stream-utils';
 import { notify } from '/imports/ui/services/notification';
 import {
   EFFECT_TYPES,
-  SHOW_THUMBNAILS,
   setSessionVirtualBackgroundInfo,
   getSessionVirtualBackgroundInfo,
+  removeSessionVirtualBackgroundInfo,
   isVirtualBackgroundSupported,
+  getSessionVirtualBackgroundInfoWithDefault,
+  setCameraBrightnessInfo,
+  getCameraBrightnessInfo,
 } from '/imports/ui/services/virtual-background/service';
-import Settings from '/imports/ui/services/settings';
-import { isVirtualBackgroundsEnabled } from '/imports/ui/services/features';
+import { getSettingsSingletonInstance } from '/imports/ui/services/settings';
 import Checkbox from '/imports/ui/components/common/checkbox/component'
+import AppService from '/imports/ui/components/app/service';
+import { CustomVirtualBackgroundsContext } from '/imports/ui/components/video-preview/virtual-background/context';
+import VBGSelectorService from '/imports/ui/components/video-preview/virtual-background/service';
+import Session from '/imports/ui/services/storage/in-memory';
+import getFromUserSettings from '/imports/ui/services/users-settings';
+import { isEqual } from 'radash';
 
 const VIEW_STATES = {
   finding: 'finding',
@@ -30,8 +37,10 @@ const VIEW_STATES = {
   error: 'error',
 };
 
-const ENABLE_CAMERA_BRIGHTNESS = Meteor.settings.public.app.enableCameraBrightness;
-const CAMERA_BRIGHTNESS_AVAILABLE = ENABLE_CAMERA_BRIGHTNESS && isVirtualBackgroundSupported();
+const DEFAULT_BRIGHTNESS_STATE = {
+  brightness: 100,
+  wholeImageBrightness: false,
+}
 
 const propTypes = {
   intl: PropTypes.object.isRequired,
@@ -53,9 +62,9 @@ const defaultProps = {
 };
 
 const intlMessages = defineMessages({
-  webcamEffectsTitle: {
-    id: 'app.videoPreview.webcamEffectsTitle',
-    description: 'Title for the video effects modal',
+  webcamVirtualBackgroundTitle: {
+    id: 'app.videoPreview.webcamVirtualBackgroundLabel',
+    description: 'Title for the virtual background modal',
   },
   webcamSettingsTitle: {
     id: 'app.videoPreview.webcamSettingsTitle',
@@ -63,6 +72,10 @@ const intlMessages = defineMessages({
   },
   closeLabel: {
     id: 'app.videoPreview.closeLabel',
+    description: 'Close button label',
+  },
+  cancelLabel: {
+    id: 'app.mobileAppModal.dismissLabel',
     description: 'Close button label',
   },
   webcamPreviewLabel: {
@@ -216,6 +229,8 @@ const intlMessages = defineMessages({
 });
 
 class VideoPreview extends Component {
+  static contextType = CustomVirtualBackgroundsContext;
+
   constructor(props) {
     super(props);
 
@@ -232,11 +247,13 @@ class VideoPreview extends Component {
     this.handleVirtualBgSelected = this.handleVirtualBgSelected.bind(this);
     this.handleLocalStreamInactive = this.handleLocalStreamInactive.bind(this);
     this.handleBrightnessAreaChange = this.handleBrightnessAreaChange.bind(this);
+    this.handleSelectTab = this.handleSelectTab.bind(this);
 
     this._isMounted = false;
 
     this.state = {
       webcamDeviceId,
+      selectedTab: 0,
       availableWebcams: null,
       selectedProfile: null,
       isStartSharingDisabled: true,
@@ -245,6 +262,7 @@ class VideoPreview extends Component {
       previewError: null,
       brightness: 100,
       wholeImageBrightness: false,
+      skipPreviewFailed: false,
     };
   }
 
@@ -264,6 +282,16 @@ class VideoPreview extends Component {
     return this._currentVideoStream;
   }
 
+  shouldSkipVideoPreview() {
+    const { skipPreviewFailed } = this.state;
+    const { cameraAsContent, forceOpen, webcamDeviceId } = this.props;
+
+    // If the initial stream is already shared give the user the chance to choose the device
+    const shared = this.isAlreadyShared(webcamDeviceId);
+
+    return PreviewService.getSkipVideoPreview() && !forceOpen && !skipPreviewFailed && !shared;
+  }
+
   componentDidMount() {
     const {
       webcamDeviceId,
@@ -272,69 +300,93 @@ class VideoPreview extends Component {
 
     this._isMounted = true;
 
-    if (deviceInfo.hasMediaDevices) {
-      navigator.mediaDevices.enumerateDevices().then((devices) => {
-        VideoService.updateNumberOfDevices(devices);
-        // Video preview skip is activated, short circuit via a simpler procedure
-        if (PreviewService.getSkipVideoPreview() && !forceOpen) return this.skipVideoPreview();
-        // Late enumerateDevices resolution, stop.
-        if (!this._isMounted) return;
+ const populatePreview = ({
+      digestedWebcams = [],
+      devices,
+      areLabelled,
+      areIdentified,
+    } = { }) => {
+      if (devices) VideoService.updateNumberOfDevices(devices);
+      // Video preview skip is activated, short circuit via a simpler procedure
+      if (PreviewService.getSkipVideoPreview() && !forceOpen) {
+        this.skipVideoPreview();
+        return;
+      }
+      // Late enumerateDevices resolution, stop.
+      if (!this._isMounted) return;
 
-        let {
-          webcams,
-          areLabelled,
-          areIdentified
-        } = PreviewService.digestVideoDevices(devices, webcamDeviceId);
+      let processedCamerasList = digestedWebcams;
+      const initialDeviceId = processedCamerasList[0]?.deviceId || webcamDeviceId;
 
-        logger.debug({
-          logCode: 'video_preview_enumerate_devices',
-          extraInfo: {
-            devices,
-            webcams,
-          },
-        }, `Enumerate devices came back. There are ${devices.length} devices and ${webcams.length} are video inputs`);
+      this.getInitialCameraStream(initialDeviceId)
+        .then(async () => {
+          // Late gUM resolve, stop.
+          if (!this._isMounted) return;
 
-        if (webcams.length > 0) {
-          this.getInitialCameraStream(webcams[0].deviceId)
-            .then(async () => {
-              // Late gUM resolve, stop.
-              if (!this._isMounted) return;
+          if (!areLabelled || !areIdentified) {
+            // If they aren't labelled or have nullish deviceIds, run
+            // enumeration again and get their full versions
+            // Why: fingerprinting countermeasures obfuscate those when
+            // no permission was granted via gUM
+            try {
+              const {
+                devices: newDevices,
+                digestedWebcams: newDigestedWebcams,
+              } = await PreviewService.doEnumerateDevices({ priorityDeviceId: webcamDeviceId });
+              processedCamerasList = newDigestedWebcams;
+              VideoService.updateNumberOfDevices(newDevices);
+            } catch (error) {
+              // Not a critical error beucase it should only affect UI; log it
+              // and go ahead
+              logger.error({
+                logCode: 'video_preview_enumerate_relabel_failure',
+                extraInfo: {
+                  errorName: error.name, errorMessage: error.message,
+                },
+              }, 'enumerateDevices for relabelling failed');
+            }
+          }
 
-              if (!areLabelled || !areIdentified) {
-                // If they aren't labelled or have nullish deviceIds, run
-                // enumeration again and get their full versions
-                // Why: fingerprinting countermeasures obfuscate those when
-                // no permission was granted via gUM
-                try {
-                  const newDevices = await navigator.mediaDevices.enumerateDevices();
-                  webcams = PreviewService.digestVideoDevices(newDevices, webcamDeviceId).webcams;
-                } catch (error) {
-                  // Not a critical error beucase it should only affect UI; log it
-                  // and go ahead
-                  logger.error({
-                    logCode: 'video_preview_enumerate_relabel_failure',
-                    extraInfo: {
-                      errorName: error.name, errorMessage: error.message,
-                    },
-                  }, 'enumerateDevices for relabelling failed');
-                }
-              }
-
-              this.setState({
-                availableWebcams: webcams,
-                viewState: VIEW_STATES.found,
-              });
-              this.displayPreview();
+          if (processedCamerasList.length > 0) {
+            this.setState({
+              availableWebcams: processedCamerasList,
+              viewState: VIEW_STATES.found,
             });
-        } else {
-          // There were no webcams coming from enumerateDevices. Throw an error.
-          const noWebcamsError = new Error('NotFoundError');
-          this.handleDeviceError('enumerate', noWebcamsError, ': no webcams found');
-        }
-      }).catch((error) => {
-        // enumerateDevices failed
-        this.handleDeviceError('enumerate', error, 'enumerating devices');
-      });
+            this.displayPreview();
+          } else {
+            // There were no webcams coming from enumerateDevices. Throw an error.
+            const noWebcamsError = new Error('NotFoundError');
+            this.handleDeviceError('enumerate', noWebcamsError, ': no webcams found');
+          }
+        });
+    };
+
+     if (deviceInfo.hasMediaDevices) {
+      const SKIP_INITIAL_ENUM = window.meetingClientSettings.public.media.skipInitialCamEnumeration;
+      if (SKIP_INITIAL_ENUM) {
+        populatePreview({
+          digestedWebcams: [],
+          devices: [],
+          areLabelled: false,
+          areIdentified: false,
+        });
+      } else {
+        PreviewService.doEnumerateDevices({ priorityDeviceId: webcamDeviceId })
+          .then(populatePreview)
+          .catch((error) => {
+            // Late enumerateDevices rejection, stop.
+            logger.error({
+              logCode: 'video_preview_enumerate_failure',
+              extraInfo: {
+                errorName: error.name,
+                errorMessage: error.message,
+                errorStack: error.stack,
+              },
+            }, 'video-preview: enumerateDevices failed');
+            // Try populating the preview anyways after an initial gUM is run.
+            populatePreview();
+          });
+      }
     } else {
       // Top-level navigator.mediaDevices is not supported.
       // The session went through the version checking, but somehow ended here.
@@ -345,6 +397,11 @@ class VideoPreview extends Component {
   }
 
   componentDidUpdate() {
+    const { viewState, webcamDeviceId } = this.state;
+    if (viewState === VIEW_STATES.found && !this.video?.srcObject) {
+      this.displayPreview();
+    }
+
     if (this.brightnessMarker) {
       const markerStyle = window.getComputedStyle(this.brightnessMarker);
       const left = parseFloat(markerStyle.left);
@@ -365,10 +422,14 @@ class VideoPreview extends Component {
     this.terminateCameraStream(this.currentVideoStream, webcamDeviceId);
     this.cleanupStreamAndVideo();
     this._isMounted = false;
+    Session.setItem('videoPreviewFirstOpen', false);
   }
 
-  startCameraBrightness() {
-    if (CAMERA_BRIGHTNESS_AVAILABLE) {
+  async startCameraBrightness(initialState = DEFAULT_BRIGHTNESS_STATE) {
+    const ENABLE_CAMERA_BRIGHTNESS = window.meetingClientSettings.public.app.enableCameraBrightness;
+    const CAMERA_BRIGHTNESS_AVAILABLE = ENABLE_CAMERA_BRIGHTNESS && isVirtualBackgroundSupported();
+
+    if (CAMERA_BRIGHTNESS_AVAILABLE && this.currentVideoStream) {
       const setBrightnessInfo = () => {
         const stream = this.currentVideoStream || {};
         const service = stream.virtualBgService || {};
@@ -376,18 +437,43 @@ class VideoPreview extends Component {
         this.setState({ brightness, wholeImageBrightness });
       };
 
-      if (!this.currentVideoStream.virtualBgService) {
-        this.startVirtualBackground(
+      const applyStreamBrightnessState = () => {
+        if (!this.currentVideoStream) return;
+        this.currentVideoStream.changeCameraBrightness(initialState.brightness);
+        this.currentVideoStream.toggleCameraBrightnessArea(initialState.wholeImageBrightness);
+      };
+
+      if (!this.currentVideoStream?.virtualBgService) {
+        const switched = await this.startVirtualBackground(
           this.currentVideoStream,
           EFFECT_TYPES.NONE_TYPE,
-        ).then((switched) => {
-          if (switched) {
-            setBrightnessInfo();
-          }
-        });
+        );
+        if (switched) {
+          applyStreamBrightnessState();
+          setBrightnessInfo();
+        }
       } else {
+        applyStreamBrightnessState();
         setBrightnessInfo();
       }
+    }
+  }
+
+  async setCameraBrightness(brightness) {
+    const ENABLE_CAMERA_BRIGHTNESS = window.meetingClientSettings.public.app.enableCameraBrightness;
+    const CAMERA_BRIGHTNESS_AVAILABLE = ENABLE_CAMERA_BRIGHTNESS && isVirtualBackgroundSupported();
+
+    if (CAMERA_BRIGHTNESS_AVAILABLE && this.currentVideoStream) {
+      if (this.currentVideoStream?.virtualBgService == null) {
+        await this.startCameraBrightness();
+      }
+
+      const { webcamDeviceId } = this.state;
+      const shared = this.isAlreadyShared(webcamDeviceId);
+      this.currentVideoStream.changeCameraBrightness(brightness);
+      this.setState({ brightness }, () => {
+        if (shared) this.updateCameraBrightnessInfo();
+      });
     }
   }
 
@@ -415,28 +501,43 @@ class VideoPreview extends Component {
     }
   }
 
-  updateVirtualBackgroundInfo = () => {
+  updateVirtualBackgroundInfo () {
     const { webcamDeviceId } = this.state;
 
-    // Update this session's virtual camera effect information if it's enabled
-    setSessionVirtualBackgroundInfo(
-      this.currentVideoStream.virtualBgType,
-      this.currentVideoStream.virtualBgName,
-      webcamDeviceId,
-    );
+    if (this.currentVideoStream) {
+      setSessionVirtualBackgroundInfo(
+        webcamDeviceId,
+        this.currentVideoStream.virtualBgType,
+        this.currentVideoStream.virtualBgName,
+        this.currentVideoStream.virtualBgUniqueId,
+      );
+    }
   };
+
+  updateCameraBrightnessInfo() {
+    const { webcamDeviceId } = this.state;
+
+    if (this.currentVideoStream) {
+      setCameraBrightnessInfo(
+        webcamDeviceId,
+        this.state.brightness,
+        this.state.wholeImageBrightness,
+      );
+    }
+  }
 
   // Resolves into true if the background switch is successful, false otherwise
   handleVirtualBgSelected(type, name, customParams) {
     const { sharedDevices } = this.props;
-    const { webcamDeviceId } = this.state;
+    const { webcamDeviceId, brightness } = this.state;
     const shared = this.isAlreadyShared(webcamDeviceId);
 
-    if (type !== EFFECT_TYPES.NONE_TYPE || CAMERA_BRIGHTNESS_AVAILABLE) {
+    const ENABLE_CAMERA_BRIGHTNESS = window.meetingClientSettings.public.app.enableCameraBrightness;
+    const CAMERA_BRIGHTNESS_AVAILABLE = ENABLE_CAMERA_BRIGHTNESS && isVirtualBackgroundSupported();
+
+    if (type !== EFFECT_TYPES.NONE_TYPE || CAMERA_BRIGHTNESS_AVAILABLE && brightness !== 100) {
       return this.startVirtualBackground(this.currentVideoStream, type, name, customParams).then((switched) => {
-        // If it's not shared we don't have to update here because
-        // it will be updated in the handleStartSharing method.
-        if (switched && shared) this.updateVirtualBackgroundInfo();
+        if (switched) this.updateVirtualBackgroundInfo();
         return switched;
       });
     } else {
@@ -479,7 +580,7 @@ class VideoPreview extends Component {
     });
   }
 
-  handleStartSharing() {
+  async handleStartSharing() {
     const {
       resolve,
       startSharing,
@@ -500,24 +601,26 @@ class VideoPreview extends Component {
     }
 
     if (
-      this.currentVideoStream.virtualBgService
+      this.currentVideoStream?.virtualBgService
       && brightness === 100
-      && this.currentVideoStream.virtualBgType === EFFECT_TYPES.NONE_TYPE
+      && this.currentVideoStream?.virtualBgType === EFFECT_TYPES.NONE_TYPE
     ) {
       this.stopVirtualBackground(this.currentVideoStream);
     }
 
-    this.updateVirtualBackgroundInfo();
-    this.cleanupStreamAndVideo();
-
-    PreviewService.changeProfile(selectedProfile);
-    PreviewService.changeWebcam(webcamDeviceId);
-    if (cameraAsContent) {
-      startSharingCameraAsContent(webcamDeviceId);
-    } else {
+    if (!cameraAsContent) {
+      // Store selected profile, camera ID and virtual background in the storage
+      // for future use
+      PreviewService.changeProfile(selectedProfile);
+      PreviewService.changeWebcam(webcamDeviceId);
+      this.updateVirtualBackgroundInfo();
+      this.updateCameraBrightnessInfo();
+      this.cleanupStreamAndVideo();
       startSharing(webcamDeviceId);
+    } else {
+      this.cleanupStreamAndVideo();
+      startSharingCameraAsContent(webcamDeviceId);
     }
-    if (resolve) resolve();
   }
 
   handleStopSharing() {
@@ -541,15 +644,15 @@ class VideoPreview extends Component {
   }
 
   handleProceed() {
-    const { resolve, closeModal, sharedDevices, isVisualEffects } = this.props;
+    const { resolve, closeModal, sharedDevices } = this.props;
     const { webcamDeviceId, brightness } = this.state;
     const shared = sharedDevices.includes(webcamDeviceId);
 
     if (
-      (shared || isVisualEffects)
-      && this.currentVideoStream.virtualBgService
+      (shared)
+      && this.currentVideoStream?.virtualBgService
       && brightness === 100
-      && this.currentVideoStream.virtualBgType === EFFECT_TYPES.NONE_TYPE
+      && this.currentVideoStream?.virtualBgType === EFFECT_TYPES.NONE_TYPE
     ) {
       this.stopVirtualBackground(this.currentVideoStream);
     }
@@ -592,9 +695,11 @@ class VideoPreview extends Component {
     logger.error({
       logCode: 'video_preview_gum_failure',
       extraInfo: {
-        errorName: error.name, errorMessage: error.message,
+        errorName: error.name,
+        errorMessage: error.message,
+        errorStack: error.stack,
       },
-    }, 'getUserMedia failed in video-preview');
+    }, `getUserMedia failed in video-preview: ${error.name} - ${error.message}`);
 
     const intlError = intlMessages[error.name] || intlMessages[error.message];
     if (intlError) {
@@ -602,7 +707,7 @@ class VideoPreview extends Component {
     }
 
     return intl.formatMessage(intlMessages.genericError,
-      { 0: `${error.name}: ${error.message}` });
+      { error: `${error.name}: ${error.message}` });
   }
 
   terminateCameraStream(stream, deviceId) {
@@ -625,6 +730,7 @@ class VideoPreview extends Component {
       extraInfo: {
         errorName: error.name,
         errorMessage: error.message,
+        errorStack: error.stack,
         virtualBgType: type,
         virtualBgName: name,
       },
@@ -644,19 +750,101 @@ class VideoPreview extends Component {
     }
 
     this.setState({ webcamDeviceId: actualDeviceId, });
+    return actualDeviceId;
   }
 
   getInitialCameraStream(deviceId) {
     const { cameraAsContent } = this.props;
     const defaultProfile = !cameraAsContent ? PreviewService.getDefaultProfile() : PreviewService.getCameraAsContentProfile();
 
-    return this.getCameraStream(deviceId, defaultProfile).then(() => {
-      this.updateDeviceId(deviceId);
+    return this.getCameraStream(deviceId, defaultProfile);
+  }
+
+  applyStoredVirtualBg(deviceId = null) {
+    const webcamDeviceId = deviceId || this.state.webcamDeviceId;
+
+    // Apply the virtual background stored in Local/Session Storage, if any
+    // If it fails, remove the stored background.
+    return new Promise((resolve, reject) => {
+      let customParams;
+      const virtualBackground = getSessionVirtualBackgroundInfo(webcamDeviceId);
+
+      if (virtualBackground) {
+        const { type, name, uniqueId } = virtualBackground;
+        const handleFailure = (error) => {
+          this.handleVirtualBgError(error, type, name);
+          removeSessionVirtualBackgroundInfo(webcamDeviceId);
+          reject(error);
+        };
+        const applyCustomVirtualBg = (backgrounds) => {
+          const background = backgrounds[uniqueId]
+            || Object.values(backgrounds).find(bg => bg.uniqueId === uniqueId);
+
+          if (background && background.data) {
+            customParams = {
+              uniqueId,
+              file: background?.data,
+            };
+          } else {
+            handleFailure(new Error('Missing virtual background data'));
+            return;
+          }
+
+          this.handleVirtualBgSelected(type, name, customParams).then(resolve, handleFailure);
+        };
+
+        // If uniqueId is defined, this is a custom background. Fetch the custom
+        // params from the context and apply them
+        if (uniqueId) {
+          if (this.context.backgrounds[uniqueId]) {
+            applyCustomVirtualBg(this.context.backgrounds);
+          } else if (!this.context.loaded) {
+            // Virtual BG context might not be loaded yet (in case this is
+            // skipping the video preview). Load it manually.
+            VBGSelectorService.load(handleFailure, applyCustomVirtualBg);
+          } else {
+            handleFailure(new Error('Missing virtual background'));
+          }
+
+          return;
+        }
+
+        // Built-in background, just apply it.
+        this.handleVirtualBgSelected(type, name, customParams).then(resolve, handleFailure);
+      } else if (this.context.backgrounds.webcamBackgroundURL) {
+        // Apply custom background from JOIN URL parameter automatically
+        // only if there's not any session background yet.
+        const { filename, data, type, uniqueId } = this.context.backgrounds.webcamBackgroundURL;
+        const customParams = {
+          file: data,
+          uniqueId,
+        };
+
+        const handleFailure = (error) => {
+          this.handleVirtualBgError(error, type, filename);
+          removeSessionVirtualBackgroundInfo(webcamDeviceId);
+          reject(error);
+        };
+
+        this.handleVirtualBgSelected(type, filename, customParams).then(resolve, handleFailure);
+      } else {
+        resolve();
+      }
     });
   }
 
-  getCameraStream(deviceId, profile) {
+  async applyStoredBrightness(deviceId = null) {
+    const webcamDeviceId = deviceId || this.state.webcamDeviceId;
+    const cameraBrightness = getCameraBrightnessInfo(webcamDeviceId);
+
+    if (cameraBrightness && !isEqual(cameraBrightness, DEFAULT_BRIGHTNESS_STATE)) {
+      return this.startCameraBrightness(cameraBrightness);
+    }
+  }
+
+  async getCameraStream(deviceId, profile) {
     const { webcamDeviceId } = this.state;
+    const { cameraAsContent, forceOpen } = this.props;
 
     this.setState({
       selectedProfile: profile.id,
@@ -667,25 +855,58 @@ class VideoPreview extends Component {
     this.terminateCameraStream(this.currentVideoStream, webcamDeviceId);
     this.cleanupStreamAndVideo();
 
-    // The return of doGUM is an instance of BBBVideoStream (a thin wrapper over a MediaStream)
-    return PreviewService.doGUM(deviceId, profile).then((bbbVideoStream) => {
-      // Late GUM resolve, clean up tracks, stop.
-      if (!this._isMounted) return this.terminateCameraStream(bbbVideoStream, deviceId);
+    let bbbVideoStream;
 
+    try {
+      // The return of doGUM is an instance of BBBVideoStream (a thin wrapper over a MediaStream)
+      bbbVideoStream = await PreviewService.doGUM(deviceId, profile);
       this.currentVideoStream = bbbVideoStream;
-      this.startCameraBrightness();
-      this.setState({
-        isStartSharingDisabled: false,
-      });
-    }).catch((error) => {
+      const updatedDevice = this.updateDeviceId(deviceId);
+
+      if (updatedDevice !== deviceId) {
+        bbbVideoStream = await PreviewService.doGUM(updatedDevice, profile);
+        this.currentVideoStream = bbbVideoStream;
+      }
+    } catch(error) {
       // When video preview is set to skip, we need some way to bubble errors
       // up to users; so re-throw the error
-      if (!PreviewService.getSkipVideoPreview()) {
+      if (!this.shouldSkipVideoPreview()) {
         this.handlePreviewError('do_gum_preview', error, 'displaying final selection');
       } else {
         throw error;
       }
-    });
+    }
+
+    // Restore virtual background if it was stored in Local/Session Storage
+    try {
+      if (!cameraAsContent) await this.applyStoredVirtualBg(deviceId);
+    } catch (error) {
+      // Only bubble up errors in this case if we're skipping the video preview
+      // This is because virtual background failures are deemed critical when
+      // skipping the video preview, but not otherwise
+      if (this.shouldSkipVideoPreview()) {
+        throw error;
+      }
+    }
+
+    // Restore brightness state if it was stored in Local/Session Storage
+    try {
+      if (!cameraAsContent) await this.applyStoredBrightness(deviceId);
+    } catch (error) {
+      if (this.shouldSkipVideoPreview()) {
+        throw error;
+      }
+    } finally {
+      // Late VBG resolve, clean up tracks, stop.
+      if (!this._isMounted) {
+        this.terminateCameraStream(bbbVideoStream, deviceId);
+        this.cleanupStreamAndVideo();
+        return;
+      }
+      this.setState({
+        isStartSharingDisabled: false,
+      });
+    }
   }
 
   displayPreview() {
@@ -695,11 +916,20 @@ class VideoPreview extends Component {
   }
 
   skipVideoPreview() {
-    this.getInitialCameraStream().then(() => {
+    const { webcamDeviceId } = this.state;
+    const { forceOpen } = this.props;
+
+    return this.getInitialCameraStream(webcamDeviceId).then(() => {
       this.handleStartSharing();
     }).catch(error => {
+      PreviewService.clearWebcamDeviceId();
+      PreviewService.clearWebcamProfileId();
+      removeSessionVirtualBackgroundInfo(webcamDeviceId);
       this.cleanupStreamAndVideo();
-      notify(this.handleGUMError(error), 'error', 'video');
+      // Mark the skip as failed so that the component will override any option
+      // to skip the video preview and display the default UI
+      if (this._isMounted) this.setState({ skipPreviewFailed: true });
+      throw error;
     });
   }
 
@@ -739,7 +969,6 @@ class VideoPreview extends Component {
     const {
       intl,
       sharedDevices,
-      isVisualEffects,
       cameraAsContent,
     } = this.props;
 
@@ -749,133 +978,128 @@ class VideoPreview extends Component {
       selectedProfile,
     } = this.state;
 
-    const shared = sharedDevices.includes(webcamDeviceId);
-    const shouldShowVirtualBackgrounds = isVirtualBackgroundsEnabled() && !cameraAsContent;
+    return (
+      <Styled.InternCol>
+        <Styled.Label htmlFor="setCam">
+          {intl.formatMessage(intlMessages.cameraLabel)}
+        </Styled.Label>
+        { availableWebcams && availableWebcams.length > 0
+          ? (
+            <Styled.Select
+              id="setCam"
+              value={webcamDeviceId || ''}
+              onChange={this.handleSelectWebcam}
+            >
+              {availableWebcams.map((webcam, index) => (
+                <option key={webcam.deviceId} value={webcam.deviceId}>
+                  {webcam.label || this.getFallbackLabel(webcam, index)}
+                </option>
+              ))}
+            </Styled.Select>
+          )
+          : (
+            <span>
+              {intl.formatMessage(intlMessages.webcamNotFoundLabel)}
+            </span>
+          )
+        }
+        {this.renderQualitySelector()}
+      </Styled.InternCol>
+    );
+  }
 
-    if (isVisualEffects) {
+  renderQualitySelector() {
+    const {
+      intl,
+      cameraAsContent,
+    } = this.props
+
+    const {
+      selectedProfile,
+      availableWebcams,
+      webcamDeviceId, 
+    } = this.state;
+
+    const shared = this.isAlreadyShared(webcamDeviceId);
+
+    if (shared) { 
       return (
-        <>
-          {isVirtualBackgroundsEnabled() && this.renderVirtualBgSelector()}
-        </>
+        <Styled.Label>
+          {intl.formatMessage(intlMessages.sharedCameraLabel)}
+        </Styled.Label>
       );
     }
+    
+    if (cameraAsContent) return;
+
+    const CAMERA_PROFILES = window.meetingClientSettings.public.kurento.cameraProfiles || [];
+    // Filtered, without hidden profiles
+    const PREVIEW_CAMERA_PROFILES = CAMERA_PROFILES.filter(p => !p.hidden);
 
     return (
       <>
+        <Styled.Label htmlFor="setQuality">
+          {intl.formatMessage(intlMessages.qualityLabel)}
+        </Styled.Label>
+        {PREVIEW_CAMERA_PROFILES.length > 0
+          ? (
+            <Styled.Select
+              id="setQuality"
+              value={selectedProfile || ''}
+              onChange={this.handleSelectProfile}
+            >
+              {PREVIEW_CAMERA_PROFILES.map((profile) => {
+                const label = intlMessages[`${profile.id}`]
+                  ? intl.formatMessage(intlMessages[`${profile.id}`])
+                  : profile.name;
 
-      { cameraAsContent
-        ? (
-          <>
-            <Styled.Label htmlFor="setCam">
-              {intl.formatMessage(intlMessages.cameraLabel)}
-            </Styled.Label>
-            { availableWebcams && availableWebcams.length > 0
-              ? (
-                  <Styled.Select
-                    id="setCam"
-                    value={webcamDeviceId || ''}
-                    onChange={this.handleSelectWebcam}
-                  >
-                    {availableWebcams.map((webcam, index) => (
-                      <option key={webcam.deviceId} value={webcam.deviceId}>
-                        {webcam.label || this.getFallbackLabel(webcam, index)}
-                      </option>
-                    ))}
-                  </Styled.Select>
-                )
-                : (
-                    <span>
-                      {intl.formatMessage(intlMessages.webcamNotFoundLabel)}
-                    </span>
-                  )
-            }
-          </>
-        ) 
-        :
-          <>
-          <Styled.Label htmlFor="setCam">
-            {intl.formatMessage(intlMessages.cameraLabel)}
-          </Styled.Label>
-          { availableWebcams && availableWebcams.length > 0
-            ? (
-              <Styled.Select
-                id="setCam"
-                value={webcamDeviceId || ''}
-                onChange={this.handleSelectWebcam}
-              >
-                {availableWebcams.map((webcam, index) => (
-                  <option key={webcam.deviceId} value={webcam.deviceId}>
-                    {webcam.label || this.getFallbackLabel(webcam, index)}
+                return (
+                  <option key={profile.id} value={profile.id}>
+                    {`${label}`}
                   </option>
-                ))}
-              </Styled.Select>
-            )
-            : (
-              <span>
-                {intl.formatMessage(intlMessages.webcamNotFoundLabel)}
-              </span>
-            )
-          }
-          { shared
-            ? (
-              <Styled.Label>
-                {intl.formatMessage(intlMessages.sharedCameraLabel)}
-              </Styled.Label>
-            )
-            : (
-              <>
-                <Styled.Label htmlFor="setQuality">
-                  {intl.formatMessage(intlMessages.qualityLabel)}
-                </Styled.Label>
-                {PreviewService.PREVIEW_CAMERA_PROFILES.length > 0
-                  ? (
-                    <Styled.Select
-                      id="setQuality"
-                      value={selectedProfile || ''}
-                      onChange={this.handleSelectProfile}
-                    >
-                      {PreviewService.PREVIEW_CAMERA_PROFILES.map((profile) => {
-                        const label = intlMessages[`${profile.id}`]
-                          ? intl.formatMessage(intlMessages[`${profile.id}`])
-                          : profile.name;
-
-                        return (
-                          <option key={profile.id} value={profile.id}>
-                            {`${label}`}
-                          </option>
-                        );
-                      })}
-                    </Styled.Select>
-                  )
-                  : (
-                    <span>
-                      {intl.formatMessage(intlMessages.profileNotFoundLabel)}
-                    </span>
-                  )
-                }
-              </>
-            )
-          }
-          {shouldShowVirtualBackgrounds && this.renderVirtualBgSelector()}
-          </>
-      }
+                );
+              })}
+            </Styled.Select>
+          )
+          : (
+            <span>
+              {intl.formatMessage(intlMessages.profileNotFoundLabel)}
+            </span>
+          )
+        }
       </>
     );
   }
 
-  handleBrightnessAreaChange() {
-    const { wholeImageBrightness } = this.state;
-    this.currentVideoStream.toggleCameraBrightnessArea(!wholeImageBrightness);
-    this.setState({ wholeImageBrightness: !wholeImageBrightness });
+  async handleBrightnessAreaChange() {
+    const ENABLE_CAMERA_BRIGHTNESS = window.meetingClientSettings.public.app.enableCameraBrightness;
+    const CAMERA_BRIGHTNESS_AVAILABLE = ENABLE_CAMERA_BRIGHTNESS && isVirtualBackgroundSupported();
+    
+    if (CAMERA_BRIGHTNESS_AVAILABLE && this.currentVideoStream) {
+      if (this.currentVideoStream?.virtualBgService == null) {
+        await this.startCameraBrightness();
+      }
+
+      const { wholeImageBrightness, webcamDeviceId } = this.state;
+      const shared = this.isAlreadyShared(webcamDeviceId);
+      this.currentVideoStream.toggleCameraBrightnessArea(!wholeImageBrightness);
+      this.setState({ wholeImageBrightness: !wholeImageBrightness }, () => {
+        if (shared) this.updateCameraBrightnessInfo();
+      });
+    }
   }
 
   renderBrightnessInput() {
     const {
       cameraAsContent,
+      cameraAsContentDeviceId,
     } = this.props;
     const {
       webcamDeviceId,
     } = this.state;
+
+    const ENABLE_CAMERA_BRIGHTNESS = window.meetingClientSettings.public.app.enableCameraBrightness;
+
     if (!ENABLE_CAMERA_BRIGHTNESS) return null;
 
     const { intl } = this.props;
@@ -887,10 +1111,10 @@ class VideoPreview extends Component {
       ? (brightness * 100) / 200
       : ((200 - brightness) * 100) / 200;
 
-    if(cameraAsContent){ return null }
+    if(cameraAsContent || webcamDeviceId === cameraAsContentDeviceId){ return null }
 
     return (
-      <>
+      <Styled.InternCol>
         <Styled.Label htmlFor="brightness">
           {intl.formatMessage(intlMessages.brightness)}
         </Styled.Label>
@@ -914,8 +1138,7 @@ class VideoPreview extends Component {
           aria-describedby={'brightness-slider-desc'}
           onChange={(e) => {
             const brightness = e.target.valueAsNumber;
-            this.currentVideoStream.changeCameraBrightness(brightness);
-            this.setState({ brightness });
+            this.setCameraBrightness(brightness);
           }}
           disabled={!isVirtualBackgroundSupported() || isStartSharingDisabled}
         />
@@ -938,30 +1161,60 @@ class VideoPreview extends Component {
             label={intl.formatMessage(intlMessages.wholeImageBrightnessLabel)}
           />
         </div>
-      </>
+      </Styled.InternCol>
     );
   }
 
   renderVirtualBgSelector() {
-    const { isVisualEffects } = this.props;
+    const { isCustomVirtualBackgroundsEnabled } = this.props;
     const { isStartSharingDisabled, webcamDeviceId } = this.state;
     const initialVirtualBgState = this.currentVideoStream ? {
       type: this.currentVideoStream.virtualBgType,
-      name: this.currentVideoStream.virtualBgName
-    } : getSessionVirtualBackgroundInfo(webcamDeviceId);
+      name: this.currentVideoStream.virtualBgName,
+      uniqueId: this.currentVideoStream.virtualBgUniqueId,
+    } : getSessionVirtualBackgroundInfoWithDefault(webcamDeviceId);
 
+    const {
+      showThumbnails: SHOW_THUMBNAILS = true,
+    } = window.meetingClientSettings.public.virtualBackgrounds;
+    
     return (
       <VirtualBgSelector
         handleVirtualBgSelected={this.handleVirtualBgSelected}
         locked={isStartSharingDisabled}
         showThumbnails={SHOW_THUMBNAILS}
         initialVirtualBgState={initialVirtualBgState}
-        isVisualEffects={isVisualEffects}
+        isCustomVirtualBackgroundsEnabled={isCustomVirtualBackgroundsEnabled}
       />
     );
   }
 
-  renderContent() {
+  renderTabsContent(tabNumber) {
+    const {
+      cameraAsContent,
+      isVirtualBackgroundsEnabled,
+    } = this.props;
+  
+    const shouldShowVirtualBackgrounds = isVirtualBackgroundsEnabled && !cameraAsContent;
+  
+    return (
+      <Styled.ContentCol>
+        {tabNumber === 0 && (
+          <Styled.Col>
+            {this.renderDeviceSelectors()}
+            {isVirtualBackgroundSupported() && this.renderBrightnessInput()}
+          </Styled.Col>
+        )}
+        {tabNumber === 1 && shouldShowVirtualBackgrounds && (
+          <Styled.BgnCol>
+            {this.renderVirtualBgSelector()}
+          </Styled.BgnCol>
+        )}
+      </Styled.ContentCol>
+    );
+  }
+
+  renderContent(selectedTab) {
     const {
       intl,
     } = this.props;
@@ -972,14 +1225,23 @@ class VideoPreview extends Component {
       previewError,
     } = this.state;
 
+    const Settings = getSettingsSingletonInstance();
     const { animations } = Settings.application;
+
+    const containerStyle = {
+      width: '60%',
+      height: '25vh',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center', 
+    };
 
     switch (viewState) {
       case VIEW_STATES.finding:
         return (
           <Styled.Content>
             <Styled.VideoCol>
-              <div>
+              <div style={containerStyle}>
                 <span>{intl.formatMessage(intlMessages.findingWebcamsLabel)}</span>
                 <Styled.FetchingAnimation animations={animations} />
               </div>
@@ -1015,10 +1277,7 @@ class VideoPreview extends Component {
                   )
               }
             </Styled.VideoCol>
-            <Styled.Col>
-              {this.renderDeviceSelectors()}
-              {this.renderBrightnessInput()}
-            </Styled.Col>
+            {this.renderTabsContent(selectedTab)}
           </Styled.Content>
         );
     }
@@ -1030,13 +1289,13 @@ class VideoPreview extends Component {
     return intl.formatMessage(intlMessages.webcamSettingsTitle);
   }
 
-  renderModalContent() {
+  renderModalContent(selectedTab) {
     const {
       intl,
       hasVideoStream,
       forceOpen,
       camCapReached,
-      isVisualEffects,
+      closeModal,
     } = this.props;
 
     const {
@@ -1045,11 +1304,12 @@ class VideoPreview extends Component {
       deviceError,
       previewError,
     } = this.state;
-    const shouldDisableButtons = PreviewService.getSkipVideoPreview()
-    && !forceOpen
-    && !(deviceError || previewError);
+    const shouldDisableButtons = this.shouldSkipVideoPreview()
+    || !!(deviceError || previewError);
 
     const shared = this.isAlreadyShared(webcamDeviceId);
+
+    const showStopAllButton = hasVideoStream && VideoService.isMultipleCamerasEnabled();
 
     const { isIe } = browserInfo;
 
@@ -1059,47 +1319,59 @@ class VideoPreview extends Component {
           <Styled.BrowserWarning>
             <FormattedMessage
               id="app.audioModal.unsupportedBrowserLabel"
-              description="Warning when someone joins with a browser that isnt supported"
+              description="Warning when someone joins with a browser that isn't supported"
               values={{
-                0: <a href="https://www.google.com/chrome/">Chrome</a>,
-                1: <a href="https://getfirefox.com">Firefox</a>,
+                supportedBrowser1: <a href="https://www.google.com/chrome/">Chrome</a>,
+                supportedBrowser2: <a href="https://getfirefox.com">Firefox</a>,
               }}
             />
           </Styled.BrowserWarning>
         ) : null}
 
-        {this.renderContent()}
+        {this.renderContent(selectedTab)}
 
-        {!isVisualEffects ? (
-          <Styled.Footer>
-            {hasVideoStream && VideoService.isMultipleCamerasEnabled()
-              ? (
+        <Styled.Footer>
+          <Styled.BottomSeparator />
+            <Styled.FooterContainer>
+              {showStopAllButton ? (
                 <Styled.ExtraActions>
-                  <Button
+                  <Styled.StopAllButton
                     color="danger"
                     label={intl.formatMessage(intlMessages.stopSharingAllLabel)}
                     onClick={this.handleStopSharingAll}
                     disabled={shouldDisableButtons}
                   />
                 </Styled.ExtraActions>
-              )
-              : null
-            }
-            <Styled.Actions>
-              {!shared && camCapReached ? (
-                <span>{intl.formatMessage(intlMessages.camCapReached)}</span>
-              ) : (<Button
-              data-test="startSharingWebcam"
-              color={shared ? 'danger' : 'primary'}
-              label={intl.formatMessage(shared ? intlMessages.stopSharingLabel : intlMessages.startSharingLabel)}
-              onClick={shared ? this.handleStopSharing : this.handleStartSharing}
-              disabled={isStartSharingDisabled || isStartSharingDisabled === null || shouldDisableButtons}
-            />)}
-            </Styled.Actions>
-          </Styled.Footer>
-        ) : null }
+              ) : null}
+                {!shared && camCapReached ? (
+                  <span>{intl.formatMessage(intlMessages.camCapReached)}</span>
+                ) : (
+                  <div style={{ display: 'flex' }}>
+                      <Styled.CancelButton
+                        data-test="cancelSharingWebcam"
+                        label={intl.formatMessage(intlMessages.cancelLabel)}
+                        onClick={closeModal}
+                      />
+                      <Styled.SharingButton
+                        data-test="startSharingWebcam"
+                        color={shared ? 'danger' : 'primary'}
+                        label={intl.formatMessage(shared ? intlMessages.stopSharingLabel : intlMessages.startSharingLabel)}
+                        onClick={shared ? this.handleStopSharing : this.handleStartSharing}
+                        disabled={isStartSharingDisabled || isStartSharingDisabled === null || shouldDisableButtons}
+                      />
+                  </div>
+                )}
+
+            </Styled.FooterContainer>
+        </Styled.Footer>
       </>
     );
+  }
+
+  handleSelectTab(tab) {
+    this.setState({
+      selectedTab: tab,
+    });
   }
 
   render() {
@@ -1107,17 +1379,28 @@ class VideoPreview extends Component {
       intl,
       isCamLocked,
       forceOpen,
-      isVisualEffects,
       isOpen,
       priority,
+      cameraAsContent,
+      cameraAsContentDeviceId,
+      isVirtualBackgroundsEnabled,
     } = this.props;
+
+    const { selectedTab, webcamDeviceId } = this.state;
+    
+    const BASE_NAME = window.meetingClientSettings.public.app.basename;
+    const WebcamSettingsImg = `${BASE_NAME}/resources/images/webcam_settings.svg`;
+    const WebcamBackgroundImg = `${BASE_NAME}/resources/images/webcam_background.svg`;
+
+    const darkThemeState = AppService.isDarkThemeEnabled();
+    const isBlurred = Session.getItem('videoPreviewFirstOpen') && getFromUserSettings('bbb_auto_share_webcam', window.meetingClientSettings.public.kurento.autoShareWebcam);
 
     if (isCamLocked === true) {
       this.handleProceed();
       return null;
     }
 
-    if (PreviewService.getSkipVideoPreview() && !forceOpen) {
+    if (this.shouldSkipVideoPreview()) {
       return null;
     }
 
@@ -1128,11 +1411,12 @@ class VideoPreview extends Component {
 
     const allowCloseModal = !!(deviceError || previewError)
     || !PreviewService.getSkipVideoPreview()
-    || forceOpen;
+      || forceOpen;
 
-    const title = isVisualEffects
-      ? intl.formatMessage(intlMessages.webcamEffectsTitle)
-      : intl.formatMessage(intlMessages.webcamSettingsTitle);
+    const shouldShowVirtualBackgroundsTab = isVirtualBackgroundsEnabled
+      && !cameraAsContent
+      && !(webcamDeviceId === cameraAsContentDeviceId)
+      && isVirtualBackgroundSupported()
 
     return (
       <Styled.VideoPreviewModal
@@ -1142,17 +1426,51 @@ class VideoPreview extends Component {
         shouldCloseOnOverlayClick={allowCloseModal}
         isPhone={deviceInfo.isPhone}
         data-test="webcamSettingsModal"
-        title={title}
         {...{
           isOpen,
           priority,
         }}
       >
-        {deviceInfo.hasMediaDevices
-          ? this.renderModalContent()
-          : this.supportWarning()
-        }
-      </Styled.VideoPreviewModal>
+        <Styled.Container>
+    <Styled.Header>
+      <Styled.WebcamTabs
+        onSelect={this.handleSelectTab}
+        selectedIndex={selectedTab}
+              >
+                <Styled.WebcamTabList>
+                  <Styled.WebcamTabSelector selectedClassName="is-selected">
+                    <Styled.IconSvg
+                      src={WebcamSettingsImg}
+                      darkThemeState={darkThemeState}
+                    />
+                    <span 
+                      id="webcam-settings-title">{this.getModalTitle()}
+                    </span>
+                  </Styled.WebcamTabSelector>
+                  {shouldShowVirtualBackgroundsTab && (
+                  <>
+                    <Styled.HeaderSeparator />
+                    <Styled.WebcamTabSelector selectedClassName="is-selected">
+                      <Styled.IconSvg
+                        src={WebcamBackgroundImg}
+                        darkThemeState={darkThemeState}
+                      />
+                      <span id="backgrounds-title">{intl.formatMessage(intlMessages.webcamVirtualBackgroundTitle)}</span>
+                    </Styled.WebcamTabSelector>
+                  </>
+                )}
+                </Styled.WebcamTabList>
+                
+              </Styled.WebcamTabs>
+            </Styled.Header>
+
+            {deviceInfo.hasMediaDevices
+                ? this.renderModalContent(selectedTab)
+                : this.supportWarning()
+              }
+
+          </Styled.Container>
+        </Styled.VideoPreviewModal>
     );
   }
 }

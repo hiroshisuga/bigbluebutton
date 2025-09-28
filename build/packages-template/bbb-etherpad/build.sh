@@ -47,7 +47,11 @@ git clone https://github.com/mconf/ep_redis_publisher.git
 npm pack ./ep_redis_publisher
 npm install ./ep_redis_publisher-*.tgz
 
-npm install ep_cursortrace
+rm -rf ep_cursortrace
+git clone https://github.com/mconf/ep_cursortrace.git
+npm pack ./ep_cursortrace
+npm install ./ep_cursortrace-*.tgz
+
 npm install ep_disable_chat
 npm install --no-save --legacy-peer-deps ep_auth_session
 
@@ -57,6 +61,7 @@ cp -r CHANGELOG.md CONTRIBUTING.md LICENSE README.md bin doc src tests var node_
 
 cp settings.json staging/usr/share/etherpad-lite
 git clone https://github.com/alangecker/bbb-etherpad-skin.git staging/usr/share/etherpad-lite/src/static/skins/bigbluebutton
+chmod -R a+rX staging/usr/share/etherpad-lite
 
 mkdir -p staging/usr/lib/systemd/system
 cp etherpad.service staging/usr/lib/systemd/system
@@ -80,5 +85,6 @@ fpm -s dir -C ./staging -n $PACKAGE \
     --after-remove after-remove.sh \
     --description "The EtherPad Lite components for BigBlueButton" \
     $DIRECTORIES \
-    $OPTS
+    $OPTS \
+    -d 'nodejs (>= 18)' -d 'nodejs (<< 23)'
 

@@ -5,10 +5,7 @@ import { toast } from 'react-toastify';
 import Icon from '/imports/ui/components/common/icon/component';
 import { ENTER } from '/imports/utils/keyCodes';
 import Styled from './styles';
-import { Meteor } from 'meteor/meteor';
 import TooltipContainer from '/imports/ui/components/common/tooltip/container';
-
-const ROLE_MODERATOR = Meteor.settings.public.user.role_moderator;
 
 const messages = defineMessages({
   lowerHandsLabel: {
@@ -43,9 +40,9 @@ class RaiseHandNotifier extends Component {
   constructor(props) {
     super(props);
 
-    this.statusNotifierId = null;
+    this.statusNotifierId = 'statusNotifierId';
 
-    this.audio = new Audio(`${Meteor.settings.public.app.cdn + Meteor.settings.public.app.basename + Meteor.settings.public.app.instanceId}/resources/sounds/bbb-handRaise.mp3`);
+    this.audio = new Audio(`${window.meetingClientSettings.public.app.cdn + window.meetingClientSettings.public.app.basename}/resources/sounds/bbb-handRaise.mp3`);
 
     this.renderRaisedHands = this.renderRaisedHands.bind(this);
     this.getRaisedHandNames = this.getRaisedHandNames.bind(this);
@@ -58,12 +55,12 @@ class RaiseHandNotifier extends Component {
     } = this.props;
 
     if (isViewer && !isPresenter) {
-      if (this.statusNotifierId) toast.dismiss(this.statusNotifierId);
+      if (toast.isActive(this.statusNotifierId)) toast.dismiss(this.statusNotifierId);
       return false;
     }
 
     if (raiseHandUsers.length === 0) {
-      return this.statusNotifierId ? toast.dismiss(this.statusNotifierId) : null;
+      return toast.isActive(this.statusNotifierId) ? toast.dismiss(this.statusNotifierId) : null;
     }
 
     if (raiseHandAudioAlert && raiseHandUsers.length > prevProps.raiseHandUsers.length) {
@@ -71,18 +68,18 @@ class RaiseHandNotifier extends Component {
     }
 
     if (raiseHandPushAlert) {
-      if (this.statusNotifierId) {
+      if (toast.isActive(this.statusNotifierId)) {
         return toast.update(this.statusNotifierId, {
           render: this.renderRaisedHands(),
         });
       }
 
-      this.statusNotifierId = toast(this.renderRaisedHands(), {
-        onClose: () => { this.statusNotifierId = null; },
+      toast(this.renderRaisedHands(), {
         autoClose: false,
         closeOnClick: false,
         closeButton: false,
         className: 'raiseHandToast',
+        toastId: this.statusNotifierId,
       });
     }
 
@@ -117,27 +114,27 @@ class RaiseHandNotifier extends Component {
 
     const raisedHandMessageString = length === 1
       ? messages.raisedHandDescOneUser : messages.raisedHandDesc;
-    return intl.formatMessage(raisedHandMessageString, { 0: formattedNames });
+    return intl.formatMessage(raisedHandMessageString, { userNames: formattedNames });
   }
 
   raisedHandAvatars() {
-    const { raiseHandUsers, clearUserStatus, intl } = this.props;
+    const { raiseHandUsers, lowerUserHands, intl } = this.props;
     let users = raiseHandUsers;
     if (raiseHandUsers.length > MAX_AVATAR_COUNT) users = users.slice(0, MAX_AVATAR_COUNT);
 
     const avatars = users.map((u) => (
       <TooltipContainer
         key={`statusToastAvatar-${u.userId}`}
-        title={intl.formatMessage(messages.lowerHandDescOneUser, { 0: u.name })}
+        title={intl.formatMessage(messages.lowerHandDescOneUser, { userName: u.name })}
       >
         <Styled.Avatar
           role="button"
           tabIndex={0}
           style={{ backgroundColor: `${u.color}` }}
-          onClick={() => clearUserStatus(u.userId)}
-          onKeyDown={(e) => (e.keyCode === ENTER ? clearUserStatus(u.userId) : null)}
+          onClick={() => lowerUserHands(u.userId)}
+          onKeyDown={(e) => (e.keyCode === ENTER ? lowerUserHands(u.userId) : null)}
           data-test="avatarsWrapperAvatar"
-          moderator={u.role === ROLE_MODERATOR}
+          moderator={u.isModerator}
           avatar={u.avatar}
         >
           {u.name.slice(0, 2)}
@@ -160,15 +157,15 @@ class RaiseHandNotifier extends Component {
     const { raiseHandUsers, intl, lowerUserHands } = this.props;
     const formattedRaisedHands = this.getRaisedHandNames();
     return (
-      <div>
-        <Styled.ToastIcon>
+      <Styled.ToastContentWrapper>
+        <Styled.ToastContent>
           <Styled.IconWrapper>
             <Icon iconName="hand" />
           </Styled.IconWrapper>
-        </Styled.ToastIcon>
-        <Styled.AvatarsWrapper data-test="avatarsWrapper">
-          {this.raisedHandAvatars()}
-        </Styled.AvatarsWrapper>
+          <Styled.AvatarWrapper>
+            {this.raisedHandAvatars()}
+          </Styled.AvatarWrapper>
+        </Styled.ToastContent>
         <Styled.ToastMessage>
           <div>{intl.formatMessage(messages.raisedHandsTitle)}</div>
           {formattedRaisedHands}
@@ -183,7 +180,7 @@ class RaiseHandNotifier extends Component {
           }}
           data-test="raiseHandRejection"
         />
-      </div>
+      </Styled.ToastContentWrapper>
     );
   }
 

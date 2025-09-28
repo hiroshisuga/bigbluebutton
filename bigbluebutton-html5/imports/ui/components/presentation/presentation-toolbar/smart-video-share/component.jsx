@@ -1,10 +1,10 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { defineMessages } from 'react-intl';
-import { safeMatch } from '/imports/utils/string-utils';
-import { isUrlValid, startWatching } from '/imports/ui/components/external-video-player/service';
-import BBBMenu from '/imports/ui/components/common/menu/component';
+import { safeMatch, uniqueId } from '/imports/utils/string-utils';
+import { isUrlValid } from '/imports/ui/components/external-video-player/service';
 import Styled from './styles';
+import Dropdown from '/imports/ui/components/dropdown/component';
 
 const intlMessages = defineMessages({
   externalVideo: {
@@ -12,58 +12,62 @@ const intlMessages = defineMessages({
   },
 });
 
-export const SmartMediaShare = (props) => {
-  const {
-    currentSlide, intl, isMobile, isRTL,
-  } = props;
-  const linkPatt = /(https?:\/\/.*[ ]$)/g;
+const createAction = (url, startWatching) => {
+  const hasHttps = url?.startsWith('https://');
+  const finalUrl = hasHttps ? url : `https://${url}`;
+  const label = hasHttps ? url?.replace('https://', '') : url;
+
+  if (!isUrlValid(finalUrl)) return null;
+
+  return (
+    <Dropdown.DropdownListItem
+      label={label}
+      key={uniqueId('quick-external-video-item')}
+      onClick={() => {
+        startWatching(finalUrl);
+      }}
+    />
+  );
+};
+
+export const SmartMediaShare = ({
+  currentSlide = undefined,
+  intl,
+  startWatching,
+}) => {
+  const linkPatt = /(https?:\/\/.*?)(?=\s|$)/g;
   const externalLinks = safeMatch(linkPatt, currentSlide?.content?.replace(/[\r\n]/g, '  '), false);
   if (!externalLinks) return null;
 
-  const lnkParts = externalLinks[0]?.split('  ')?.filter(s => !s?.includes(' ')).join('');
   const actions = [];
-  
-  const splitLink = lnkParts?.split('https://');
-  splitLink.forEach((l) => {
-    if (isUrlValid(`https://${l}`)) {
-      actions.push({
-        label: l,
-        onClick: () => startWatching(`https://${l}`),
-      });
-    }
+
+  externalLinks?.forEach((l) => {
+    const action = createAction(l, startWatching);
+    if (action) actions.push(action);
   });
 
   if (actions?.length === 0) return null;
 
-  const customStyles = { top: '-1rem' };
-
   return (
-    <BBBMenu
-      customStyles={!isMobile ? customStyles : null}
-      trigger={(
+    <Dropdown>
+      <Dropdown.DropdownTrigger tabIndex={0}>
         <Styled.QuickVideoButton
           role="button"
           label={intl.formatMessage(intlMessages.externalVideo)}
-          color="light"
+          color="primary"
           circle
           icon="external-video"
           size="md"
           onClick={() => null}
           hideLabel
         />
-      )}
-      actions={actions}
-      opts={{
-        id: 'external-video-dropdown-menu',
-        keepMounted: true,
-        transitionDuration: 0,
-        elevation: 3,
-        getcontentanchorel: null,
-        fullwidth: 'true',
-        anchorOrigin: { vertical: 'top', horizontal: isRTL ? 'right' : 'left' },
-        transformOrigin: { vertical: 'bottom', horizontal: isRTL ? 'right' : 'left' },
-      }}
-    />
+      </Dropdown.DropdownTrigger>
+      <Dropdown.DropdownContent>
+        <Dropdown.DropdownList>
+          {actions}
+        </Dropdown.DropdownList>
+      </Dropdown.DropdownContent>
+    </Dropdown>
   );
 };
 
@@ -76,10 +80,4 @@ SmartMediaShare.propTypes = {
   intl: PropTypes.shape({
     formatMessage: PropTypes.func.isRequired,
   }).isRequired,
-  isMobile: PropTypes.bool.isRequired,
-  isRTL: PropTypes.bool.isRequired,
-};
-
-SmartMediaShare.defaultProps = {
-  currentSlide: undefined,
 };

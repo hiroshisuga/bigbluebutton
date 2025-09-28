@@ -1,12 +1,9 @@
 export interface Cameras {
   streamId: string;
-  meetingId: string;
-  userId: string;  
 }
 
 export interface PresPagesWritable {
   isCurrentPage: boolean;
-  changedModeOn: number;
   meetingId: string;
   pageId: string;
   presentationId: string;
@@ -23,11 +20,27 @@ export interface LastBreakoutRoom {
     userId: string;
 }
 
+export interface BreakoutRoomsSummary {
+  totalOfBreakoutRooms: number;
+  totalOfIsUserCurrentlyInRoom: number;
+  totalOfShowInvitation: number;
+  totalOfJoinURL: number;
+}
+
+export interface UserMeeting {
+  ended: boolean;
+  endedReasonCode: string;
+  endedByUserName: string;
+  logoutUrl: string;
+}
+
 export interface Voice {
   joined: boolean;
   listenOnly: boolean;
   talking: boolean;
   muted: boolean;
+  listenOnlyInputDevice: boolean;
+  deafened: boolean;
   voiceUserId: string;
   callerName: string;
   callerNum: string;
@@ -36,30 +49,83 @@ export interface Voice {
   endTime: number;
   floor: boolean;
   lastFloorTime: string
-  lastSpeakChangedAt: number;
   meetingId: string;
   spoke: boolean;
   startTime: number;
 }
 
+export interface userLockSettings {
+  disablePublicChat: boolean;
+}
+
+export interface sessionCurrent {
+  enforceLayout: boolean;
+}
+
+export interface Livekit {
+  livekitToken: string;
+}
+
 export interface User {
-    userId: string;
-    extId: string;
-    name: string;
-    isModerator: boolean;
-    isOnline: boolean;
-    role: string;
-    color: string;
-    avatar: string;
-    emoji: string;
-    presenter?: boolean;
-    pinned?: boolean;
-    guest?: boolean;
-    mobile?: boolean;
-    whiteboardAccess?: boolean;
-    voice?: Voice;
-    locked: boolean;
-    lastBreakoutRoom?: LastBreakoutRoom;
-    cameras: Array<Cameras>;
-    presPagesWritable: Array<PresPagesWritable>;
+  logoutUrl: string;
+  authToken: string;
+  userId: string;
+  meetingId: string;
+  extId: string;
+  name: string;
+  nameSortable: string;
+  isModerator: boolean;
+  clientType: string;
+  disconnected: boolean;
+  currentlyInMeeting: boolean;
+  ejectReason: string;
+  ejectReasonCode: string;
+  ejected: boolean;
+  role: string;
+  color: string;
+  avatar: string;
+  webcamBackground: string;
+  reactionEmoji: string;
+  presenter?: boolean;
+  pinned?: boolean;
+  bot?: boolean;
+  guest?: boolean;
+  guestStatus: string;
+  joinErrorCode: string;
+  joinErrorMessage: string;
+  inactivityWarningDisplay: boolean;
+  joined: boolean;
+  loggedOut: boolean;
+  mobile?: boolean;
+  whiteboardAccess?: boolean;
+  isDialIn: boolean;
+  voice?: Partial<Voice>;
+  locked: boolean;
+  registeredAt: string;
+  hasDrawPermissionOnCurrentPage: boolean;
+  lastBreakoutRoom?: LastBreakoutRoom;
+  breakoutRoomsSummary?: BreakoutRoomsSummary;
+  cameras: Array<Cameras>;
+  presPagesWritable: Array<PresPagesWritable>;
+  speechLocale: string;
+  captionLocale: string;
+  authed: boolean;
+  size: number;
+  away: boolean;
+  raiseHand: boolean;
+  userLockSettings: userLockSettings;
+  sessionCurrent: sessionCurrent;
+  livekit?: Livekit;
+  meeting: UserMeeting;
+}
+
+export interface UserBasicInfo {
+  userId: string;
+  extId: string;
+  name: string;
+  isModerator: boolean;
+  role: string;
+  color: string;
+  avatar: string;
+  presenter?: boolean;
 }

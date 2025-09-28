@@ -64,14 +64,16 @@ class GuestsWaiting {
   def getGuestPolicy(): GuestPolicy = guestPolicy
   def setGuestPolicy(policy: GuestPolicy) = guestPolicy = policy
 
-  def setGuestLobbyMessage(message: String) = guestLobbyMessage = message
+  def setGuestLobbyMessage(message: String) = {
+    guestLobbyMessage = message
+  }
 
   def setPrivateGuestLobbyMessage(intId: String, message: String): Unit = {
     guestsWithPrivateGuestLobbyMessages.put(intId, message);
   }
 }
 
-case class GuestWaiting(intId: String, name: String, role: String, guest: Boolean, avatar: String, color: String, authenticated: Boolean, registeredOn: Long)
+case class GuestWaiting(intId: String, name: String, role: String, guest: Boolean, avatar: String, webcamBackground: String, color: String, authenticated: Boolean, registeredOn: Long)
 case class GuestPolicy(policy: String, setBy: String)
 
 object GuestPolicyType {

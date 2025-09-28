@@ -303,11 +303,11 @@ You must configure bbb-web so that it will provide the list of turn servers to t
 
 Restart your BigBlueButton server to apply the changes.
 
-Going forward, when users connect behind a restrictive firewall that prevents outgoing UDP connections, the TURN server will enable BigBlueButton to connect to FreeSWITCH and Kurento via the TURN server through port 443 on their firewall.
+Going forward, when users connect behind a restrictive firewall that prevents outgoing UDP connections, the TURN server will enable BigBlueButton to connect to FreeSWITCH and mediasoup via the TURN server through port 443 on their firewall.
 
 ## Test your TURN server
 
-By default, your browser will try to connect directly to Kurento or FreeSWITCH using WebRTC. If it is unable to make a direct connection, it will fall back to using the TURN server as one of the interconnectivity connectivity exchange (ICE) candidates to relay the media.
+By default, your browser will try to connect directly to mediasoup or FreeSWITCH using WebRTC. If it is unable to make a direct connection, it will fall back to using the TURN server as one of the interconnectivity connectivity exchange (ICE) candidates to relay the media.
 
 Use FireFox to test your TURN server. FireFox allows you to disable direct connections and require fallback to your TURN server. Launch FireFox, open `about:config`, and search for 'relay`. You should see a parameter `media.peerconnection.ice.relay_only`. Set this value to `true`.
 
@@ -321,7 +321,7 @@ WebRTC: ICE failed, your TURN server appears to be broken, see about:webrtc for 
 
 then FireFox was unable to communicate with your TURN server, or your TURN server was not running or configured correctly.
 
-To ensure that your firewall is not blocking UDP connections over port 443, open a new tad visit [https://test.bigbluebutton.org/](https://test.bigbluebutton.org/), launch a test session, and try sharing your webcam.
+To ensure that your firewall is not blocking UDP connections over port 443, open a new tab and visit [https://demo.bigbluebutton.org/](https://demo.bigbluebutton.org/), launch a test session, and try sharing your webcam.
 the browser may not be able to connect to the TURN server or the TURN server is not running or configured correctly.
 
 The TURN server also acts as a STUN server, so you can first check that the STUN portion is working using the `stunclient`. Run the following commands below and substitute `<youor-turn-server-host>` with the hostname of your TURN server.
@@ -345,13 +345,13 @@ Nat filtering: Endpoint Independent Filtering
 
 If you get an error, check that `coturn` is running on the TURN server using `systemctl status coturn.service`. Check the logs by doing `tail -f /var/log/turnserver/coturn.log`. You can get verbose logs by adding `verbose` to `/etc/turnserver.conf` and restarting the TURN server `systemctl restart coturn.service`
 
-You can test your TURN server using the [trickle ICE](https://webrtc.github.io/samples/src/content/peerconnection/trickle-ice/) page. This gives you a log of the relay candidates as they are returned from ICE gathering. To test using this page, you need to generate some test credentials. Run the following BASH script and substitute `<turn.example.com>` with the hostname of your TURN server and `<secret_value>` with the password for your TURN server.
+You can test your TURN server using the [trickle ICE](https://webrtc.github.io/samples/src/content/peerconnection/trickle-ice/) page. This gives you a log of the relay candidates as they are returned from ICE gathering. To test using this page, you need to generate some test credentials. The following BASH script generates them by reading your `/etc/turnserver.conf`. Alternatively, set `HOST=<HOSTNAME>` and `SECRET=<SECRET>` to your TURN servers credentials.
 
 ```bash
 #!/bin/bash
 
-HOST=<turn.example.com>
-SECRET=<secret_value>
+HOST=$(cat /etc/turnserver.conf | grep realm | sed 's/realm=//')
+SECRET=$(cat /etc/turnserver.conf | grep static-auth-secret | sed 's/static-auth-secret=//')
 
 time=$(date +%s)
 expiry=8400

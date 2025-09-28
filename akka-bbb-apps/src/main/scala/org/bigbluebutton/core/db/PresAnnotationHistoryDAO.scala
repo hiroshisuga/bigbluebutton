@@ -2,54 +2,68 @@ package org.bigbluebutton.core.db
 
 import org.bigbluebutton.common2.msgs.AnnotationVO
 import PostgresProfile.api._
+import spray.json.JsValue
 
 case class PresAnnotationHistoryDbModel(
-    sequence:       Option[Int] = None,
     annotationId:   String,
     pageId:         String,
+    meetingId:      String,
     userId:         String,
-    annotationInfo: String
-//    lastUpdatedAt:  java.sql.Timestamp = new java.sql.Timestamp(System.currentTimeMillis())
+    annotationInfo: Option[JsValue],
+    updatedAt:      java.sql.Timestamp
 )
 
 class PresAnnotationHistoryDbTableDef(tag: Tag) extends Table[PresAnnotationHistoryDbModel](tag, None, "pres_annotation_history") {
-  val sequence = column[Option[Int]]("sequence", O.PrimaryKey, O.AutoInc)
   val annotationId = column[String]("annotationId")
   val pageId = column[String]("pageId")
+  val meetingId = column[String]("meetingId")
   val userId = column[String]("userId")
-  val annotationInfo = column[String]("annotationInfo")
-  //  val lastUpdatedAt = column[java.sql.Timestamp]("lastUpdatedAt")
-  //  def whiteboard = foreignKey("whiteboard_fk", whiteboardId, Whiteboards)(_.whiteboardId, onDelete = ForeignKeyAction.Cascade)
-  def * = (sequence, annotationId, pageId, userId, annotationInfo) <> (PresAnnotationHistoryDbModel.tupled, PresAnnotationHistoryDbModel.unapply)
+  val annotationInfo = column[Option[JsValue]]("annotationInfo")
+  val updatedAt = column[java.sql.Timestamp]("updatedAt")
+  def * = (annotationId, pageId, meetingId, userId, annotationInfo, updatedAt) <> (PresAnnotationHistoryDbModel.tupled, PresAnnotationHistoryDbModel.unapply)
 }
 
 object PresAnnotationHistoryDAO {
+  def insertOrUpdateMap(meetingId: String, annotations: Array[AnnotationVO], annotationUpdatedAt: Long) = {
+    val dbModels = annotations.map { annotation =>
+      val currentMeta = annotation.annotationInfo.get("meta") match {
+        case Some(meta: Map[String, Any] @unchecked) => meta
+        case _                                       => Map.empty[String, Any]
+      }
+      val enforcedMeta = currentMeta ++ Map(
+        "synced" -> true,
+      )
+      val updatedMeta = annotation.annotationInfo.updated("meta", enforcedMeta)
 
-  def insert(annotationDiff: AnnotationVO) = {
-    DatabaseConnection.db.run(
-      TableQuery[PresAnnotationHistoryDbTableDef].returning(
-        TableQuery[PresAnnotationHistoryDbTableDef].map(_.sequence)
-      ) += PresAnnotationHistoryDbModel(
-          None,
-          annotationId = annotationDiff.id,
-          pageId = annotationDiff.wbId,
-          userId = annotationDiff.userId,
-          annotationInfo = JsonUtils.mapToJson(annotationDiff.annotationInfo)
-        )
+      PresAnnotationHistoryDbModel(
+        annotationId = annotation.id,
+        pageId = annotation.wbId,
+        meetingId = meetingId,
+        userId = annotation.userId,
+        annotationInfo = Some(JsonUtils.mapToJson(updatedMeta)),
+        updatedAt = new java.sql.Timestamp(annotationUpdatedAt)
+      )
+    }
+    DatabaseConnection.enqueue(
+      TableQuery[PresAnnotationHistoryDbTableDef] ++= dbModels
     )
   }
 
-  def delete(wbId: String, userId: String, annotationId: String) = {
-    DatabaseConnection.db.run(
-      TableQuery[PresAnnotationHistoryDbTableDef].returning(
-        TableQuery[PresAnnotationHistoryDbTableDef].map(_.sequence)
-      ) += PresAnnotationHistoryDbModel(
-          None,
-          annotationId = annotationId,
-          pageId = wbId,
-          userId = userId,
-          annotationInfo = ""
-        )
+  def deleteAnnotations(meetingId: String, pageId: String, userId: String, annotations: Array[String], annotationUpdatedAt: Long) = {
+    val dbModels = annotations.map { annotationId =>
+      PresAnnotationHistoryDbModel(
+        annotationId = annotationId,
+        pageId = pageId,
+        meetingId = meetingId,
+        userId = userId,
+        annotationInfo = None,
+        updatedAt = new java.sql.Timestamp(annotationUpdatedAt)
+      )
+    }
+
+    DatabaseConnection.enqueue(
+      TableQuery[PresAnnotationHistoryDbTableDef] ++= dbModels
     )
+
   }
 }

@@ -1,10 +1,6 @@
 package org.bigbluebutton.common2.msgs
 
 /* In Messages  */
-object CreateTimerPubMsg { val NAME = "CreateTimerPubMsg" }
-case class CreateTimerPubMsg(header: BbbClientMsgHeader, body: CreateTimerPubMsgBody) extends StandardMsg
-case class CreateTimerPubMsgBody(stopwatch: Boolean, running: Boolean, time: Int, accumulated: Int, timestamp: Int, track: String)
-
 object ActivateTimerReqMsg { val NAME = "ActivateTimerReqMsg" }
 case class ActivateTimerReqMsg(header: BbbClientMsgHeader, body: ActivateTimerReqMsgBody) extends StandardMsg
 case class ActivateTimerReqMsgBody(stopwatch: Boolean, running: Boolean, time: Int, accumulated: Int, timestamp: Int, track: String)
@@ -19,7 +15,7 @@ case class StartTimerReqMsgBody()
 
 object StopTimerReqMsg { val NAME = "StopTimerReqMsg" }
 case class StopTimerReqMsg(header: BbbClientMsgHeader, body: StopTimerReqMsgBody) extends StandardMsg
-case class StopTimerReqMsgBody(accumulated: Int)
+case class StopTimerReqMsgBody()
 
 object SwitchTimerReqMsg { val NAME = "SwitchTimerReqMsg" }
 case class SwitchTimerReqMsg(header: BbbClientMsgHeader, body: SwitchTimerReqMsgBody) extends StandardMsg

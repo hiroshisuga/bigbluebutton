@@ -1,34 +1,34 @@
-const { test } = require('@playwright/test');
+const { test } = require('../fixtures');
+const { fullyParallel } = require('../playwright.config');
 const { Polling } = require('./poll');
+const { initializePages } = require('../core/helpers');
 
-
-test.describe.serial('Polling', () => {
+test.describe('Polling', { tag: '@ci' }, async () => {
   const polling = new Polling();
-  test.beforeAll(async ({ browser }) => {
-    const context = await browser.newContext();
-    const page = await context.newPage();
-    await polling.initModPage(page, true);
-    await polling.initUserPage(true, context);
+
+  test.describe.configure({ mode: fullyParallel ? 'parallel' : 'serial' });
+  test[fullyParallel ? 'beforeEach' : 'beforeAll'](async ({ browser }) => {
+    await initializePages(polling, browser, { isMultiUser: true });
   });
 
   // Manage
-  test('Create poll @ci', async () => {
+  test('Create poll', async () => {
     await polling.createPoll();
   });
 
-  test('Create anonymous poll @ci', async () => {
+  test('Create anonymous poll', async () => {
     await polling.pollAnonymous();
   });
 
-  test('Create quick poll - from the slide @ci', async () => {
+  test('Create quick poll - from the slide', async () => {
     await polling.quickPoll();
   });
 
-  test('Create poll with user response @ci', async () => {
+  test('Create poll with user response', async () => {
     await polling.pollUserResponse();
   });
 
-  test('Stop a poll manually @ci', async () => {
+  test('Stop a poll manually', async () => {
     await polling.stopPoll();
   });
 
@@ -36,15 +36,15 @@ test.describe.serial('Polling', () => {
     await polling.manageResponseChoices();
   });
 
-  test('Not able to start new poll without presentation', async () => {
-    await polling.notAbleStartNewPollWithoutPresentation();
+  test('Start a poll without presentation', async () => {
+    await polling.startPollWithoutPresentation();
   });
 
-  test('Custom input @ci', async () => {
+  test('Custom input', async () => {
     await polling.customInput();
   });
 
-  test('Allow multiple choices @ci', async () => {
+  test('Allow multiple choices', async () => {
     await polling.allowMultipleChoices();
   });
 
@@ -53,15 +53,16 @@ test.describe.serial('Polling', () => {
   });
 
   // Results
-  test('Poll results in chat message @ci', async () => {
+  test('Poll results in chat message', async () => {
     await polling.pollResultsOnChat();
   });
 
-  test('Poll results on whiteboard @ci', async () => {
+  test('Poll results on whiteboard', async () => {
     await polling.pollResultsOnWhiteboard();
   });
 
-  test('Poll results in a different presentation', async () => {
+  test('Poll results in a different presentation', async ({}, testInfo) => {
+    test.fixme(!testInfo.config.fullyParallel, 'Currently only works in parallel mode. Poll results not being displayed in the presentation');
     await polling.pollResultsInDifferentPresentation();
   });
 });

@@ -1,13 +1,12 @@
-import React from "react";
-import PropTypes from "prop-types";
-import { defineMessages, injectIntl } from "react-intl";
-
-import Menu from "@mui/material/Menu";
-import { Divider } from "@mui/material";
-import Icon from "/imports/ui/components/common/icon/component";
+import React from 'react';
+import PropTypes from 'prop-types';
+import { defineMessages, injectIntl } from 'react-intl';
+import { Divider } from '@mui/material';
+import Icon from '/imports/ui/components/common/icon/component';
 import { SMALL_VIEWPORT_BREAKPOINT } from '/imports/ui/components/layout/enums';
 import KEY_CODES from '/imports/utils/keyCodes';
-
+import MenuSkeleton from './skeleton';
+import GenericContentItem from '/imports/ui/components/generic-content/generic-content-item/component';
 import Styled from './styles';
 
 const intlMessages = defineMessages({
@@ -48,22 +47,25 @@ class BBBMenu extends React.Component {
 
   handleKeyDown(event) {
     const { anchorEl } = this.state;
+    const { isHorizontal } = this.props;
     const isMenuOpen = Boolean(anchorEl);
 
+    const previousKey = isHorizontal ? KEY_CODES.ARROW_LEFT : KEY_CODES.ARROW_UP;
+    const nextKey = isHorizontal ? KEY_CODES.ARROW_RIGHT : KEY_CODES.ARROW_DOWN;
 
     if ([KEY_CODES.ESCAPE, KEY_CODES.TAB].includes(event.which)) {
       this.handleClose();
       return;
     }
 
-    if (isMenuOpen && [KEY_CODES.ARROW_UP, KEY_CODES.ARROW_DOWN].includes(event.which)) {
+    if (isMenuOpen && [previousKey, nextKey].includes(event.which)) {
       event.preventDefault();
       event.stopPropagation();
       const menuItems = Array.from(document.querySelectorAll('[data-key^="menuItem-"]'));
       if (menuItems.length === 0) return;
 
-      const focusedIndex = menuItems.findIndex(item => item === document.activeElement);
-      const nextIndex = event.which === KEY_CODES.ARROW_UP ? focusedIndex - 1 : focusedIndex + 1;
+      const focusedIndex = menuItems.findIndex((item) => item === document.activeElement);
+      const nextIndex = event.which === previousKey ? focusedIndex - 1 : focusedIndex + 1;
       let indexToFocus = 0;
       if (nextIndex < 0) {
         indexToFocus = menuItems.length - 1;
@@ -75,11 +77,13 @@ class BBBMenu extends React.Component {
 
       menuItems[indexToFocus].focus();
     }
-  };
+  }
 
   handleClick(event) {
+    const { disabled } = this.props;
+    if (disabled) return;
     this.setState({ anchorEl: event.currentTarget });
-  };
+  }
 
   handleClose(event) {
     const { onCloseCallback } = this.props;
@@ -94,13 +98,19 @@ class BBBMenu extends React.Component {
         }, 0);
       }
     }
-  };
+  }
 
   makeMenuItems() {
-    const { actions, selectedEmoji, intl } = this.props;
+    const {
+      actions, selectedEmoji, intl, isHorizontal, isEmoji, isMobile, roundButtons, keepOpen,
+    } = this.props;
 
-    return actions?.map(a => {
-      const { dataTest, label, onClick, key, disabled, accessKey, description, selected } = a;
+    return actions?.map((a) => {
+      const {
+        dataTest, label, onClick, key, disabled,
+        description, selected, textColor, isToggle, loading,
+        isTitle, titleActions, contentFunction,
+      } = a;
       const emojiSelected = key?.toLowerCase()?.includes(selectedEmoji?.toLowerCase());
 
       let customStyles = {
@@ -112,50 +122,133 @@ class BBBMenu extends React.Component {
         marginRight: '0px',
       };
 
+      let iconStyles = {};
+
       if (a.customStyles) {
         customStyles = { ...customStyles, ...a.customStyles };
       }
 
+      if (a.iconStyles) {
+        iconStyles = { ...iconStyles, ...a.iconStyles };
+      }
+
+      if (loading) {
+        return (
+          <MenuSkeleton key={label} />
+        );
+      }
+
       return [
-        a.dividerTop && <Divider disabled />,
-        <Styled.BBBMenuItem
-          emoji={emojiSelected ? 'yes' : 'no'}
-          key={label}
-          data-test={dataTest}
-          data-key={`menuItem-${dataTest}`}
-          disableRipple={true}
-          disableGutters={true}
-          disabled={disabled}
-          style={customStyles}
-          onClick={(event) => {
-            onClick();
-            const close = !key?.includes('setstatus') && !key?.includes('back');
-            // prevent menu close for sub menu actions
-            if (close) this.handleClose(event);
-            event.stopPropagation();
-          }}>
-          <Styled.MenuItemWrapper>
-            {a.icon ? <Icon iconName={a.icon} key="icon" /> : null}
-            <Styled.Option aria-describedby={`${key}-option-desc`}>{label}</Styled.Option>
-            {description && <div className="sr-only" id={`${key}-option-desc`}>{`${description}${selected ? ` - ${intl.formatMessage(intlMessages.active)}` : ''}`}</div>}
-            {a.iconRight ? <Styled.IconRight iconName={a.iconRight} key="iconRight" /> : null}
-          </Styled.MenuItemWrapper>
-        </Styled.BBBMenuItem>,
-        a.divider && <Divider disabled />
+        (!a.isSeparator && onClick) && (
+          <Styled.BBBMenuItem
+            emoji={emojiSelected ? 'yes' : 'no'}
+            key={label}
+            id={dataTest}
+            data-test={dataTest}
+            data-key={`menuItem-${dataTest}`}
+            disableRipple
+            disableGutters
+            disabled={disabled || isTitle}
+            style={customStyles}
+            $roundButtons={roundButtons}
+            $isToggle={isToggle}
+            onClick={(event) => {
+              onClick(event);
+              const close = !keepOpen && !key?.includes('setstatus') && !key?.includes('back');
+              // prevent menu close for sub menu actions
+              if (close) this.handleClose(event);
+              event.stopPropagation();
+            }}
+          >
+            <Styled.MenuItemWrapper
+              isMobile={isMobile}
+              isEmoji={isEmoji}
+            >
+              {a.icon ? <Icon iconName={a.icon} key="icon" /> : null}
+              <Styled.Option hasIcon={!!(a.icon)} isHorizontal={isHorizontal} isMobile={isMobile} aria-describedby={`${key}-option-desc`} $isToggle={isToggle}>{label}</Styled.Option>
+              {description && <div className="sr-only" id={`${key}-option-desc`}>{`${description}${selected ? ` - ${intl.formatMessage(intlMessages.active)}` : ''}`}</div>}
+              {a.iconRight ? <Styled.IconRight iconName={a.iconRight} key="iconRight" style={iconStyles} /> : null}
+            </Styled.MenuItemWrapper>
+          </Styled.BBBMenuItem>
+        ),
+        (!onClick && !a.isSeparator) && (
+          <Styled.BBBMenuInformation
+            key={a.key}
+            isTitle={isTitle}
+            isGenericContent={!!contentFunction}
+            disabled={disabled || isTitle}
+          >
+            <Styled.MenuItemWrapper
+              hasSpaceBetween={isTitle && titleActions}
+            >
+              {!contentFunction ? (
+                <>
+                  {a.icon ? <Icon color={textColor} iconName={a.icon} key="icon" /> : null}
+                  <Styled.Option hasIcon={!!(a.icon)} isTitle={isTitle} textColor={textColor} isHorizontal={isHorizontal} isMobile={isMobile} aria-describedby={`${key}-option-desc`} $isToggle={isToggle}>{label}</Styled.Option>
+                  {a.iconRight ? <Styled.IconRight color={textColor} iconName={a.iconRight} key="iconRight" /> : null}
+                  {(isTitle && titleActions?.length > 0) ? (
+                    titleActions.map((item, index) => (
+                      <Styled.TitleAction
+                        key={item.id || index}
+                        tooltipplacement="right"
+                        size="md"
+                        onClick={item.onClick}
+                        circle
+                        tooltipLabel={item.tooltip}
+                        hideLabel
+                        icon={item.icon}
+                      />
+                    ))
+                  ) : null}
+                </>
+              ) : (
+                <GenericContentItem
+                  width="100%"
+                  renderFunction={contentFunction}
+                />
+              )}
+            </Styled.MenuItemWrapper>
+          </Styled.BBBMenuInformation>
+        ),
+        a.isSeparator && <Divider data-test={dataTest} disabled />,
       ];
-    });
+    }) ?? [];
   }
 
   render() {
     const { anchorEl } = this.state;
-    const { trigger, intl, customStyles, dataTest, opts, accessKey, open, renderOtherComponents } = this.props;
+    const {
+      trigger,
+      intl,
+      customStyles,
+      dataTest,
+      opts,
+      accessKey,
+      renderOtherComponents,
+      customAnchorEl,
+      hasRoundedCorners,
+      overrideMobileStyles,
+      isHorizontal,
+      minContent,
+    } = this.props;
     const actionsItems = this.makeMenuItems();
 
+    const roundedCornersStyles = { borderRadius: '3rem' };
     let menuStyles = { zIndex: 999 };
 
     if (customStyles) {
       menuStyles = { ...menuStyles, ...customStyles };
     }
+
+    if (isHorizontal) {
+      const horizontalStyles = { display: 'flex' };
+      menuStyles = { ...menuStyles, ...horizontalStyles };
+    }
+
+    const paperStyle = {
+      ...(hasRoundedCorners ? roundedCornersStyles : {}),
+      ...(minContent ? { 'max-width': 'min-content' } : {}),
+    };
 
     return (
       <>
@@ -175,33 +268,38 @@ class BBBMenu extends React.Component {
           }}
           accessKey={accessKey}
           ref={(ref) => this.anchorElRef = ref}
-          role="button"
           tabIndex={-1}
         >
           {trigger}
         </div>
 
-        <Menu
+        <Styled.MenuWrapper
           {...opts}
           {...this.optsToMerge}
-          anchorEl={anchorEl}
+          anchorEl={customAnchorEl || anchorEl}
           open={Boolean(anchorEl)}
           onClose={this.handleClose}
           style={menuStyles}
           data-test={dataTest}
           onKeyDownCapture={this.handleKeyDown}
+          $isHorizontal={isHorizontal}
+          PaperProps={{
+            style: paperStyle,
+            className: overrideMobileStyles ? 'override-mobile-styles' : 'MuiPaper-root-mobile',
+          }}
         >
           {actionsItems}
           {renderOtherComponents}
-          {anchorEl && window.innerWidth < SMALL_VIEWPORT_BREAKPOINT &&
-            <Styled.CloseButton
-              label={intl.formatMessage(intlMessages.close)}
-              size="lg"
-              color="default"
-              onClick={this.handleClose}
-            />
-          }
-        </Menu>
+          {!overrideMobileStyles && anchorEl && window.innerWidth < SMALL_VIEWPORT_BREAKPOINT
+            && (
+              <Styled.CloseButton
+                label={intl.formatMessage(intlMessages.close)}
+                size="lg"
+                color="default"
+                onClick={this.handleClose}
+              />
+            )}
+        </Styled.MenuWrapper>
       </>
     );
   }
@@ -209,18 +307,19 @@ class BBBMenu extends React.Component {
 
 BBBMenu.defaultProps = {
   opts: {
-    id: "default-dropdown-menu",
+    id: 'default-dropdown-menu',
     autoFocus: false,
     keepMounted: true,
     transitionDuration: 0,
     elevation: 3,
     getcontentanchorel: null,
-    fullwidth: "true",
+    fullwidth: 'true',
     anchorOrigin: { vertical: 'top', horizontal: 'right' },
     transformorigin: { vertical: 'top', horizontal: 'right' },
   },
   onCloseCallback: () => { },
   dataTest: '',
+  minContent: false,
 };
 
 BBBMenu.propTypes = {
@@ -230,18 +329,7 @@ BBBMenu.propTypes = {
 
   trigger: PropTypes.element.isRequired,
 
-  actions: PropTypes.arrayOf(PropTypes.shape({
-    key: PropTypes.string.isRequired,
-    label: PropTypes.string.isRequired,
-    onClick: PropTypes.func,
-    icon: PropTypes.string,
-    iconRight: PropTypes.string,
-    disabled: PropTypes.bool,
-    divider: PropTypes.bool,
-    dividerTop: PropTypes.bool,
-    accessKey: PropTypes.string,
-    dataTest: PropTypes.string,
-  })).isRequired,
+  actions: PropTypes.array.isRequired,
 
   onCloseCallback: PropTypes.func,
   dataTest: PropTypes.string,
@@ -249,6 +337,7 @@ BBBMenu.propTypes = {
   customStyles: PropTypes.object,
   opts: PropTypes.object,
   accessKey: PropTypes.string,
+  minContent: PropTypes.bool,
 };
 
 export default injectIntl(BBBMenu);

@@ -1,20 +1,29 @@
 package reader
 
 import (
+	"bytes"
 	"context"
-	log "github.com/sirupsen/logrus"
-	"nhooyr.io/websocket"
-	"nhooyr.io/websocket/wsjson"
+	"encoding/json"
+	"errors"
 	"sync"
 	"time"
+
+	"bbb-graphql-middleware/internal/common"
+	streamingserver "bbb-graphql-middleware/internal/streaming_server"
+
+	"github.com/coder/websocket"
 )
 
-func BrowserConnectionReader(browserConnectionId string, ctx context.Context, c *websocket.Conn, fromBrowserChannel1 chan interface{}, fromBrowserChannel2 chan interface{}, waitGroups []*sync.WaitGroup) {
-	log := log.WithField("_routine", "BrowserConnectionReader").WithField("browserConnectionId", browserConnectionId)
+func BrowserConnectionReader(
+	browserConnection *common.BrowserConnection,
+	waitGroups []*sync.WaitGroup,
+) {
+	defer browserConnection.Logger.Debugf("finished")
+	browserConnection.Logger.Debugf("starting")
 
 	defer func() {
-		close(fromBrowserChannel1)
-		close(fromBrowserChannel2)
+		browserConnection.FromBrowserToHasuraChannel.Close()
+		browserConnection.FromBrowserToGqlActionsChannel.Close()
 	}()
 
 	defer func() {
@@ -26,22 +35,55 @@ func BrowserConnectionReader(browserConnectionId string, ctx context.Context, c 
 		time.Sleep(100 * time.Millisecond)
 	}()
 
-	defer log.Infof("finished")
+	defer browserConnection.ContextCancelFunc()
 
 	for {
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
-
-		var v interface{}
-		err := wsjson.Read(ctx, c, &v)
+		messageType, message, err := browserConnection.Websocket.Read(browserConnection.Context)
 		if err != nil {
-			log.Errorf("error on read (browser is disconnected): %v", err)
+			if errors.Is(err, context.Canceled) {
+				browserConnection.Logger.Debugf("Closing Browser ws connection as Context was cancelled!")
+			} else if websocket.CloseStatus(err) != -1 {
+				if websocket.CloseStatus(err) == websocket.StatusGoingAway {
+					browserConnection.Logger.Infof("Browser disconnected voluntarily with status: %v (closed by the browser as the window was closed)", websocket.CloseStatus(err))
+				} else {
+					browserConnection.Logger.Infof("Browser disconnected voluntarily with status: %v", websocket.CloseStatus(err))
+				}
+			}
+
+			browserConnection.Logger.Debugf("Browser is disconnected, skipping reading of ws message: %v", err)
 			return
 		}
 
-		log.Tracef("received from browser: %v", v)
+		browserConnection.Logger.Tracef("received from browser: %s", string(message))
+		browserConnection.Lock()
+		browserConnection.LastBrowserMessageTime = time.Now()
+		browserConnection.Unlock()
 
-		fromBrowserChannel1 <- v
-		fromBrowserChannel2 <- v
+		if messageType != websocket.MessageText {
+			browserConnection.Logger.Warnf("received non-text message: %v", messageType)
+			continue
+		}
+
+		var browserMessageType struct {
+			Type string `json:"type"`
+		}
+		err = json.Unmarshal(message, &browserMessageType)
+		if err != nil {
+			browserConnection.Logger.Errorf("failed to unmarshal message: %v", err)
+			continue
+		}
+
+		if browserMessageType.Type == "subscribe" {
+			if bytes.Contains(message, []byte("\"query\":\"mutation")) {
+				browserConnection.FromBrowserToGqlActionsChannel.SendWait(browserConnection.Context, message)
+				continue
+			}
+			if bytes.Contains(message, []byte("\"query\":\"subscription getCursorCoordinatesStream")) {
+				go streamingserver.ReadNewStreamingSubscription(browserConnection, message)
+				continue
+			}
+		}
+
+		browserConnection.FromBrowserToHasuraChannel.SendWait(browserConnection.Context, message)
 	}
 }

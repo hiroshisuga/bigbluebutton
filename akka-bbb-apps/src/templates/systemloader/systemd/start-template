@@ -1,8 +1,8 @@
 [Unit]
 Description=BigBlueButton Apps (Akka)
 Requires=network.target
-Wants=redis-server.service bbb-fsesl-akka.service postgresql.service
-After=redis-server.service bbb-fsesl-akka.service postgresql.service
+Wants=redis-server.service bbb-fsesl-akka.service postgresql.service bbb-graphql-server.service
+After=redis-server.service bbb-fsesl-akka.service postgresql.service bbb-graphql-server.service
 PartOf=bigbluebutton.target
 
 [Service]
@@ -20,7 +20,7 @@ ExecStartPre=/bin/mkdir -p /run/bbb-apps-akka
 ExecStartPre=/bin/chown bigbluebutton:bigbluebutton /run/bbb-apps-akka
 ExecStartPre=/bin/chmod 755 /run/bbb-apps-akka
 PermissionsStartOnly=true
-LimitNOFILE=1024
+LimitNOFILE=4096
 
 [Install]
 WantedBy=multi-user.target bigbluebutton.target

@@ -1,10 +1,11 @@
 import React, { PureComponent } from 'react';
 import { defineMessages, injectIntl } from 'react-intl';
 import Button from '/imports/ui/components/common/button/component';
-import ConnectionStatusModalContainer from '/imports/ui/components/connection-status/modal/container';
+import ConnectionStatusModalComponent from '/imports/ui/components/connection-status/modal/container';
 import ConnectionStatusService from '/imports/ui/components/connection-status/service';
 import Icon from '/imports/ui/components/connection-status/icon/component';
 import Styled from './styles';
+import { isMobile } from '/imports/utils/deviceInfo';
 
 const intlMessages = defineMessages({
   label: {
@@ -26,7 +27,7 @@ class ConnectionStatusButton extends PureComponent {
   }
 
   renderIcon(level = 'normal') {
-    return(
+    return (
       <Styled.IconWrapper>
         <Icon
           level={level}
@@ -36,17 +37,17 @@ class ConnectionStatusButton extends PureComponent {
     );
   }
 
-  setModalIsOpen = (isOpen) => this.setState({ isModalOpen: isOpen }); 
+  setModalIsOpen = (isOpen) => this.setState({ isModalOpen: isOpen });
 
   renderModal(isModalOpen) {
     return (
       isModalOpen ?
-      <ConnectionStatusModalContainer
-        {...{
-          isModalOpen,
-          setModalIsOpen: this.setModalIsOpen
-        }}
-      /> : null
+        <ConnectionStatusModalComponent
+          {...{
+            isModalOpen,
+            setModalIsOpen: this.setModalIsOpen,
+          }}
+        /> : null
     )
   }
 
@@ -70,8 +71,9 @@ class ConnectionStatusButton extends PureComponent {
             disabled
             ghost
             circle
-            onClick={() => {}}
+            onClick={() => { }}
             data-test="connectionStatusButton"
+            isMobile={isMobile}
           />
           {this.renderModal(isModalOpen)}
         </Styled.ButtonWrapper>
@@ -79,11 +81,11 @@ class ConnectionStatusButton extends PureComponent {
     }
 
     const {
-      stats,
+      myCurrentStatus,
     } = this.props;
 
     let color;
-    switch (stats) {
+    switch (myCurrentStatus) {
       case 'warning':
         color = 'success';
         break;
@@ -99,19 +101,17 @@ class ConnectionStatusButton extends PureComponent {
         color = 'success';
     }
 
-    const currentStatus = stats ? stats : 'normal';
-
     return (
       <Styled.ButtonWrapper>
         <Button
-          customIcon={this.renderIcon(currentStatus)}
+          customIcon={this.renderIcon(myCurrentStatus)}
           label={intl.formatMessage(intlMessages.label)}
           hideLabel
           aria-label={intl.formatMessage(intlMessages.description)}
           size="sm"
           color={color}
           circle
-          onClick={() => this.setState({isModalOpen: true})}
+          onClick={() => this.setState({ isModalOpen: true })}
           data-test="connectionStatusButton"
         />
         {this.renderModal(isModalOpen)}

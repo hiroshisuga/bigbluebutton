@@ -2,6 +2,7 @@ const borderSizeSmall = '1px';
 const borderSize = '2px';
 const borderSizeLarge = '3px';
 const borderRadius = '.2rem';
+const borderRadiusRounded = '.5rem';
 const smPaddingX = '.75rem';
 const smPaddingY = '.3rem';
 const mdPaddingY = '.45rem';
@@ -10,6 +11,14 @@ const lgPaddingX = '1.25rem';
 const lgPaddingY = '0.6rem';
 const jumboPaddingY = '1.5rem';
 const jumboPaddingX = '3.025rem';
+
+const xsPadding = '0.125rem';
+const smPadding = '0.25rem';
+const mdPadding = '0.375rem';
+const lgPadding = '0.5rem';
+const xlPadding = '0.75rem';
+const $2xlPadding = '1rem';
+const $3xlPadding = '1.25rem';
 
 const whiteboardToolbarPadding = '.5rem';
 const whiteboardToolbarMargin = '.5rem';
@@ -71,7 +80,7 @@ const pollBottomOffset = '4.5rem';
 const pollColAmount = '2';
 
 const toastMargin = '.5rem';
-const avatarSide = '34px';
+const avatarSide = '3rem';
 const avatarWrapperOffset = '14px';
 const avatarInset = '-7px';
 
@@ -170,4 +179,12 @@ export {
   presentationMenuHeight,
   styleMenuOffset,
   styleMenuOffsetSmall,
+  lgPadding,
+  mdPadding,
+  smPadding,
+  $2xlPadding,
+  $3xlPadding,
+  xlPadding,
+  xsPadding,
+  borderRadiusRounded,
 };

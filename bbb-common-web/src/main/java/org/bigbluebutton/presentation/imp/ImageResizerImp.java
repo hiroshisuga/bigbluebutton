@@ -18,6 +18,7 @@
 
 package org.bigbluebutton.presentation.imp;
 
+import java.io.File;
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
@@ -33,21 +34,32 @@ import com.zaxxer.nuprocess.NuProcessBuilder;
 public class ImageResizerImp implements ImageResizer {
     private static Logger log = LoggerFactory.getLogger(ImageResizerImp.class);
 
-    private static int waitForSec = 7;
+    private int wait = 7;
 
     public boolean resize(UploadedPresentation pres, String ratio) {
+        return resize(pres.getUploadedFile().getAbsolutePath(), ratio);
+    }
+
+    public boolean resize(File image, String ratio) {
+        return resize(image.getAbsolutePath(), ratio);
+    }
+
+    private boolean resize(String path, String ratio) {
         Boolean conversionSuccess = true;
+        String jobId = "resize-" + System.currentTimeMillis();
 
-        log.debug("Rescaling file {} with {} ratio", pres.getUploadedFile().getAbsolutePath(), ratio);
-        NuProcessBuilder imgResize = new NuProcessBuilder(Arrays.asList("convert", "-resize", ratio,
-                pres.getUploadedFile().getAbsolutePath(), pres.getUploadedFile().getAbsolutePath()));
+        log.debug("Rescaling file {} with {} ratio", path, ratio);
+        NuProcessBuilder imgResize = new NuProcessBuilder(Arrays.asList(
+                        "/usr/share/bbb-web/run-in-systemd.sh", String.valueOf(wait),
+                        "convert", "-resize", ratio, path, path
+                ));
 
-        ImageResizerHandler pHandler = new ImageResizerHandler();
+        ImageResizerHandler pHandler = new ImageResizerHandler(jobId);
         imgResize.setProcessListener(pHandler);
 
         NuProcess process = imgResize.start();
         try {
-            process.waitFor(waitForSec, TimeUnit.SECONDS);
+            process.waitFor(wait + 1, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             log.error(e.getMessage());
             conversionSuccess = false;
@@ -56,4 +68,7 @@ public class ImageResizerImp implements ImageResizer {
         return conversionSuccess;
     }
 
+    public void setWait(int wait) {
+        this.wait = wait;
+    }
 }

@@ -31,14 +31,6 @@ bbb_config() {
      $SERVLET_DIR/WEB-INF/classes/bigbluebutton.properties
 
 	#
-	# XXX
-	if id meteor > /dev/null 2>&1 ; then
-		if [ -d /var/log/bigbluebutton/html5 ]; then
-			chown -R meteor:meteor /var/log/bigbluebutton/html5
-		fi
-	fi
-
-	#
 	# Update the placementsThreshold and imageTagThreshold
 	sed -i 's/placementsThreshold=8000/placementsThreshold=800/g' $SERVLET_DIR/WEB-INF/classes/bigbluebutton.properties
 	sed -i 's/imageTagThreshold=8000/imageTagThreshold=800/g'     $SERVLET_DIR/WEB-INF/classes/bigbluebutton.properties
@@ -67,6 +59,36 @@ bbb_config() {
   chown bigbluebutton:bigbluebutton /var/log/bigbluebutton/bbb-web.log
 
   update-java-alternatives -s java-1.17.0-openjdk-amd64
+
+  # This drop-in configures the `bbb-web` system service to support `systemd-run --user` in headless environments.
+  # It sets the required `XDG_RUNTIME_DIR` and `DBUS_SESSION_BUS_ADDRESS` environment variables so the Java process
+  # can communicate with the per-user systemd instance via D-Bus. Additionally, it declares `Wants=` and `After=`
+  # dependencies on `user@UID.service` to ensure the user manager is started before the service attempts to interact with it.
+  SERVICE_NAME="bbb-web.service"
+  DROPIN_DIR="/etc/systemd/system/${SERVICE_NAME}.d"
+  DROPIN_FILE="${DROPIN_DIR}/10-user-session.conf"
+  BIGBLUEBUTTON_UID=$(id -u bigbluebutton)
+
+  echo "Creating drop-in for $SERVICE_NAME..."
+
+  if [ -f "$DROPIN_FILE" ]; then
+      echo "Removing old drop-in for $SERVICE_NAME: $DROPIN_FILE"
+      rm $DROPIN_FILE
+  fi
+
+  mkdir -p "$DROPIN_DIR"
+
+  tee "$DROPIN_FILE" > /dev/null <<EOF
+[Service]
+Environment="XDG_RUNTIME_DIR=/run/user/${BIGBLUEBUTTON_UID}"
+Environment="DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${BIGBLUEBUTTON_UID}/bus"
+[Unit]
+Wants=user@${BIGBLUEBUTTON_UID}.service
+After=user@${BIGBLUEBUTTON_UID}.service
+EOF
+
+  echo "Drop-in created sucessfuly: $DROPIN_FILE"
+  systemctl daemon-reexec
 
   # Restart bbb-web to deploy new 
   startService bbb-web.service || echo "bbb-web.service could not be registered or started"

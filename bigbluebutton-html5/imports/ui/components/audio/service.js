@@ -1,64 +1,94 @@
-import Users from '/imports/api/users';
 import Auth from '/imports/ui/services/auth';
-import { throttle } from '/imports/utils/throttle';
-import { debounce } from 'radash';
 import AudioManager from '/imports/ui/services/audio-manager';
-import Meetings from '/imports/api/meetings';
-import { makeCall } from '/imports/ui/services/api';
-import VoiceUsers from '/imports/api/voice-users';
 import logger from '/imports/startup/client/logger';
 import Storage from '../../services/storage/session';
-
-const ROLE_MODERATOR = Meteor.settings.public.user.role_moderator;
-const TOGGLE_MUTE_THROTTLE_TIME = Meteor.settings.public.media.toggleMuteThrottleTime;
-const SHOW_VOLUME_METER = Meteor.settings.public.media.showVolumeMeter;
-const {
-  enabled: LOCAL_ECHO_TEST_ENABLED,
-  initialHearingState: LOCAL_ECHO_INIT_HEARING_STATE,
-} = Meteor.settings.public.media.localEchoTest;
+import { useReactiveVar } from '@apollo/client';
+import {
+  getAudioConstraints,
+  doGUM,
+} from '/imports/api/audio/client/bridge/service';
+import {
+  toggleMuteMicrophone,
+  toggleMuteMicrophoneSystem,
+} from '/imports/ui/components/audio/audio-graphql/audio-controls/input-stream-live-selector/service';
+import useIsAudioConnected from '/imports/ui/components/audio/audio-graphql/hooks/useIsAudioConnected';
+import meetingStaticData from '../../core/singletons/meetingStaticData';
 
 const MUTED_KEY = 'muted';
+export const CLIENT_DID_USER_SELECT_MICROPHONE_KEY = 'clientUserSelectedMicrophone';
+export const CLIENT_DID_USER_SELECT_LISTEN_ONLY_KEY = 'clientUserSelectedListenOnly';
 
-const recoverMicState = () => {
-  const muted = Storage.getItem(MUTED_KEY);
+export const setUserSelectedMicrophone = (value) => (
+  Storage.setItem(CLIENT_DID_USER_SELECT_MICROPHONE_KEY, !!value)
+);
 
-  if ((muted === undefined) || (muted === null)) {
-    return;
-  }
+export const setUserSelectedListenOnly = (value) => (
+  Storage.setItem(CLIENT_DID_USER_SELECT_LISTEN_ONLY_KEY, !!value)
+);
 
-  logger.debug({
-    logCode: 'audio_recover_mic_state',
-  }, `Audio recover previous mic state: muted = ${muted}`);
-  makeCall('toggleVoice', null, muted);
+export const didUserSelectMicrophone = () => (
+  !!Storage.getItem(CLIENT_DID_USER_SELECT_MICROPHONE_KEY)
+);
+
+export const didUserSelectListenOnly = () => (
+  !!Storage.getItem(CLIENT_DID_USER_SELECT_LISTEN_ONLY_KEY)
+);
+
+const recoverMicState = (toggleVoice) => {
+  const meetingStaticStore = meetingStaticData.getMeetingData();
+  const recover = (storageKey) => {
+    const muted = Storage.getItem(storageKey);
+
+    if ((muted === undefined) || (muted === null) || AudioManager.inputDeviceId === 'listen-only') {
+      return;
+    }
+
+    logger.debug({
+      logCode: 'audio_recover_mic_state',
+    }, `Audio recover previous mic state: muted = ${muted}`);
+    toggleVoice(Auth.userID, muted);
+  };
+
+  const isBreakout = meetingStaticStore?.isBreakout;
+  const parentId = meetingStaticStore?.breakoutPolicies?.parentId;
+
+  const meetingId = isBreakout && parentId
+    ? parentId
+    : Auth.meetingID;
+  const storageKey = `${MUTED_KEY}_${meetingId}`;
+
+  recover(storageKey);
 };
 
-const audioEventHandler = (event) => {
+const audioEventHandler = (toggleVoice) => (event) => {
   if (!event) {
     return;
   }
 
   switch (event.name) {
     case 'started':
-      if (!event.isListenOnly) recoverMicState();
+      if (!event.isListenOnly) recoverMicState(toggleVoice);
       break;
     default:
       break;
   }
 };
 
-const init = (messages, intl) => {
+const init = (
+  messages,
+  intl,
+  toggleVoice,
+  speechLocale,
+  voiceConf,
+  username,
+  bridges,
+) => {
   AudioManager.setAudioMessages(messages, intl);
   if (AudioManager.initialized) return Promise.resolve(false);
   const meetingId = Auth.meetingID;
   const userId = Auth.userID;
   const { sessionToken } = Auth;
-  const User = Users.findOne({ userId }, { fields: { name: 1 } });
-  const username = User.name;
-  const Meeting = Meetings.findOne({ meetingId: Auth.meetingID }, { fields: { 'voiceProp.voiceConf': 1 } });
-  const voiceBridge = Meeting.voiceProp.voiceConf;
-
-  // FIX ME
-  const microphoneLockEnforced = false;
+  const voiceBridge = voiceConf;
 
   const userData = {
     meetingId,
@@ -66,98 +96,159 @@ const init = (messages, intl) => {
     sessionToken,
     username,
     voiceBridge,
-    microphoneLockEnforced,
+    speechLocale,
   };
 
-  return AudioManager.init(userData, audioEventHandler);
+  return AudioManager.init(userData, audioEventHandler(toggleVoice), bridges);
 };
 
-const muteMicrophone = () => {
-  const user = VoiceUsers.findOne({
-    meetingId: Auth.meetingID, intId: Auth.userID,
-  }, { fields: { muted: 1 } });
+// This hooks should only be used to determine whether there's a system audio
+// connection underway. It should not be used to determine whether the user is
+// connected to audio UI-wise (i.e.: it ignores the deafened state).
+const useIsAudioConnectionUnderway = () => {
+  const isConnected = useIsAudioConnected({ ignoreDeafened: true });
+  const isConnecting = useReactiveVar(AudioManager._isConnecting.value);
+  const isHangingUp = useReactiveVar(AudioManager._isHangingUp.value);
 
-  if (!user.muted) {
-    logger.info({
-      logCode: 'audiomanager_mute_audio',
-      extraInfo: { logType: 'user_action' },
-    }, 'User wants to leave conference. Microphone muted');
-    AudioManager.setSenderTrackEnabled(false);
-    makeCall('toggleVoice');
+  return Boolean(isConnected || isConnecting || isHangingUp);
+};
+
+/**
+ * Check if the user has granted permission to use the microphone.
+ *
+ * @param {Object} options - Options object.
+ * @param {string} options.permissionStatus - The current permission status.
+ * @param {boolean} options.gumOnPrompt - Whether to check microphone permission by attempting to
+ *  get a media stream.
+ * @returns {Promise<boolean|null>} - A promise that resolves to a boolean indicating whether the
+ *  user has granted permission to use the microphone. If the permission status is unknown, the
+ *  promise resolves to null.
+ */
+const hasMicrophonePermission = async ({
+  permissionStatus = null,
+  gumOnPrompt = false,
+}) => {
+  const checkWithGUM = () => {
+    if (!gumOnPrompt) return Promise.resolve(null);
+
+    return doGUM({ audio: getAudioConstraints() })
+      .then((stream) => {
+        // Close the stream and remove all tracks - this is just a permission check
+        stream.getTracks().forEach((track) => {
+          track.stop();
+          stream.removeTrack(track);
+        });
+
+        return true;
+      })
+      .catch((error) => {
+        if (error.name === 'NotAllowedError') return false;
+
+        // Give it the benefit of the doubt. It might be a device mismatch
+        // or something else that's not a permissions issue, so let's try
+        // to proceed. Rollbacks that happen downstream might fix the issue,
+        // otherwise we'll land on the Help screen anyways
+        return null;
+      });
+  };
+
+  try {
+    let status = permissionStatus;
+
+    // If the browser doesn't support the Permissions API, we can't check
+    // microphone permissions - return null (unknown)
+    if (navigator?.permissions?.query == null) return null;
+
+    if (!status) {
+      ({ state: status } = await navigator.permissions.query({ name: 'microphone' }));
+    }
+
+    switch (status) {
+      case 'denied':
+        return false;
+
+      case 'granted':
+        return true;
+
+      case null:
+      case 'prompt':
+        return checkWithGUM();
+
+      default:
+        return null;
+    }
+  } catch (error) {
+    logger.warn({
+      logCode: 'audio_check_microphone_permission_error',
+      extraInfo: {
+        errorName: error.name,
+        errorMessage: error.message,
+      },
+    }, `Error checking microphone permission: ${error.message}`);
+
+    return checkWithGUM();
   }
 };
-
-const isVoiceUser = () => {
-  const voiceUser = VoiceUsers.findOne({ intId: Auth.userID },
-    { fields: { joined: 1 } });
-  return voiceUser ? voiceUser.joined : false;
-};
-
-const toggleMuteMicrophone = throttle(() => {
-  const user = VoiceUsers.findOne({
-    meetingId: Auth.meetingID, intId: Auth.userID,
-  }, { fields: { muted: 1 } });
-
-  Storage.setItem(MUTED_KEY, !user.muted);
-
-  if (user.muted) {
-    logger.info({
-      logCode: 'audiomanager_unmute_audio',
-      extraInfo: { logType: 'user_action' },
-    }, 'microphone unmuted by user');
-    makeCall('toggleVoice');
-  } else {
-    logger.info({
-      logCode: 'audiomanager_mute_audio',
-      extraInfo: { logType: 'user_action' },
-    }, 'microphone muted by user');
-    makeCall('toggleVoice');
-  }
-}, TOGGLE_MUTE_THROTTLE_TIME);
 
 export default {
+  CLIENT_DID_USER_SELECT_MICROPHONE_KEY,
+  CLIENT_DID_USER_SELECT_LISTEN_ONLY_KEY,
   init,
   exitAudio: () => AudioManager.exitAudio(),
   forceExitAudio: () => AudioManager.forceExitAudio(),
   transferCall: () => AudioManager.transferCall(),
   joinListenOnly: () => AudioManager.joinListenOnly(),
-  joinMicrophone: () => AudioManager.joinMicrophone(),
+  joinMicrophone: (options) => AudioManager.joinMicrophone(options),
   joinEchoTest: () => AudioManager.joinEchoTest(),
-  toggleMuteMicrophone: debounce({ delay: 500 }, toggleMuteMicrophone),
   changeInputDevice: (inputDeviceId) => AudioManager.changeInputDevice(inputDeviceId),
   changeInputStream: (newInputStream) => { AudioManager.inputStream = newInputStream; },
   liveChangeInputDevice: (inputDeviceId) => AudioManager.liveChangeInputDevice(inputDeviceId),
-  changeOutputDevice: (outputDeviceId, isLive) => AudioManager.changeOutputDevice(outputDeviceId, isLive),
-  isConnected: () => AudioManager.isConnected,
-  isTalking: () => AudioManager.isTalking,
-  isHangingUp: () => AudioManager.isHangingUp,
+  changeOutputDevice: (
+    outputDeviceId,
+    isLive,
+  ) => AudioManager.changeOutputDevice(outputDeviceId, isLive),
+  updateInputDevices: (devices) => { AudioManager.inputDevices = devices; },
+  updateOutputDevices: (devices) => { AudioManager.outputDevices = devices; },
+  toggleMuteMicrophone,
+  toggleMuteMicrophoneSystem,
+  isConnectedToBreakout: () => {
+    const transferStatus = AudioManager.getBreakoutAudioTransferStatus();
+    if (transferStatus.status
+      === AudioManager.BREAKOUT_AUDIO_TRANSFER_STATES.CONNECTED) return true;
+    return false;
+  },
+  isConnected: () => {
+    const transferStatus = AudioManager.getBreakoutAudioTransferStatus();
+    if (!!transferStatus.breakoutMeetingId
+      && transferStatus.breakoutMeetingId !== Auth.meetingID) return false;
+    return AudioManager.isAudioConnected();
+  },
   isUsingAudio: () => AudioManager.isUsingAudio(),
-  isWaitingPermissions: () => AudioManager.isWaitingPermissions,
-  isMuted: () => AudioManager.isMuted,
   isConnecting: () => AudioManager.isConnecting,
+  isReconnecting: () => AudioManager.isReconnecting,
   isListenOnly: () => AudioManager.isListenOnly,
   inputDeviceId: () => AudioManager.inputDeviceId,
   outputDeviceId: () => AudioManager.outputDeviceId,
   isEchoTest: () => AudioManager.isEchoTest,
-  error: () => AudioManager.error,
-  isUserModerator: () => Users.findOne({ userId: Auth.userID },
-    { fields: { role: 1 } })?.role === ROLE_MODERATOR,
-  isVoiceUser,
+  isMuted: () => AudioManager.isMuted,
   autoplayBlocked: () => AudioManager.autoplayBlocked,
   handleAllowAutoplay: () => AudioManager.handleAllowAutoplay(),
   playAlertSound: (url) => AudioManager.playAlertSound(url),
-  updateAudioConstraints:
-    (constraints) => AudioManager.updateAudioConstraints(constraints),
+  updateAudioConstraints: (constraints) => AudioManager.updateAudioConstraints(constraints),
   recoverMicState,
-  muteMicrophone: () => muteMicrophone(),
-  isReconnecting: () => AudioManager.isReconnecting,
   setBreakoutAudioTransferStatus: (status) => AudioManager
     .setBreakoutAudioTransferStatus(status),
   getBreakoutAudioTransferStatus: () => AudioManager
     .getBreakoutAudioTransferStatus(),
   getStats: () => AudioManager.getStats(),
-  localEchoEnabled: LOCAL_ECHO_TEST_ENABLED,
-  localEchoInitHearingState: LOCAL_ECHO_INIT_HEARING_STATE,
-  showVolumeMeter: SHOW_VOLUME_METER,
+  getAudioConstraints,
+  doGUM,
+  supportsTransparentListenOnly: () => AudioManager.supportsTransparentListenOnly(),
+  hasMicrophonePermission,
   notify: (message, error, icon) => { AudioManager.notify(message, error, icon); },
+  useIsAudioConnectionUnderway,
+  didUserSelectMicrophone,
+  didUserSelectListenOnly,
+  setUserSelectedMicrophone,
+  setUserSelectedListenOnly,
 };

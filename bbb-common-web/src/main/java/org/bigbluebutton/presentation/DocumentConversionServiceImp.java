@@ -20,6 +20,7 @@
 package org.bigbluebutton.presentation;
 
 import java.io.File;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import org.bigbluebutton.api2.IBbbWebApiGWApp;
@@ -29,19 +30,25 @@ import org.bigbluebutton.presentation.messages.DocInvalidMimeType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.google.gson.Gson;
+import xyz.capybara.clamav.ClamavClient;
+import xyz.capybara.clamav.commands.scan.result.ScanResult;
 
 import static org.bigbluebutton.presentation.Util.deleteDirectoryFromFileHandlingErrors;
 
 public class DocumentConversionServiceImp implements DocumentConversionService {
+  private static final String CLAMAV_HOST = "localhost";
+  private static final Integer CLAMAV_PORT = 3310;
+
   private static Logger log = LoggerFactory.getLogger(DocumentConversionServiceImp.class);
 
   private IBbbWebApiGWApp gw;
   private OfficeToPdfConversionService officeToPdfConversionService;
   private SlidesGenerationProgressNotifier notifier;
+  private long maxPageConversionTime = 60L;
 
   private PresentationFileProcessor presentationFileProcessor;
 
-  public void processDocument(UploadedPresentation pres) {
+  public void processDocument(UploadedPresentation pres, boolean scanUploadedPresentationFiles) {
     if (pres.isUploadFailed()) {
       // We should send a message to the client in the future.
       // ralam may 1, 2020
@@ -50,12 +57,33 @@ public class DocumentConversionServiceImp implements DocumentConversionService {
       return;
     }
 
+    if (scanUploadedPresentationFiles) {
+      try {
+        ClamavClient client = new ClamavClient(CLAMAV_HOST, CLAMAV_PORT);
+        ScanResult result = client.scan(Path.of(pres.getUploadedFile().getAbsolutePath()));
+
+        if (result instanceof ScanResult.VirusFound) {
+          log.error("Presentation upload failed for meetingId={} presId={}", pres.getMeetingId(), pres.getId());
+          log.error("Presentation upload failed because a virus was detected in the uploaded file");
+          notifier.sendUploadFileVirus(pres);
+          Util.deleteDirectoryFromFileHandlingErrors(pres.getUploadedFile());
+          return;
+        }
+      } catch (Exception e) {
+        log.error("Failed to scan uploaded file for meetingId={} presID={}: {}", pres.getMeetingId(), pres.getId(), e.getMessage());
+        notifier.sendUploadFileScanFailed(pres);
+        Util.deleteDirectoryFromFileHandlingErrors(pres.getUploadedFile());
+        return;
+      }
+    }
+
     sendDocConversionRequestReceived(pres);
 
     processDocumentStart(pres);
   }
 
   public void processDocumentStart(UploadedPresentation pres) {
+    pres.setMaxPageConversionTime(maxPageConversionTime);
     SupportedDocumentFilter sdf = new SupportedDocumentFilter(gw);
     if (sdf.isSupported(pres)) {
       String fileType = pres.getFileType();
@@ -73,7 +101,7 @@ public class DocumentConversionServiceImp implements DocumentConversionService {
           // Send notification that office to pdf conversion failed.
           // The cause should have been set by the previous step.
           // (ralam feb 15, 2020)
-          ocsf.sendProgress(pres);
+          ocsf.sendOfficeToPdfConversionFailed(pres);
         }
       } else if (SupportedFileTypes.isPdfFile(fileType)) {
         presentationFileProcessor.process(pres);
@@ -165,7 +193,8 @@ public class DocumentConversionServiceImp implements DocumentConversionService {
                   pres.getAuthzToken(),
                   pres.isDownloadable(),
                   pres.isRemovable(),
-                  pres.isCurrent());
+                  pres.isCurrent()
+          );
           notifier.sendDocConversionProgress(progress);
       }
   }
@@ -184,5 +213,13 @@ public class DocumentConversionServiceImp implements DocumentConversionService {
 
   public void setPresentationFileProcessor(PresentationFileProcessor presentationFileProcessor) {
       this.presentationFileProcessor = presentationFileProcessor;
+  }
+
+  public long getMaxPageConversionTime() {
+    return maxPageConversionTime;
+  }
+
+  public void setMaxPageConversionTime(long maxPageConversionTime) {
+    this.maxPageConversionTime = maxPageConversionTime;
   }
 }

@@ -1,7 +1,7 @@
 package org.bigbluebutton.core.apps.webcam
 
-import akka.actor.ActorContext
-import akka.event.Logging
+import org.apache.pekko.actor.ActorContext
+import org.apache.pekko.event.Logging
 
 class WebcamApp2x(implicit val context: ActorContext)
   extends CamBroadcastStoppedInSfuEvtMsgHdlr
@@ -11,10 +11,10 @@ class WebcamApp2x(implicit val context: ActorContext)
   with GetCamBroadcastPermissionReqMsgHdlr
   with GetCamSubscribePermissionReqMsgHdlr
   with GetWebcamsOnlyForModeratorReqMsgHdlr
-  with SyncGetWebcamInfoRespMsgHdlr
   with UpdateWebcamsOnlyForModeratorCmdMsgHdlr
   with UserBroadcastCamStartMsgHdlr
-  with UserBroadcastCamStopMsgHdlr {
+  with UserBroadcastCamStopMsgHdlr
+  with SetCamShowAsContentReqMsgHdlr {
 
   val log = Logging(context.system, getClass)
 }

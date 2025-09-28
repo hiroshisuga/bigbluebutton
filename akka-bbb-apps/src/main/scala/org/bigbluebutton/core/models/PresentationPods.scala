@@ -1,10 +1,8 @@
 package org.bigbluebutton.core.models
 
-import org.bigbluebutton.common2.domain.PageVO
-import org.bigbluebutton.core.models.PresentationInPod
 import org.bigbluebutton.core.util.RandomStringGenerator
-import org.bigbluebutton.common2.msgs.AnnotationVO
-import org.bigbluebutton.core.db.{PresPageDAO, PresPresentationDAO}
+import org.bigbluebutton.core.db.{ NotificationDAO, PresPageDAO, PresPresentationDAO }
+import org.bigbluebutton.core2.message.senders.MsgBuilder
 
 object PresentationPodFactory {
   private def genId(): String = System.currentTimeMillis() + "-" + RandomStringGenerator.randomAlphanumericString(8)
@@ -22,14 +20,20 @@ object PresentationPodFactory {
 }
 
 case class PresentationPage(
-    id:          String,
-    num:         Int,
-    urls:        Map[String, String],
-    current:     Boolean             = false,
-    xOffset:     Double              = 0,
-    yOffset:     Double              = 0,
-    widthRatio:  Double              = 100D,
-    heightRatio: Double              = 100D
+    id:                 String,
+    num:                Int,
+    urls:               Map[String, String],
+    content:            String,
+    current:            Boolean             = false,
+    xOffset:            Double              = 0,
+    yOffset:            Double              = 0,
+    widthRatio:         Double              = 100.0,
+    heightRatio:        Double              = 100.0,
+    width:              Double              = 1440D,
+    height:             Double              = 1080D,
+    converted:          Boolean             = false,
+    infiniteWhiteboard: Boolean             = false,
+    fitToWidth:         Boolean             = false
 )
 
 object PresentationInPod {
@@ -59,13 +63,19 @@ object PresentationInPod {
 }
 
 case class PresentationInPod(
-    id:           String,
-    name:         String,
-    current:      Boolean                                                  = false,
-    pages:        scala.collection.immutable.Map[String, PresentationPage],
-    downloadable: Boolean,
-    removable:    Boolean,
-    filenameConverted: String = "",
+    id:                    String,
+    name:                  String,
+    default:               Boolean                                                  = false,
+    current:               Boolean                                                  = false,
+    pages:                 scala.collection.immutable.Map[String, PresentationPage],
+    downloadable:          Boolean,
+    downloadFileExtension: String                                                   = "",
+    removable:             Boolean,
+    filenameConverted:     String                                                   = "",
+    uploadCompleted:       Boolean,
+    numPages:              Int,
+    errorMsgKey:           String                                                   = "",
+    errorDetails:          scala.collection.immutable.Map[String, String]
 )
 
 object PresentationPod {
@@ -90,39 +100,42 @@ case class PresentationPod(id: String, currentPresenter: String,
   def getPresentationsByFilename(filename: String): Iterable[PresentationInPod] =
     presentations.values filter (p => p.name.startsWith(filename))
 
-  def setCurrentPresentation(presId: String): Option[PresentationPod] = {
-    PresPresentationDAO.setCurrentPres(presId)
+  def setCurrentPresentation(newPresentation: PresentationInPod): Option[PresentationPod] = {
+    var updatedPod: PresentationPod = this
+    presentations.get(newPresentation.id) match {
+      case Some(newCurrentPresentation) =>
+        // set new current presentation
+        updatedPod = updatedPod.addPresentation(newCurrentPresentation.copy(current = true))
 
-    var tempPod: PresentationPod = this
-    presentations.values foreach (curPres => { // unset previous current presentation
-      if (curPres.id != presId) {
-        val newPres = curPres.copy(current = false)
-        tempPod = tempPod.addPresentation(newPres)
-      }
-    })
+        // unset previous current presentation
+        presentations.values foreach (curPres => {
+          if (curPres.current && curPres.id != newPresentation.id) {
+            val newPres = curPres.copy(current = false)
+            updatedPod = updatedPod.addPresentation(newPres)
+          }
+        })
 
-    presentations.get(presId) match { // set new current presentation
-      case Some(pres) =>
-        val cp = pres.copy(current = true)
-        tempPod = tempPod.addPresentation(cp)
-      case None => None
+        // update graphql
+        PresPresentationDAO.setCurrentPres(newPresentation.id)
+
+        Some(updatedPod)
+      case None =>
+        None
     }
-
-    Some(tempPod)
   }
 
-  def setPresentationDownloadable(presentationId: String, downloadable: Boolean): Option[PresentationPod] = {
+  def setPresentationDownloadable(presentationId: String, downloadable: Boolean, downloadFileExtension: String): Option[PresentationPod] = {
     var tempPod: PresentationPod = this
     presentations.values foreach (curPres => { // unset previous current presentation
       if (curPres.id != presentationId) {
-        val newPres = curPres.copy(downloadable = downloadable)
+        val newPres = curPres.copy(downloadable = downloadable, downloadFileExtension = downloadFileExtension)
         tempPod = tempPod.addPresentation(newPres)
       }
     })
 
     presentations.get(presentationId) match { // set new current presentation
       case Some(pres) =>
-        val cp = pres.copy(downloadable = downloadable)
+        val cp = pres.copy(downloadable = downloadable, downloadFileExtension = downloadFileExtension)
         tempPod = tempPod.addPresentation(cp)
       case None => None
     }
@@ -163,27 +176,27 @@ case class PresentationPod(id: String, currentPresenter: String,
 
   def resizePage(presentationId: String, pageId: String,
                  xOffset: Double, yOffset: Double, widthRatio: Double,
-                 heightRatio: Double): Option[(PresentationPod, PresentationPage)] = {
-    // Force coordinate that are out-of-bounds inside valid values
-    // 0.25D is 400% zoom
-    // 100D-checkedWidth is the maximum the page can be moved over
-    val checkedWidth = Math.min(widthRatio, 100D) //if (widthRatio <= 100D) widthRatio else 100D
-    val checkedHeight = Math.min(heightRatio, 100D)
-    val checkedXOffset = Math.min(xOffset, 0D)
-    val checkedYOffset = Math.min(yOffset, 0D)
+                 heightRatio: Double, slideNumber: Int): Option[(PresentationPod, PresentationPage)] = {
+    val minZoom = 25.0
+    val maxZoom = 400.0
+
+    val checkedWidth = Math.max(minZoom, Math.min(widthRatio, maxZoom))
+    val checkedHeight = Math.max(minZoom, Math.min(heightRatio, maxZoom))
+
+    val checkedXOffset = xOffset
+    val checkedYOffset = yOffset
 
     for {
       pres <- presentations.get(presentationId)
       page <- pres.pages.get(pageId)
     } yield {
       val nPage = page.copy(xOffset = checkedXOffset, yOffset = checkedYOffset,
-        widthRatio = checkedWidth, heightRatio = checkedHeight)
+        widthRatio = checkedWidth, heightRatio = checkedHeight, num = slideNumber)
       val nPages = pres.pages + (nPage.id -> nPage)
       val newPres = pres.copy(pages = nPages)
       (addPresentation(newPres), nPage)
     }
   }
-
 }
 
 case class PresentationPodManager(presentationPods: collection.immutable.Map[String, PresentationPod]) {
@@ -228,10 +241,10 @@ case class PresentationPodManager(presentationPods: collection.immutable.Map[Str
     }
   }
 
-  def setPresentationDownloadableInPod(podId: String, presentationId: String, downloadable: Boolean): PresentationPodManager = {
+  def setPresentationDownloadableInPod(podId: String, presentationId: String, downloadable: Boolean, downloadFileExtension: String): PresentationPodManager = {
     val updatedManager = for {
       pod <- getPod(podId)
-      podWithAdjustedDownloadablePresentation <- pod.setPresentationDownloadable(presentationId, downloadable)
+      podWithAdjustedDownloadablePresentation <- pod.setPresentationDownloadable(presentationId, downloadable, downloadFileExtension)
 
     } yield {
       updatePresentationPod(podWithAdjustedDownloadablePresentation)
@@ -249,10 +262,10 @@ case class PresentationPodManager(presentationPods: collection.immutable.Map[Str
     a
   }
 
-  def setCurrentPresentation(podId: String, presId: String): PresentationPodManager = {
+  def setCurrentPresentation(podId: String, pres: PresentationInPod): PresentationPodManager = {
     val updatedManager = for {
       pod <- getPod(podId)
-      podWithAdjustedCurrentPresentation <- pod.setCurrentPresentation(presId)
+      podWithAdjustedCurrentPresentation <- pod.setCurrentPresentation(pres)
 
     } yield {
       updatePresentationPod(podWithAdjustedCurrentPresentation)

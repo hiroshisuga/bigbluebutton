@@ -6,8 +6,7 @@ import Styled from './styles';
 import { defineMessages, injectIntl } from 'react-intl';
 import { notify } from '/imports/ui/services/notification';
 import TooltipContainer from '/imports/ui/components/common/tooltip/container';
-
-const MUTE_ALERT_CONFIG = Meteor.settings.public.app.mutedAlert;
+import { isMobile } from '/imports/utils/deviceInfo';
 
 const propTypes = {
   inputStream: PropTypes.objectOf(PropTypes.any).isRequired,
@@ -29,6 +28,10 @@ const intlMessages = defineMessages({
     id: 'app.muteWarning.label',
     description: 'Warning when someone speaks while muted',
   },
+  unmuteAudio: {
+    id: 'app.actionsBar.unmuteLabel',
+    description: 'Unmute audio button label',
+  },
 });
 
 class MutedAlert extends Component {
@@ -49,6 +52,8 @@ class MutedAlert extends Component {
   }
 
   componentDidMount() {
+    const MUTE_ALERT_CONFIG = window.meetingClientSettings.public.app.mutedAlert;
+
     this._isMounted = true;
 
     if (!this.hasValidInputStream()) return;
@@ -128,7 +133,7 @@ class MutedAlert extends Component {
 
   render() {
     const {
-      isViewer, isPresenter, muted, intl,
+      muted, intl,
     } = this.props;
     const { visible } = this.state;
 
@@ -138,12 +143,11 @@ class MutedAlert extends Component {
         position="top"
       >
         <Styled.MuteWarning
-          alignForMod={!isViewer || isPresenter}
-          alignForViewer={isViewer}
           onClick={() => this.closeAlert()}
+          $mobile={isMobile}
         >
           <span>
-            {intl.formatMessage(intlMessages.warningLabel, { 0: <Icon iconName="mute" /> })}
+            {intl.formatMessage(intlMessages.warningLabel, { unmuteIcon: <><span class="sr-only">{intl.formatMessage(intlMessages.unmuteAudio)}</span><Icon iconName="mute" aria-hidden="true" /></> })}
           </span>
         </Styled.MuteWarning>
       </TooltipContainer>

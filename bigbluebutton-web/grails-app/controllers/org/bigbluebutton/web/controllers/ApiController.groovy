@@ -21,6 +21,7 @@ package org.bigbluebutton.web.controllers
 import com.google.gson.Gson
 import grails.web.context.ServletContextHolder
 import groovy.json.JsonBuilder
+import groovy.xml.MarkupBuilder
 import org.apache.commons.codec.binary.Base64
 import org.apache.commons.codec.digest.DigestUtils
 import org.apache.commons.io.FilenameUtils
@@ -42,9 +43,12 @@ import org.bigbluebutton.web.services.turn.StunTurnService
 import org.bigbluebutton.web.services.turn.TurnEntry
 import org.bigbluebutton.web.services.turn.StunServer
 import org.bigbluebutton.web.services.turn.RemoteIceCandidate
+import org.codehaus.groovy.util.ListHashMap
 import org.json.JSONArray
 
+
 import javax.servlet.ServletRequest
+import javax.servlet.http.HttpServletRequest
 
 class ApiController {
   private static final String CONTROLLER_NAME = 'ApiController'
@@ -59,9 +63,9 @@ class ApiController {
   ParamsProcessorUtil paramsProcessorUtil
   PresentationUrlDownloadService presDownloadService
   StunTurnService stunTurnService
-  HTML5LoadBalancingService html5LoadBalancingService
   ResponseBuilder responseBuilder = initResponseBuilder()
   ValidationService validationService
+
 
   def initResponseBuilder = {
     String protocol = this.getClass().getResource("").getProtocol();
@@ -81,9 +85,36 @@ class ApiController {
     log.debug CONTROLLER_NAME + "#index"
     response.addHeader("Cache-Control", "no-cache")
 
-    withFormat {
-      xml {
-        render(text: responseBuilder.buildMeetingVersion(paramsProcessorUtil.getApiVersion(), paramsProcessorUtil.getBbbVersion(), RESP_CODE_SUCCESS), contentType: "text/xml")
+    def contentType = request.getHeader("content-type")
+
+    if(contentType == 'application/json') {
+      withFormat {
+        json {
+          def builder = new JsonBuilder()
+          builder.response {
+            returncode RESP_CODE_SUCCESS
+            version paramsProcessorUtil.getApiVersion()
+            apiVersion paramsProcessorUtil.getApiVersion()
+            bbbVersion paramsProcessorUtil.getBbbVersion()
+            graphqlWebsocketUrl paramsProcessorUtil.getGraphqlWebsocketUrl()
+            graphqlApiUrl paramsProcessorUtil.getGraphqlApiUrl()
+            html5PluginSdkVersion paramsProcessorUtil.getHtml5PluginSdkVersion()
+          }
+          render(contentType: "application/json", text: builder.toPrettyString())
+        }
+      }
+    } else {
+      withFormat {
+        xml {
+          render(text: responseBuilder.buildMeetingVersion(
+                  paramsProcessorUtil.getApiVersion(),
+                  paramsProcessorUtil.getBbbVersion(),
+                  paramsProcessorUtil.getGraphqlWebsocketUrl(),
+                  paramsProcessorUtil.getHtml5PluginSdkVersion(),
+                  paramsProcessorUtil.getGraphqlApiUrl(),
+                  RESP_CODE_SUCCESS),
+                  contentType: "text/xml")
+        }
       }
     }
   }
@@ -115,8 +146,7 @@ class ApiController {
 
     Map.Entry<String, String> validationResponse = validateRequest(
             ValidationService.ApiCall.CREATE,
-            request.getParameterMap(),
-            request.getQueryString()
+            request
     )
 
     if(!(validationResponse == null)) {
@@ -127,9 +157,20 @@ class ApiController {
       return
     }
 
-    if(params.isBreakout && !params.parentIdMeetingId) {
-      invalid("parentMeetingIdMissing", "No parent meeting ID was provided for the breakout room")
-      return
+    Boolean isBreakoutRoom = false
+    if (!StringUtils.isEmpty(params.isBreakout)) {
+      isBreakoutRoom = Boolean.parseBoolean(params.isBreakout)
+    }
+
+    if(isBreakoutRoom) {
+      if(StringUtils.isEmpty(params.parentMeetingID)) {
+        invalid("parentMeetingIDMissing", "No parent meeting ID was provided for the breakout room")
+        return
+      }
+      if(!paramsProcessorUtil.parentMeetingExists(params.parentMeetingID)) {
+        invalid("parentMeetingDoesNotExist", "No parent meeting exists for the breakout room")
+        return
+      }
     }
 
     // Ensure unique TelVoice. Uniqueness is not guaranteed by paramsProcessorUtil.
@@ -146,15 +187,27 @@ class ApiController {
       // Still no unique voiceBridge found? Let createMeeting handle it.
     }
 
-    params.html5InstanceId = html5LoadBalancingService.findSuitableHTML5ProcessByRoundRobin().toString()
-
     Meeting newMeeting = paramsProcessorUtil.processCreateParams(params)
+
+    String requestBody = request.inputStream == null ? null : request.inputStream.text
+    requestBody = StringUtils.isEmpty(requestBody) ? null : requestBody
+
+    def xmlModules = processRequestXmlModules(requestBody)
+
+    // Set Client Settings Override
+    if(xmlModules.containsKey("clientSettingsOverride")) {
+      if(paramsProcessorUtil.getAllowOverrideClientSettingsOnCreateCall()) {
+        newMeeting.setOverrideClientSettings(xmlModules.get("clientSettingsOverride").text())
+      } else {
+        log.warn("Module `clientSettingsOverride` provided but this options is disabled by `allowOverrideClientSettingsOnCreateCall=false` config.");
+      }
+    }
 
     ApiErrors errors = new ApiErrors()
 
     if (meetingService.createMeeting(newMeeting)) {
       // See if the request came with pre-uploading of presentation.
-      uploadDocuments(newMeeting, false);  //
+      uploadDocuments(xmlModules, newMeeting, false);  //
       respondWithConference(newMeeting, null, null)
     } else {
       // Translate the external meeting id into an internal meeting id.
@@ -197,7 +250,6 @@ class ApiController {
     }
   }
 
-
   /**********************************************
    * JOIN API
    *********************************************/
@@ -209,9 +261,25 @@ class ApiController {
 
     Map.Entry<String, String> validationResponse = validateRequest(
             ValidationService.ApiCall.JOIN,
-            request.getParameterMap(),
-            request.getQueryString()
+            request
     )
+
+    String errorRedirectUrl = ""
+    if(!StringUtils.isEmpty(params.errorRedirectUrl)) {
+      errorRedirectUrl = params.errorRedirectUrl
+    }
+
+    boolean redirectClient = REDIRECT_RESPONSE
+    if(!(validationResponse == null)) {
+      invalid(validationResponse.getKey(), validationResponse.getValue(), redirectClient, errorRedirectUrl);
+      return
+    }
+
+    String existingUserID = params.existingUserID
+    if (!StringUtils.isEmpty(existingUserID)) {
+      handleJoinExistingUser(existingUserID)
+      return
+    }
 
     HashMap<String, String> roles = new HashMap<String, String>();
 
@@ -219,18 +287,12 @@ class ApiController {
     roles.put("viewer", ROLE_ATTENDEE)
 
     //check if exists the param redirect
-    boolean redirectClient = REDIRECT_RESPONSE
     String clientURL = paramsProcessorUtil.getDefaultHTML5ClientUrl();
 
     if (!StringUtils.isEmpty(params.redirect)) {
       try {
         redirectClient = Boolean.parseBoolean(params.redirect);
       } catch (Exception ignored) {}
-    }
-
-    if(!(validationResponse == null)) {
-      invalid(validationResponse.getKey(), validationResponse.getValue(), redirectClient)
-      return
     }
 
     Boolean authenticated = false;
@@ -244,6 +306,11 @@ class ApiController {
       authenticated = true
     }
 
+    Boolean bot = false;
+    if(!StringUtils.isEmpty(params.bot)) {
+      bot = Boolean.parseBoolean(params.bot)
+    }
+
 
     if (!StringUtils.isEmpty(params.auth)) {
       authenticated = Boolean.parseBoolean(params.auth)
@@ -254,11 +321,6 @@ class ApiController {
     String attPW = params.password
 
     Meeting meeting = ServiceUtils.findMeetingFromMeetingID(params.meetingID);
-
-    String errorRedirectUrl = ""
-    if(!StringUtils.isEmpty(params.errorRedirectUrl)) {
-      errorRedirectUrl = params.errorRedirectUrl
-    }
 
     // the createTime mismatch with meeting's createTime, complain
     // In the future, the createTime param will be required
@@ -354,6 +416,21 @@ class ApiController {
       externUserID = internalUserID
     }
 
+    // Get the logoutUrl, either from the meeting or from the join api.
+    // Also replace the tokens.
+    String logoutUrl = meeting.getLogoutUrl()
+    if(!StringUtils.isEmpty(params.get(ApiParams.LOGOUT_URL))) {
+      String userProvidedUrl = params.get(ApiParams.LOGOUT_URL)
+      if(!ServiceUtils.getValidationService().isValidURL(userProvidedUrl)) {
+        log.warn("Invalid logout URL provided: " + userProvidedUrl)
+        // Use default URL from meeting
+      } else {
+        logoutUrl = params.get(ApiParams.LOGOUT_URL)
+        log.debug "The following logout URL is present: " + logoutUrl
+      }
+    }
+    logoutUrl = subLogoutParams(logoutUrl, meeting.getInternalId(), internalUserID, fullName);
+
     //Return a Map with the user custom data
     Map<String, String> userCustomData = meetingService.getUserCustomData(meeting, externUserID, params);
 
@@ -378,10 +455,11 @@ class ApiController {
     us.mode = "LIVE"
     us.record = meeting.isRecord()
     us.welcome = meeting.getWelcomeMessage()
+    us.bot = bot
     us.guest = guest
     us.authed = authenticated
     us.guestStatus = guestStatusVal
-    us.logoutUrl = meeting.getLogoutUrl()
+    us.logoutUrl = logoutUrl
     us.defaultLayout = meeting.getMeetingLayout()
     us.leftGuestLobby = false
 
@@ -389,10 +467,22 @@ class ApiController {
       us.defaultLayout = params.defaultLayout;
     }
 
+    if (!StringUtils.isEmpty(params.enforceLayout)) {
+      us.enforceLayout = params.enforceLayout;
+    }
+
     if (!StringUtils.isEmpty(params.avatarURL)) {
       us.avatarURL = params.avatarURL;
+    } else if (us.bot) {
+      us.avatarURL = meeting.defaultBotAvatarURL
     } else {
       us.avatarURL = meeting.defaultAvatarURL
+    }
+
+    if (!StringUtils.isEmpty(params.webcamBackgroundURL)) {
+      us.webcamBackgroundURL = params.webcamBackgroundURL;
+    } else {
+      us.webcamBackgroundURL = meeting.defaultWebcamBackgroundURL
     }
 
     if (!StringUtils.isEmpty(params.excludeFromDashboard)) {
@@ -401,6 +491,14 @@ class ApiController {
       } catch (Exception e) {
         // Do nothing, prop excludeFromDashboard was already initialized
       }
+    }
+
+    if (!StringUtils.isEmpty(params.firstName)) {
+      us.firstName = params.firstName;
+    }
+
+    if (!StringUtils.isEmpty(params.lastName)) {
+      us.lastName = params.lastName;
     }
 
     String meetingId = meeting.getInternalId()
@@ -421,16 +519,22 @@ class ApiController {
         us.meetingID,
         us.internalUserId,
         us.fullname,
+        us.firstName,
+        us.lastName,
         us.role,
         us.externUserID,
         us.authToken,
         sessionToken,
         us.avatarURL,
+        us.webcamBackgroundURL,
+        us.bot,
         us.guest,
         us.authed,
         guestStatusVal,
         us.excludeFromDashboard,
         us.leftGuestLobby,
+        us.enforceLayout,
+        us.logoutUrl,
         meeting.getUserCustomData(us.externUserID)
     )
 
@@ -442,7 +546,7 @@ class ApiController {
     // Keep track of the client url in case this needs to wait for
     // approval as guest. We need to be able to send the user to the
     // client after being approved by moderator.
-    us.clientUrl = clientURL + "?sessionToken=" + sessionToken
+    us.clientUrl = handleCreateUserClientUrl(sessionToken, us)
 
     session[sessionToken] = sessionToken
     meetingService.addUserSession(sessionToken, us)
@@ -455,18 +559,8 @@ class ApiController {
 
     // Process if we send the user directly to the client or
     // have it wait for approval.
-    String destUrl = clientURL + "?sessionToken=" + sessionToken
-    if (guestStatusVal.equals(GuestPolicy.WAIT)) {
-      String guestWaitUrl = paramsProcessorUtil.getDefaultGuestWaitURL();
-      destUrl = guestWaitUrl + "?sessionToken=" + sessionToken
-      // Check if the user has her/his default locale overridden by an userdata
-      String customLocale = userCustomData.get("bbb_override_default_locale")
-      if (customLocale != null) {
-        destUrl += "&locale=" + customLocale
-      }
-      msgKey = "guestWait"
-      msgValue = "Guest waiting for approval to join meeting."
-    } else if (guestStatusVal.equals(GuestPolicy.DENY)) {
+    String destUrl = us.clientUrl
+    if (guestStatusVal == GuestPolicy.DENY) {
       invalid("guestDeniedAccess", "You have been denied access to this meeting based on the meeting's guest policy", redirectClient, errorRedirectUrl)
       return
     }
@@ -499,6 +593,143 @@ class ApiController {
     }
   }
 
+  def handleJoinExistingUser(String existingUserID) {
+    Meeting meeting = ServiceUtils.findMeetingFromMeetingID(params.meetingID);
+    UserSession existingUserSession = meetingService.getUserSessionWithUserId(existingUserID)
+
+    //check if exists the param redirect
+    boolean redirectClient = REDIRECT_RESPONSE
+    String clientURL = paramsProcessorUtil.getDefaultHTML5ClientUrl();
+
+    if (!StringUtils.isEmpty(params.redirect)) {
+      try {
+        redirectClient = Boolean.parseBoolean(params.redirect);
+      } catch (Exception ignored) {}
+    }
+
+    String sessionToken = RandomStringUtils.randomAlphanumeric(16).toLowerCase()
+    log.debug "Session token: " + sessionToken
+
+    UserSession us = new UserSession();
+    us.authToken = existingUserSession.authToken;
+    us.internalUserId = existingUserSession.internalUserId
+    us.conferencename = meeting.getName()
+    us.meetingID = meeting.getInternalId()
+    us.externMeetingID = meeting.getExternalId()
+    us.externUserID = existingUserSession.externUserID
+    us.fullname = existingUserSession.fullname
+    us.firstName = existingUserSession.firstName
+    us.lastName = existingUserSession.lastName
+    us.role = existingUserSession.role
+    us.conference = meeting.getInternalId()
+    us.room = meeting.getInternalId()
+    us.voicebridge = meeting.getTelVoice()
+    us.webvoiceconf = meeting.getWebVoice()
+    us.mode = "LIVE"
+    us.record = meeting.isRecord()
+    us.welcome = meeting.getWelcomeMessage()
+    us.guest = existingUserSession.guest
+    us.authed = existingUserSession.authed
+    us.guestStatus = existingUserSession.guestStatus
+    us.logoutUrl = meeting.getLogoutUrl()
+    us.defaultLayout = meeting.getMeetingLayout()
+    us.leftGuestLobby = false
+    us.avatarURL = existingUserSession.avatarURL
+    us.excludeFromDashboard = existingUserSession.excludeFromDashboard
+
+    if (!StringUtils.isEmpty(params.defaultLayout)) {
+      us.defaultLayout = params.defaultLayout;
+    }
+
+    if (!StringUtils.isEmpty(params.enforceLayout)) {
+      us.enforceLayout = params.enforceLayout;
+    }
+
+    if (!StringUtils.isEmpty(params.sessionName)) {
+      us.sessionName = params.sessionName;
+    }
+
+    //used to drop the previous session of the user
+    String replaceSessionToken = ""
+    if (!StringUtils.isEmpty(params.replaceSessionToken)) {
+      replaceSessionToken = params.replaceSessionToken;
+    }
+
+    Map<String, String> userSessionCustomData = paramsProcessorUtil.getUserCustomData(params)
+
+    // Register a new session token to the user
+    meetingService.registerUserSession(
+            us.meetingID,
+            us.internalUserId,
+            sessionToken,
+            us.sessionName,
+            replaceSessionToken,
+            us.enforceLayout,
+            userSessionCustomData
+    )
+
+    session.setMaxInactiveInterval(paramsProcessorUtil.getDefaultHttpSessionTimeout())
+
+    String msgKey = "successfullyJoined"
+    String msgValue = "You have joined successfully."
+
+    // Keep track of the client url in case this needs to wait for
+    // approval as guest. We need to be able to send the user to the
+    // client after being approved by moderator.
+    us.clientUrl = handleCreateUserClientUrl(sessionToken, us)
+
+    session[sessionToken] = sessionToken
+    meetingService.addUserSession(sessionToken, us)
+
+    //Identify which of these to logs should be used. sessionToken or user-token
+    log.info("Session sessionToken for " + us.fullname + " [" + session[sessionToken] + "]")
+    log.info("Session user-token for " + us.fullname + " [" + session['user-token'] + "]")
+
+    log.info("Session token: ${sessionToken}")
+
+    // Process if we send the user directly to the client or
+    // have it wait for approval.
+    String destUrl = us.clientUrl
+
+    Map<String, Object> logData = new HashMap<String, Object>();
+    logData.put("meetingid", us.meetingID);
+    logData.put("extMeetingid", us.externMeetingID);
+    logData.put("name", us.fullname);
+    logData.put("userid", us.internalUserId);
+    logData.put("sessionToken", sessionToken);
+    logData.put("logCode", "join_api");
+    logData.put("description", "Handle JOIN API.");
+
+    Gson gson = new Gson();
+    String logStr = gson.toJson(logData);
+
+    log.info(" --analytics-- data=" + logStr);
+
+    if (redirectClient) {
+      log.info("Redirecting to ${destUrl}");
+      redirect(url: destUrl);
+    } else {
+      log.info("Successfully joined. Sending XML response.");
+      response.addHeader("Cache-Control", "no-cache")
+      withFormat {
+        xml {
+          render(text: responseBuilder.buildJoinMeeting(us, session[sessionToken], guestStatusVal, destUrl, msgKey, msgValue, RESP_CODE_SUCCESS), contentType: "text/xml")
+        }
+      }
+    }
+  }
+
+  String handleCreateUserClientUrl(String sessionToken, UserSession session) {
+    String clientUrl = paramsProcessorUtil.getDefaultHTML5ClientUrl()
+    String redirectUrl = clientUrl
+    if (!StringUtils.isEmpty(session.getEnforceLayout())) {
+      redirectUrl = redirectUrl + "?waitLayout=1&sessionToken=" + sessionToken
+    } else {
+      redirectUrl = redirectUrl + "?sessionToken=" + sessionToken
+    }
+    return redirectUrl
+  }
+
   /*******************************************
    * IS_MEETING_RUNNING API
    *******************************************/
@@ -510,8 +741,7 @@ class ApiController {
 
     Map.Entry<String, String> validationResponse = validateRequest(
             ValidationService.ApiCall.MEETING_RUNNING,
-            request.getParameterMap(),
-            request.getQueryString()
+            request
     )
 
     if(!(validationResponse == null)) {
@@ -541,8 +771,7 @@ class ApiController {
 
     Map.Entry<String, String> validationResponse = validateRequest(
             ValidationService.ApiCall.END,
-            request.getParameterMap(),
-            request.getQueryString()
+            request
     )
 
     if(!(validationResponse == null)) {
@@ -585,8 +814,7 @@ class ApiController {
 
     Map.Entry<String, String> validationResponse = validateRequest(
             ValidationService.ApiCall.GET_MEETING_INFO,
-            request.getParameterMap(),
-            request.getQueryString()
+            request
     )
 
     if(!(validationResponse == null)) {
@@ -594,7 +822,8 @@ class ApiController {
       return
     }
 
-    Meeting meeting = ServiceUtils.findMeetingFromMeetingID(params.meetingID);
+    String meetingId = params.list("meetingID")[0]
+    Meeting meeting = ServiceUtils.findMeetingFromMeetingID(meetingId);
 
     withFormat {
       xml {
@@ -612,8 +841,7 @@ class ApiController {
 
     Map.Entry<String, String> validationResponse = validateRequest(
             ValidationService.ApiCall.GET_MEETINGS,
-            request.getParameterMap(),
-            request.getQueryString()
+            request
     )
 
     if(!(validationResponse == null)) {
@@ -650,8 +878,7 @@ class ApiController {
 
     Map.Entry<String, String> validationResponse = validateRequest(
             ValidationService.ApiCall.GET_SESSIONS,
-            request.getParameterMap(),
-            request.getQueryString()
+            request
     )
 
     if(!(validationResponse == null)) {
@@ -696,267 +923,6 @@ class ApiController {
     return reqParams;
   }
 
-  /**********************************************
-   * GUEST WAIT API
-   *********************************************/
-  def guestWaitHandler = {
-    String API_CALL = 'guestWait'
-    log.debug CONTROLLER_NAME + "#${API_CALL}"
-
-    String msgKey = "defaultKey"
-    String msgValue = "defaultValue"
-    String destURL = paramsProcessorUtil.getDefaultLogoutUrl()
-
-    Map.Entry<String, String> validationResponse = validateRequest(
-            ValidationService.ApiCall.GUEST_WAIT,
-            request.getParameterMap(),
-            request.getQueryString()
-    )
-    if(!(validationResponse == null)) {
-      msgKey = validationResponse.getKey()
-      msgValue = validationResponse.getValue()
-      respondWithJSONError(msgKey, msgValue, destURL)
-      return
-    }
-
-    String sessionToken = sanitizeSessionToken(params.sessionToken)
-    UserSession us = getUserSession(sessionToken)
-    Meeting meeting = meetingService.getMeeting(us.meetingID)
-    String status = us.guestStatus
-    destURL = us.clientUrl
-    String posInWaitingQueue = meeting.getWaitingPositionsInWaitingQueue(us.internalUserId)
-    String lobbyMsg = meeting.getGuestLobbyMessage(us.internalUserId)
-
-    Boolean redirectClient = true
-    if (!StringUtils.isEmpty(params.redirect)) {
-      try {
-        redirectClient = Boolean.parseBoolean(params.redirect)
-      } catch (Exception e) {
-        redirectClient = true
-      }
-    }
-
-    String guestURL = paramsProcessorUtil.getDefaultGuestWaitURL() + "?sessionToken=" + sessionToken
-
-    switch (status) {
-      case GuestPolicy.WAIT:
-        meetingService.guestIsWaiting(us.meetingID, us.internalUserId)
-        destURL = guestURL
-        msgKey = "guestWait"
-        msgValue = "Please wait for a moderator to approve you joining the meeting."
-
-        // We force the response to not do a redirect. Otherwise,
-        // the client would just be redirecting into this endpoint.
-        redirectClient = false
-        break
-      case GuestPolicy.DENY:
-        destURL = meeting.getLogoutUrl()
-        msgKey = "guestDeny"
-        msgValue = "Guest denied of joining the meeting."
-        redirectClient = false
-        break
-      case GuestPolicy.ALLOW:
-        // IF the user was allowed to join but there is no room available in
-        // the meeting we must hold his approval
-        if (hasReachedMaxParticipants(meeting, us)) {
-          meetingService.guestIsWaiting(us.meetingID, us.internalUserId)
-          destURL = guestURL
-          msgKey = "seatWait"
-          msgValue = "Guest waiting for a seat in the meeting."
-          redirectClient = false
-          status = GuestPolicy.WAIT
-        }
-        break
-      default:
-        break
-    }
-
-    if(meeting.didGuestUserLeaveGuestLobby(us.internalUserId)){
-      destURL = meeting.getLogoutUrl()
-      msgKey = "guestInvalid"
-      msgValue = "Invalid user"
-      status = GuestPolicy.DENY
-      redirectClient = false
-    }
-
-    if (redirectClient) {
-      // User may join the meeting
-      redirect(url: destURL)
-    } else {
-      response.addHeader("Cache-Control", "no-cache")
-      withFormat {
-        json {
-          def builder = new JsonBuilder()
-          builder.response {
-            returncode RESP_CODE_SUCCESS
-            messageKey msgKey
-            message msgValue
-            meeting_id us.meetingID
-            user_id us.internalUserId
-            auth_token us.authToken
-            session_token session[sessionToken]
-            guestStatus status
-            lobbyMessage lobbyMsg
-            url destURL
-            positionInWaitingQueue posInWaitingQueue
-          }
-          render(contentType: "application/json", text: builder.toPrettyString())
-        }
-      }
-    }
-  }
-
-  /***********************************************
-   * ENTER API
-   ***********************************************/
-  def enter = {
-    String API_CALL = 'enter'
-    log.debug CONTROLLER_NAME + "#${API_CALL}"
-
-    String respMessage = "Session not found."
-    String respMessageKey = "missingSession"
-    boolean reject = false;
-
-    String sessionToken
-    UserSession us
-    Meeting meeting
-
-    Map.Entry<String, String> validationResponse = validateRequest(
-            ValidationService.ApiCall.ENTER,
-            request.getParameterMap(),
-            request.getQueryString(),
-    )
-    if(!(validationResponse == null)) {
-      respMessage = validationResponse.getValue()
-      respMessageKey = validationResponse.getKey()
-      reject = true
-    } else {
-      sessionToken = sanitizeSessionToken(params.sessionToken)
-      us = getUserSession(sessionToken)
-      meeting = meetingService.getMeeting(us.meetingID)
-
-      if (!hasValidSession(sessionToken)) {
-        reject = true;
-      } else {
-        if(hasReachedMaxParticipants(meeting, us)) {
-          reject = true
-          respMessage = "The maximum number of participants allowed for this meeting has been reached."
-          respMessageKey = "maxParticipantsReached"
-        } else {
-          log.info("User ${us.internalUserId} has entered")
-          meeting.userEntered(us.internalUserId)
-        }
-      }
-    }
-
-    if (reject) {
-      // Determine the logout url so we can send the user there.
-      String logoutUrl = paramsProcessorUtil.getDefaultLogoutUrl()
-
-      if(us != null) {
-        logoutUrl = us.logoutUrl
-      }
-
-      log.info("Session token: ${sessionToken}")
-
-      response.addHeader("Cache-Control", "no-cache")
-      withFormat {
-        json {
-          def builder = new JsonBuilder()
-          builder.response {
-            returncode RESP_CODE_FAILED
-            message respMessage
-            messageKey respMessageKey
-            sessionToken
-            logoutURL logoutUrl
-          }
-          render(contentType: "application/json", text: builder.toPrettyString())
-        }
-      }
-    } else {
-      Map<String, Object> logData = new HashMap<String, Object>();
-      logData.put("meetingid", us.meetingID);
-      logData.put("extMeetingid", us.externMeetingID);
-      logData.put("name", us.fullname);
-      logData.put("userid", us.internalUserId);
-      logData.put("sessionToken", sessionToken);
-      logData.put("logCode", "handle_enter_api");
-      logData.put("description", "Handling ENTER API.");
-
-      Gson gson = new Gson();
-      String logStr = gson.toJson(logData);
-
-      log.info(" --analytics-- data=" + logStr);
-
-      response.addHeader("Cache-Control", "no-cache")
-      withFormat {
-        json {
-          def builder = new JsonBuilder()
-          builder.response {
-            returncode RESP_CODE_SUCCESS
-            fullname us.fullname
-            confname us.conferencename
-            meetingID us.meetingID
-            externMeetingID us.externMeetingID
-            externUserID us.externUserID
-            internalUserID us.internalUserId
-            authToken us.authToken
-            role us.role
-            guest us.guest
-            guestStatus us.guestStatus
-            conference us.conference
-            room us.room
-            voicebridge us.voicebridge
-            dialnumber meeting.getDialNumber()
-            webvoiceconf us.webvoiceconf
-            mode us.mode
-            record us.record
-            isBreakout meeting.isBreakout()
-            logoutTimer meeting.getLogoutTimer()
-            allowStartStopRecording meeting.getAllowStartStopRecording()
-            recordFullDurationMedia meeting.getRecordFullDurationMedia()
-            welcome us.welcome
-            if (!StringUtils.isEmpty(meeting.moderatorOnlyMessage) && us.role.equals(ROLE_MODERATOR)) {
-              modOnlyMessage meeting.moderatorOnlyMessage
-            }
-            if (!StringUtils.isEmpty(meeting.bannerText)) {
-              bannerText meeting.getBannerText()
-              bannerColor meeting.getBannerColor()
-            }
-            customLogoURL meeting.getCustomLogoURL()
-            customCopyright meeting.getCustomCopyright()
-            muteOnStart meeting.getMuteOnStart()
-            allowModsToUnmuteUsers meeting.getAllowModsToUnmuteUsers()
-            logoutUrl us.logoutUrl
-            defaultLayout us.defaultLayout
-            avatarURL us.avatarURL
-            if (meeting.breakoutRoomsParams != null) {
-              breakoutRooms {
-                record meeting.breakoutRoomsParams.record
-                privateChatEnabled meeting.breakoutRoomsParams.privateChatEnabled
-                captureNotes meeting.breakoutRoomsParams.captureNotes
-                captureSlides meeting.breakoutRoomsParams.captureSlides
-                captureNotesFilename meeting.breakoutRoomsParams.captureNotesFilename
-                captureSlidesFilename meeting.breakoutRoomsParams.captureSlidesFilename
-              }
-            }
-            customdata (
-              meeting.getUserCustomData(us.externUserID).collect { k, v ->
-                ["$k": v]
-              }
-            )
-            metadata (
-              meeting.getMetadata().collect { k, v ->
-                ["$k": v]
-              }
-            )
-          }
-          render(contentType: "application/json", text: builder.toPrettyString())
-        }
-      }
-    }
-  }
-
   /***********************************************
    * STUN/TURN API
    ***********************************************/
@@ -972,8 +938,7 @@ class ApiController {
 
     Map.Entry<String, String> validationResponse = validateRequest(
             ValidationService.ApiCall.STUNS,
-            request.getParameterMap(),
-            request.getQueryString(),
+            request
     )
 
     if(!(validationResponse == null)) {
@@ -1049,13 +1014,12 @@ class ApiController {
 
     Map.Entry<String, String> validationResponse = validateRequest(
             ValidationService.ApiCall.SIGN_OUT,
-            request.getParameterMap(),
-            request.getQueryString()
+            request
     )
 
     if(validationResponse == null) {
       String sessionToken = sanitizeSessionToken(params.sessionToken)
-      UserSession us = meetingService.removeUserSessionWithAuthToken(sessionToken)
+      UserSession us = meetingService.removeUserSessionWithSessionToken(sessionToken)
       Map<String, Object> logData = new HashMap<String, Object>();
       logData.put("meetingid", us.meetingID);
       logData.put("extMeetingid", us.externMeetingID);
@@ -1094,8 +1058,7 @@ class ApiController {
 
     Map.Entry<String, String> validationResponse = validateRequest(
             ValidationService.ApiCall.INSERT_DOCUMENT,
-            request.getParameterMap(),
-            request.getQueryString()
+            request
     )
 
     def externalMeetingId = params.meetingID.toString()
@@ -1106,15 +1069,19 @@ class ApiController {
 
     Meeting meeting = ServiceUtils.findMeetingFromMeetingID(params.meetingID);
 
-    if (meeting != null){
-      if (uploadDocuments(meeting, true)) {
+    if (meeting != null) {
+      String requestBody = request.inputStream == null ? null : request.inputStream.text
+      requestBody = StringUtils.isEmpty(requestBody) ? null : requestBody
+
+      def xmlModules = processRequestXmlModules(requestBody)
+      if (uploadDocuments(xmlModules, meeting, true)) {
         withFormat {
           xml {
             render(text: responseBuilder.buildInsertDocumentResponse("Presentation is being uploaded", RESP_CODE_SUCCESS)
                     , contentType: "text/xml")
           }
         }
-      } else if (meetingService.isMeetingWithDisabledPresentation(meetingId)) {
+      } else if (meetingService.isMeetingWithDisabledPresentation(meeting.getInternalId())) {
         withFormat {
           xml {
             render(text: responseBuilder.buildInsertDocumentResponse("Presentation feature is disabled, ignoring.",
@@ -1134,6 +1101,44 @@ class ApiController {
     }
   }
 
+  def sendChatMessage = {
+    String API_CALL = 'sendChatMessage'
+    log.debug CONTROLLER_NAME + "#${API_CALL}"
+
+    Map.Entry<String, String> validationResponse = validateRequest(
+            ValidationService.ApiCall.SEND_CHAT_MESSAGE,
+            request
+    )
+
+    if(!(validationResponse == null)) {
+      invalid(validationResponse.getKey(), validationResponse.getValue())
+      return
+    }
+
+    String userName = "System";
+    String chatMessage = params.message;
+
+    if (params.userName != null && params.userName != "") {
+      userName = params.userName;
+    }
+
+    Meeting meeting = ServiceUtils.findMeetingFromMeetingID(params.meetingID);
+    boolean isRunning = meeting != null && meeting.isRunning();
+
+    if(!isRunning) {
+      invalid("meetingNotFound", "Meeting not found")
+      return
+    }
+
+    meetingService.sendChatMessage(meeting.internalId, userName, chatMessage);
+    withFormat {
+      xml {
+        render(text: responseBuilder.buildSendChatMessageResponse("Message successfully sent", RESP_CODE_SUCCESS)
+                , contentType: "text/xml")
+      }
+    }
+  }
+
   def getJoinUrl = {
     String API_CALL = 'getJoinUrl'
     log.debug CONTROLLER_NAME + "#${API_CALL}"
@@ -1147,8 +1152,7 @@ class ApiController {
 
     Map.Entry<String, String> validationResponse = validateRequest(
             ValidationService.ApiCall.GET_JOIN_URL,
-            request.getParameterMap(),
-            request.getQueryString(),
+            request
     )
 
     //Validate Session
@@ -1203,17 +1207,59 @@ class ApiController {
         logData.put("userid", us.internalUserId);
         logData.put("sessionToken", sessionToken);
         logData.put("logCode", "getJoinUrl");
-        logData.put("description", "Request join URL.");
+        logData.put("description", "Request join URL");
         Gson gson = new Gson();
         String logStr = gson.toJson(logData);
 
         log.info(" --analytics-- data=" + logStr);
 
         String method = 'join'
-        String extId = validationService.encodeString(meeting.getExternalId())
+        String externalMeetingId = validationService.encodeString(meeting.getExternalId())
         String fullName = validationService.encodeString(us.fullname)
-        String query = "fullName=${fullName}&meetingID=${extId}&role=${us.role.equals(ROLE_MODERATOR) ? ROLE_MODERATOR : ROLE_ATTENDEE}&redirect=true&userID=${us.getExternUserID()}"
-        String checksum = DigestUtils.sha1Hex(method + query + validationService.getSecuritySalt())
+        ListHashMap<String, String> queryParameters = new ListHashMap<>();
+        queryParameters.put("fullName", fullName);
+        queryParameters.put("meetingID", externalMeetingId);
+        queryParameters.put("role", us.role.equals(ROLE_MODERATOR) ? ROLE_MODERATOR : ROLE_ATTENDEE);
+        queryParameters.put("redirect", "true");
+        queryParameters.put("existingUserID", us.getInternalUserId());
+
+        // replaceSession: If this link is intended to replace the previous session of the user
+        if (!StringUtils.isEmpty(params.replaceSession) && Boolean.parseBoolean(params.replaceSession)) {
+          queryParameters.put("replaceSessionToken", sessionToken);
+        }
+
+        if (!StringUtils.isEmpty(params.sessionName)) {
+          queryParameters.put("sessionName", params.sessionName);
+        }
+
+        List<String> userdataBlocklistForViewers=Arrays.asList(paramsProcessorUtil.getGetJoinUrlUserdataBlocklist().split(","));
+
+        boolean isModerator = us.role?.equals(ROLE_MODERATOR);
+        boolean blockAllUserdataForViewers = userdataBlocklistForViewers.any { it.equalsIgnoreCase("all") };
+
+        request.getParameterMap()
+                .findAll { key, value ->
+                  // always allow `enforceLayout`
+                  if (key == "enforceLayout") return true
+
+                  // For prefix userdata-
+                  if (key.startsWith("userdata-")) {
+                    if (isModerator && !meeting.isBreakout()) return true
+                    if (blockAllUserdataForViewers) return false
+                    return !userdataBlocklistForViewers.contains(key - "userdata-")
+                  }
+
+                  return false
+                }
+                .findAll { key, value -> !StringUtils.isEmpty(value[-1]) }
+                .each { key, value -> queryParameters.put(key, value[-1]) }
+
+        String httpQueryString = "";
+        for(String parameterName : queryParameters.keySet()) {
+          httpQueryString += ( queryParameters.isEmpty() ? "?" : "&" ) + parameterName + "=" + validationService.encodeString(queryParameters.get(parameterName));
+        }
+
+        String checksum = DigestUtils.sha1Hex(method + httpQueryString + validationService.getSecuritySalt())
         String defaultServerUrl = paramsProcessorUtil.defaultServerUrl
         response.addHeader("Cache-Control", "no-cache")
         withFormat {
@@ -1222,7 +1268,7 @@ class ApiController {
             builder.response {
               returncode RESP_CODE_SUCCESS
               message "Join URL provided successfully."
-              url "${defaultServerUrl}/bigbluebutton/api/${method}?${query}&checksum=${checksum}"
+              url "${defaultServerUrl}/bigbluebutton/api/${method}?${httpQueryString}&checksum=${checksum}"
             }
             render(contentType: "application/json", text: builder.toPrettyString())
           }
@@ -1247,8 +1293,7 @@ class ApiController {
 
     Map.Entry<String, String> validationResponse = validateRequest(
             ValidationService.ApiCall.LEARNING_DASHBOARD,
-            request.getParameterMap(),
-            request.getQueryString(),
+            request
     )
 
     //Validate Session
@@ -1345,7 +1390,7 @@ class ApiController {
     }
   }
 
-  def uploadDocuments(conf, isFromInsertAPI) {
+  def uploadDocuments(xmlModules, conf, isFromInsertAPI) {
     if (conf.getDisabledFeatures().contains("presentation")) {
       log.warn("Presentation feature is disabled.")
       return false
@@ -1365,49 +1410,89 @@ class ApiController {
     }
 
     Boolean isDefaultPresentationUsed = false;
-    String requestBody = request.inputStream == null ? null : request.inputStream.text;
-    requestBody = StringUtils.isEmpty(requestBody) ? null : requestBody;
     Boolean isDefaultPresentationCurrent = false;
     def listOfPresentation = []
     def presentationListHasCurrent = false
 
+    Boolean hasPresentationUrlInParameter = false
+
+
+    String[] pu = request.getParameterMap().get("preUploadedPresentation")
+    String[] puName = request.getParameterMap().get("preUploadedPresentationName")
+    if (pu != null) {
+      String preUploadedPresentation = pu[0]
+      hasPresentationUrlInParameter = true
+      def xmlString = new StringWriter()
+      def xml = new MarkupBuilder(xmlString)
+      String filename
+      if (puName == null) {
+        filename = Util.extractFilenameFromUrl(preUploadedPresentation)
+        if (filename == null) {
+          filename = "untitled"
+        }
+      } else {
+        filename = puName[0]
+      }
+      xml.document (
+        removable: "true",
+        downloadable: "false",
+        url: preUploadedPresentation,
+        filename: filename,
+        isPreUploadedPresentationFromParameter: "true"
+      )
+
+      def parsedXml = new XmlSlurper().parseText(xmlString.toString())
+
+      listOfPresentation << parsedXml
+    }
+
     // This part of the code is responsible for organize the presentations in a certain order
     // It selects the one that has the current=true, and put it in the 0th place.
     // Afterwards, the 0th presentation is going to be uploaded first, which spares processing time
-    if (requestBody == null) {
+    if (!xmlModules.containsKey("presentation")) {
       if (isFromInsertAPI) {
         log.warn("Insert Document API called without a payload - ignoring")
         return;
       }
-      listOfPresentation << [name: "default", current: true];
-    } else {
-      def xml = new XmlSlurper().parseText(requestBody);
-      Boolean hasCurrent = false;
-      xml.children().each { module ->
-        log.debug("module config found: [${module.@name}]");
 
-        if ("presentation".equals(module.@name.toString())) {
-          for (document in module.children()) {
-            if (!StringUtils.isEmpty(document.@current.toString()) && java.lang.Boolean.parseBoolean(
-                    document.@current.toString()) && !hasCurrent) {
-              listOfPresentation.add(0, document)
-              hasCurrent = true;
-            } else {
-              listOfPresentation << document
-            }
-          }
-          Boolean uploadDefault = !preUploadedPresentationOverrideDefault && !isDefaultPresentationUsed && !isFromInsertAPI;
-          if (uploadDefault) {
-            isDefaultPresentationCurrent = !hasCurrent;
-            hasCurrent = true
-            isDefaultPresentationUsed = true
-            if (isDefaultPresentationCurrent) {
-              listOfPresentation.add(0, [name: "default", current: true])
-            } else {
-              listOfPresentation << [name: "default", current: false];
-            }
+     if (hasPresentationUrlInParameter) {
+        if (!preUploadedPresentationOverrideDefault) {
+          listOfPresentation << [name: "default", current: true]
+        }
+      } else {
+        listOfPresentation << [name: "default", current: true]
+      }
+    } else {
+      Boolean hasCurrent = hasPresentationUrlInParameter;
+      Boolean hasPresentationModule = false;
+      if (xmlModules.containsKey("presentation")) {
+        def modulePresentation = xmlModules.get("presentation")
+        hasPresentationModule = true
+        for (document in modulePresentation.children()) {
+          if (!StringUtils.isEmpty(document.@current.toString()) && java.lang.Boolean.parseBoolean(
+                  document.@current.toString()) && !hasCurrent) {
+            listOfPresentation.add(0, document)
+            hasCurrent = true;
+          } else {
+            listOfPresentation << document
           }
         }
+
+        Boolean uploadDefault = !preUploadedPresentationOverrideDefault && !isDefaultPresentationUsed && !isFromInsertAPI;
+        if (uploadDefault) {
+          isDefaultPresentationCurrent = !hasCurrent;
+          hasCurrent = true
+          isDefaultPresentationUsed = true
+          if (isDefaultPresentationCurrent) {
+            listOfPresentation.add(0, [name: "default", current: true])
+          } else {
+            listOfPresentation << [name: "default", current: false];
+          }
+        }
+      }
+      if (!hasPresentationModule) {
+        hasCurrent = true
+        listOfPresentation.add(0, [name: "default", current: true])
       }
       presentationListHasCurrent = hasCurrent;
     }
@@ -1416,20 +1501,25 @@ class ApiController {
       def Boolean isCurrent = false;
       def Boolean isRemovable = true;
       def Boolean isDownloadable = false;
-      def Boolean isInitialPresentation = false;
+      def Boolean isDefaultPresentation = false;
+      def Boolean isPreUploadedPresentationFromParameter = false;
 
       if (document.name != null && "default".equals(document.name)) {
         if (presentationService.defaultUploadedPresentation) {
           if (document.current) {
-            isInitialPresentation = true
+            isDefaultPresentation = true
           }
           downloadAndProcessDocument(presentationService.defaultUploadedPresentation, conf.getInternalId(),
                   document.current /* default presentation */, '', false,
-                  true, isInitialPresentation);
+                  true, isDefaultPresentation, isPreUploadedPresentationFromParameter);
         } else {
           log.error "Default presentation could not be read, it is (" + presentationService.defaultUploadedPresentation + ")", "error"
         }
       } else {
+        if (!StringUtils.isEmpty(document.@isPreUploadedPresentationFromParameter.toString())) {
+          isPreUploadedPresentationFromParameter = java.lang.Boolean.parseBoolean(
+                  document.@isPreUploadedPresentationFromParameter.toString());
+        }
         // Extracting all properties inside the xml
         if (!StringUtils.isEmpty(document.@removable.toString())) {
           isRemovable = java.lang.Boolean.parseBoolean(document.@removable.toString());
@@ -1444,7 +1534,7 @@ class ApiController {
             isCurrent = true
           }
         } else if (index == 0 && !isFromInsertAPI) {
-          isInitialPresentation = true
+          isDefaultPresentation = true
           isCurrent = true
         }
 
@@ -1456,12 +1546,12 @@ class ApiController {
             fileName = document.@filename.toString();
           }
           downloadAndProcessDocument(document.@url.toString(), conf.getInternalId(), isCurrent /* default presentation */,
-                  fileName, isDownloadable, isRemovable, isInitialPresentation);
+                  fileName, isDownloadable, isRemovable, isDefaultPresentation, isPreUploadedPresentationFromParameter);
         } else if (!StringUtils.isEmpty(document.@name.toString())) {
           def b64 = new Base64()
           def decodedBytes = b64.decode(document.text().getBytes())
           processDocumentFromRawBytes(decodedBytes, document.@name.toString(),
-                  conf.getInternalId(), isCurrent, isDownloadable, isRemovable/* default presentation */, isInitialPresentation);
+                  conf.getInternalId(), isCurrent, isDownloadable, isRemovable/* default presentation */, isDefaultPresentation);
         } else {
           log.debug("presentation module config found, but it did not contain url or name attributes");
         }
@@ -1470,8 +1560,22 @@ class ApiController {
     return true
   }
 
+  def processRequestXmlModules(String requestBody) {
+    def xmlModules = [:]
+
+    if (requestBody != null && requestBody != "") {
+      def xml = new XmlSlurper().parseText(requestBody)
+      xml.children().each { module ->
+        log.debug("module found: [${module.@name}]")
+        xmlModules.put(module.@name.toString(), module);
+      }
+    }
+
+    return xmlModules
+  }
+
   def processDocumentFromRawBytes(bytes, presOrigFilename, meetingId, current, isDownloadable, isRemovable,
-                                  isInitialPresentation) {
+                                  isDefaultPresentation) {
     def uploadFailed = false
     def uploadFailReasons = new ArrayList<String>()
 
@@ -1483,7 +1587,7 @@ class ApiController {
     def presId = null
 
     if (presFilename == "" || filenameExt == "") {
-      log.debug("Upload failed. Invalid filename " + presOrigFilename)
+        log.debug("Upload failed. Invalid filename " + presOrigFilename)
       uploadFailReasons.add("invalid_filename")
       uploadFailed = true
     } else {
@@ -1519,14 +1623,15 @@ class ApiController {
               uploadFailReasons,
               isDownloadable,
               isRemovable,
-              isInitialPresentation
+              isDefaultPresentation,
       )
     } else {
       org.bigbluebutton.presentation.Util.deleteDirectoryFromFileHandlingErrors(pres)
     }
   }
 
-  def downloadAndProcessDocument(address, meetingId, current, fileName, isDownloadable, isRemovable, isInitialPresentation) {
+  def downloadAndProcessDocument(address, meetingId, current, fileName, isDownloadable, isRemovable,
+                                 isDefaultPresentation, isPreUploadedPresentationFromParameter) {
     log.debug("ApiController#downloadAndProcessDocument(${address}, ${meetingId}, ${fileName})");
     String presOrigFilename;
     if (StringUtils.isEmpty(fileName)) {
@@ -1551,7 +1656,7 @@ class ApiController {
     def pres = null
     def presId
 
-    if (presFilename == "" || filenameExt == "") {
+    if (presFilename == "" || (filenameExt == "" && !isPreUploadedPresentationFromParameter)) {
       log.debug("presentation is null by default")
       return
     } else {
@@ -1567,6 +1672,22 @@ class ApiController {
           log.error("Failed to download presentation=[${address}], meeting=[${meetingId}], fileName=[${fileName}]")
           uploadFailReasons.add("failed_to_download_file")
           uploadFailed = true
+        }
+
+        if (isPreUploadedPresentationFromParameter && filenameExt.isEmpty()) {
+          String fileExtension = SupportedFileTypes.detectFileExtensionBasedOnMimeType(pres)
+          newFilename = Util.createNewFilename(presId, fileExtension)
+          newFilePath = uploadDir.absolutePath + File.separatorChar + newFilename
+          File destination = new File(newFilePath)
+          filenameExt = fileExtension
+          presFilename = Util.createNewFilename(presFilename, fileExtension)
+          if (pres.renameTo(destination)) {
+            log.info("Presentation coming from URL parameter is at ${destination.getAbsolutePath()}")
+            pres = destination
+          } else {
+            log.error("Error while renaming presentation from URL parameter to ${destination.getAbsolutePath()}, " +
+                    "consider sending it through `/insertDocument`")
+          }
         }
       } else {
         log.error("Null presentation directory meeting=[${meetingId}], presentationDir=[${presentationDir}], presId=[${presId}]")
@@ -1589,7 +1710,7 @@ class ApiController {
               uploadFailReasons,
               isDownloadable,
               isRemovable,
-              isInitialPresentation
+              isDefaultPresentation,
       )
     } else {
       org.bigbluebutton.presentation.Util.deleteDirectoryFromFileHandlingErrors(pres)
@@ -1599,7 +1720,7 @@ class ApiController {
 
 
   def processUploadedFile(podId, meetingId, presId, filename, presFile, current,
-                          authzToken, uploadFailed, uploadFailReasons, isDownloadable, isRemovable, isInitialPresentation ) {
+                          authzToken, uploadFailed, uploadFailReasons, isDownloadable, isRemovable, isDefaultPresentation ) {
     def presentationBaseUrl = presentationService.presentationBaseUrl
     // TODO add podId
     UploadedPresentation uploadedPres = new UploadedPresentation(podId,
@@ -1611,7 +1732,7 @@ class ApiController {
             authzToken,
             uploadFailed,
             uploadFailReasons,
-            isInitialPresentation
+            isDefaultPresentation
     )
     uploadedPres.setUploadedFile(presFile);
     if (isRemovable != null) {
@@ -1647,7 +1768,7 @@ class ApiController {
       return null
     }
 
-    UserSession us = meetingService.getUserSessionWithAuthToken(token)
+    UserSession us = meetingService.getUserSessionWithSessionToken(token)
     if (us == null) {
       log.info("Cannot find UserSession for token ${token}")
     }
@@ -1731,6 +1852,8 @@ class ApiController {
     Boolean reenter = meeting.getEnteredUserById(us.internalUserId) != null;
     // User are able to rejoin if he already joined previously with the same extId
     Boolean userExtIdAlreadyJoined = meeting.getUsersWithExtId(us.externUserID).size() > 0
+    // Bot users should not be affected by max partiicpants limitation
+    Boolean isBot = us.bot
     // Users that already joined the meeting
     // It will count only unique users in order to avoid the same user from filling all slots
     int joinedUniqueUsers = meeting.countUniqueExtIds()
@@ -1740,7 +1863,7 @@ class ApiController {
     log.info("Entered users - ${enteredUsers}. Joined users - ${joinedUniqueUsers}")
 
     Boolean reachedMax = joinedUniqueUsers >= maxParticipants;
-    if (enabled && !rejoin && !reenter && !userExtIdAlreadyJoined && reachedMax) {
+    if (enabled && !rejoin && !reenter && !userExtIdAlreadyJoined && reachedMax && !isBot) {
       return true;
     }
 
@@ -1833,24 +1956,39 @@ class ApiController {
     }
   }
 
+  private String subLogoutParams(logoutUrl, meetingID, userID, fullName) {
+    String newURL = logoutUrl;
+    String userName = fullName != null ? validationService.encodeString(fullName) : "";
+
+    newURL = newURL.replace('%%MEETINGID%%', meetingID != null ? meetingID : "");
+    newURL = newURL.replace('%%USERID%%', userID != null ? userID : "");
+    newURL = newURL.replace('%%USERNAME%%', userName);
+
+    return newURL;
+  }
+
   private void respondWithRedirect(errorsJSONArray, redirectUrl = "") {
-    String logoutUrl = paramsProcessorUtil.getDefaultLogoutUrl()
-    URI oldUri = URI.create(logoutUrl)
+    String uriString = paramsProcessorUtil.getDefaultLogoutUrl();
 
     if (!StringUtils.isEmpty(params.logoutURL)) {
       try {
-        oldUri = URI.create(params.logoutURL)
+        uriString = params.logoutURL;
       } catch (Exception e) {
         // Do nothing, the variable oldUri was already initialized
       }
     }
 
+    // If logoutUrl strings get here with %%FIELDS%% we don't
+    // have enough info to construct them, so just clear the fields
+    uriString = subLogoutParams(uriString, "", "", "");
+
     if(!StringUtils.isEmpty(redirectUrl)) {
       try {
-        oldUri = URI.create(redirectUrl)
+        uriString = redirectUrl;
       } catch(Exception ignored) {}
     }
 
+    URI oldUri = URI.create(uriString);
     String newQuery = oldUri.getQuery();
 
     if (newQuery == null) {
@@ -1866,24 +2004,13 @@ class ApiController {
     redirect(url: newUri)
   }
 
-  private Map.Entry<String, String> validateRequest(ValidationService.ApiCall apiCall, Map<String, String[]> params, String queryString) {
-    Map<String, String> violations = validationService.validate(apiCall, params, queryString)
+  private Map.Entry<String, String> validateRequest(ValidationService.ApiCall apiCall, HttpServletRequest request) {
+    Map<String, String> violations = validationService.validate(apiCall, request)
     Map.Entry<String, String> response = null
 
     if(!violations.isEmpty()) {
       for (Map.Entry<String, String> violation: violations.entrySet()) {
         log.error violation.getValue()
-      }
-
-      if(apiCall == ValidationService.ApiCall.ENTER) {
-        //Check if error exist following an order (to avoid showing guestDeny when the meeting doesn't even exist)
-        String[] enterConstraintsKeys = new String[] {"missingSession","meetingForciblyEnded","notFound","guestDeny"}
-        for (String constraintKey : enterConstraintsKeys) {
-          if(violations.containsKey(constraintKey)) {
-            response = new AbstractMap.SimpleEntry<String, String>(constraintKey, violations.get(constraintKey))
-            break
-          }
-        }
       }
 
       if(response == null) {

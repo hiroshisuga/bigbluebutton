@@ -16,6 +16,8 @@ import getMeetingInfoEndpointTableData from '../data/getMeetingInfo.tsx';
 import getRecordingsEndpointTableData from '../data/getRecordings.tsx';
 import getRecordingTextTracksEndpointTableData from '../data/getRecordingTextTracks.tsx';
 import insertDocumentEndpointTableData from '../data/insertDocument.tsx';
+import sendChatMessageEndpointTableData from '../data/sendChatMessage.tsx';
+import getJoinUrlTableData from '../data/getJoinUrl.tsx';
 import isMeetingRunningEndpointTableData from '../data/isMeetingRunning.tsx';
 import joinEndpointTableData from '../data/join.tsx';
 import publishRecordingsEndpointTableData from '../data/publishRecordings.tsx';
@@ -34,6 +36,7 @@ For developers, this API enables you to
 - insert documents
 - get recordings for past meetings (and delete them)
 - upload closed caption files for meetings
+- send a public chat message
 
 To make an API call to your BigBlueButton server, your application makes HTTPS requests to the BigBlueButton server API endpoint (usually the server's hostname followed by `/bigbluebutton/api`). All API calls must include checksum computed with a secret shared with the BigBlueButton server.
 
@@ -92,7 +95,7 @@ Updated in 2.5:
 
 - **create** - **Added:** `meetingCameraCap`, `groups`, `disabledFeatures`, `meetingExpireIfNoUserJoinedInMinutes`, `meetingExpireWhenLastUserLeftInMinutes`, `preUploadedPresentationOverrideDefault`; **Deprecated:** `learningDashboardEnabled`, `breakoutRoomsEnabled`, `virtualBackgroundsDisabled`.
 
-- **insertDocument** endopoint was first introduced
+- **insertDocument** endpoint was first introduced
 
 Updated in 2.6:
 
@@ -104,9 +107,18 @@ Updated in 2.6:
 
 Updated in 2.7:
 
-- **create** - **Added:**  Added `timer`, added `disabledFeatures` options`cameraAsContent` and `snapshotOfCurrentSlide`.
+- **create** - **Added:** `preUploadedPresentation`, `preUploadedPresentationName`, `allowPromoteGuestToModerator` (2.7.9), `disabledFeatures` options`cameraAsContent`, `snapshotOfCurrentSlide`, `downloadPresentationOriginalFile`, `downloadPresentationConvertedToPdf`, `timer`, `learningDashboardDownloadSessionData` (2.7.5).
+- **join** - **Added:** `errorRedirectUrl`, `userdata-bbb_fullaudio_bridge`
 
-- **join** - **Added:** `redirectErrorUrl`, `userdata-bbb_fullaudio_bridge`
+Updated in 3.0:
+
+- **create** - **Added parameters:** `allowOverrideClientSettingsOnCreateCall`, `loginURL`, `pluginManifests`, `pluginManifestsFetchUrl`, `presentationConversionCacheEnabled`, `maxNumPages`. **Removed:** `breakoutRoomsEnabled`, `learningDashboardEnabled`, `virtualBackgroundsDisabled`. Parameter `meetingLayout` supports a few new options: CAMERAS_ONLY, PARTICIPANTS_CHAT_ONLY, PRESENTATION_ONLY, MEDIA_ONLY; **Added POST module:** `clientSettingsOverride`; **Added:** `disabledFeatures` options `infiniteWhiteboard`, `deleteChatMessage`, `editChatMessage`, `replyChatMessage`, `chatMessageReactions`, `raiseHand`, `userReactions`, `chatEmojiPicker`, `quizzes`;
+- **join** - **Added:** `bot`, `enforceLayout`, `logoutURL`, `firstName`, `lastName`, `userdata-bbb_default_layout`, `userdata-bbb_skip_echotest_if_previous_device`, `userdata-bbb_prefer_dark_theme`. `userdata-bbb_hide_notifications`, `userdata-bbb_hide_controls`, `userdata-bbb_initial_selected_tool` **Removed:** `defaultLayout` (replaced by `userdata-bbb_default_layout`) and removed support for all HTTP request methods except GET, `userdata-bbb_ask_for_feedback_on_logout`.
+- **sendChatMessage** endpoint was first introduced.
+- **getJoinUrl** endpoint was first introduced.
+- **enter** endpoint was removed. It was only used internally, never part of the api documentation.
+- **html5client/check** endpoint was removed. It was used for checking the health of the server returning `{"html5clientStatus":"running"}`
+- **feedback** endpoint was introduced, replacing calls to `/html5client/feedback` with `/api/feedback`
 
 ## API Data Types
 
@@ -139,7 +151,7 @@ Here's a sample return
     Secret: ECCJZNJWLPEA3YB6Y2LTQGQD3GJZ3F93
 ```
 
-You should _not_ embed the shared secret within a web page and make BigBlueButton API calls within JavaScript running within a browser. The built-in debugging tools for modern browser would make this secret easily accessibile to any user. Once someone has the shared secret for your BigBlueButton server, they could create their own API calls. The shared secret should only be accessibile to the server-side components of your application (and thus not visible to end users).
+You should _not_ embed the shared secret within a web page and make BigBlueButton API calls within JavaScript running within a browser. The built-in debugging tools for modern browser would make this secret easily accessible to any user. Once someone has the shared secret for your BigBlueButton server, they could create their own API calls. The shared secret should only be accessible to the server-side components of your application (and thus not visible to end users).
 
 ### Configuration
 
@@ -167,7 +179,26 @@ $ sudo bbb-conf --setsecret \$(openssl rand -base64 32 | sed 's/=//g' | sed 's/+
 
 There are other configuration values in bbb-web's configuration `bigbluebutton.properties` (overwritten by `/etc/bigbluebutton/bbb-web.properties` ) related to the lifecycle of a meeting. You don't need to understand all of these to start using the BigBlueButton API. For most BigBlueButton servers, you can leave the [default values](https://github.com/bigbluebutton/bigbluebutton/blob/main/bigbluebutton-web/grails-app/conf/bigbluebutton.properties).
 
-In 2.5 support for additional hashing algorithms, besides sha1 and sha256, were added. These include sha384 and sha512. The `supportedChecksumAlgorithms` property in `bigbluebutton.properties` defines which algorithms are supported. By default checksums can be validated with any of the supported algorithms. To remove support for one or more of these algorithms simply delete it from the configuration file.
+In BigBlueButton 2.5 support for additional hashing algorithms, besides sha1 and sha256, were added. These include sha384 and sha512. The `supportedChecksumAlgorithms` property in bbb-web defines which algorithms are supported. By default checksums can be validated with any of the supported algorithms. To remove support for one or more of these algorithms simply delete it from the configuration file.
+If you drop support for sha256, (for example if you want to force only sha512 to be used) you will also need to update the `checkSumAlgorithmForBreakouts` property in akka-apps.
+
+In `/etc/bigbluebutton/bbb-web.properties`:
+
+```properties
+supportedChecksumAlgorithms=sha512
+```
+
+In `/etc/bigbluebutton/bbb-apps-akka.conf`:
+
+```properties
+services {
+  checkSumAlgorithmForBreakouts = "sha512"
+  #...
+}
+```
+
+And make sure to restart BigBlueButton.
+
 
 ### Usage
 
@@ -191,6 +222,8 @@ To use the security model, you must be able to create a SHA-1 checksum out of th
    - Above example becomes: `name=Test+Meeting&meetingID=abc123&attendeePW=111222&moderatorPW=333444&checksum=1fcbb0c4fc1f039f73aa6d697d2db9ba7f803f17`
 
 You **MUST** send this checksum with **EVERY** API call. Since end users do not know your shared secret, they can not fake calls to the server, and they can not modify any API calls since changing a single parameter name or value by only one character will completely change the checksum required to validate the call.
+
+**NOTE** Checksums for POST requests must be calculated using the URL query string as well. For example, if all request parameters are in the request body then the checksum will be calculated using an empty query string.
 
 Implementations of the SHA-1 functionality exist in nearly all programming languages. Here are example methods or links to example implementations for various languages:
 
@@ -220,6 +253,7 @@ The following section describes the administration calls
 | create              | Creates a new meeting.                                                                         |
 | join                | Join a new user to an existing meeting.                                                        |
 | end                 | Ends meeting.                                                                                  |
+| sendChatMessage     | Send a message to the public chat.                                                             |
 | insertDocument      | Insert a batch of documents via API call                                                       |
 
 ### Monitoring
@@ -261,7 +295,7 @@ The following response parameters are standard to every call and may be returned
 | message    | Sometimes | String | A message that gives additional information about the status of the call. A message parameter will always be returned if the returncode was `FAILED`. A message may also be returned in some cases where returncode was `SUCCESS` if additional information would be helpful.|
 | messageKey | Sometimes | String | Provides similar functionality to the message and follows the same rules. However, a message key will be much shorter and will generally remain the same for the life of the API whereas a message may change over time. If your third party application would like to internationalize or otherwise change the standard messages returned, you can look up your own custom messages based on this messageKey.|
 
-### create
+### `GET` `POST` create
 
 Creates a BigBlueButton meeting.
 
@@ -308,7 +342,7 @@ http&#58;//yourserver.com/bigbluebutton/api/create?[parameters]&checksum=[checks
 ```
 
 #### POST request
-You can also include a payload in the request, it may be usefull in cases where some of the query parameters are big enough to exceed the maximum number of characters in URLs. BigBlueButton supports a POST request where the parameters that usually would be passed in the URL, can be sent through the body, see example below:
+You can also include a payload in the request, it may be useful in cases where some of the query parameters are big enough to exceed the maximum number of characters in URLs. BigBlueButton supports a POST request where the parameters that usually would be passed in the URL, can be sent through the body, see example below:
 
 ```bash
 curl --request POST \
@@ -360,12 +394,12 @@ In the body part, you would append a simple XML like the example below:
 
 When you need to provide a document using a URL, and the document URL does not contain an extension, you can use the `filename` parameter, such as `filename=test-results.pdf` to help the BigBlueButton server determine the file type (in this example it would be a PDF file).
 
-**From `2.5.x` and on** there is also 2 parameters one can provide the payload to ensure that the document they are uploading can be downloaded or removed from the meeting, those parameters are:
+**From `2.5.x` and on** there are also 2 parameters one can provide the payload to ensure that the document they are uploading can be downloaded or removed from the meeting, those parameters are:
 
 | Parameter      | Description                                    | Default Value |
 | -------------- | ---------------------------------------------- | ------------- |
-| `downloadable` | Dictates if the presentation can be downloaded | `true`        |
-| `removable`    | dictates if one can remove the presentation.   | `false`       |
+| `downloadable` | Dictates if the presentation can be downloaded | `false`        |
+| `removable`    | dictates if one can remove the presentation.   | `true`       |
 
 In the payload the variables are passed inside each `<document>` tag of the xml, as follows:
 
@@ -379,11 +413,52 @@ In the payload the variables are passed inside each `<document>` tag of the xml,
 
 In the case more than a single document is provided, the first one will be loaded in the client, the processing of the other documents will continue in the background and they will be available for display when the user select one of them from the client.
 
-For more information about the pre-upload slides check the following [link](http://groups.google.com/group/bigbluebutton-dev/browse_thread/thread/d36ba6ff53e4aa79). For a complete example of the pre-upload slides check the following demos: [demo7](https://github.com/bigbluebutton/bigbluebutton/blob/master/bbb-api-demo/src/main/webapp/demo7.jsp) and [demo8](https://github.com/bigbluebutton/bigbluebutton/blob/master/bbb-api-demo/src/main/webapp/demo8.jsp)
+For more information about the pre-upload slides check the following [link](http://groups.google.com/group/bigbluebutton-dev/browse_thread/thread/d36ba6ff53e4aa79).
+
+#### clientSettingsOverride
+
+We support overriding the client settings (the entire set of options can be found in `/usr/share/bigbluebutton/html5-client/private/config/settings.yml`) as part of the CREATE call.
+Note that these values would have higher precedence over customizations made in `/etc/bigbluebutton/bbb-html5.yml`.
+
+By default this overriding approach on CREATE is disabled. To enable it, please set `allowOverrideClientSettingsOnCreateCall=true` in `/etc/bigbluebutton/bbb-web.properties` or as part of the CREATE call.
+
+You can construct the HTTPS POST request as follows:
+
+```
+curl -s -X POST "$URL/$CONTROLLER?$PARAMS&checksum=$CHECKSUM" --header "Content-Type: application/xml" --data '
+<modules>
+   <module name="clientSettingsOverride">
+         <![CDATA[
+         {
+            "public": {
+               "kurento": {
+                  "wsUrl": "wss://test.bigbluebutton.org/bbb-webrtc-sfu"
+               },
+               "media": {
+                  "sipjsHackViaWs": false
+               },
+               "app": {
+                    "appName": "Test",
+                    "helpLink": "https://www.bigbluebutton.org",
+                    "autoJoin": false,
+                    "askForConfirmationOnLeave": false,
+                    "userSettingsStorage": "localStorage",
+                    "defaultSettings": {
+                     "application": {
+                        "overrideLocale": "en"
+                     }
+                    }
+                }
+            }
+         }
+         ]]>
+   </module>
+</modules>'
+```
 
 #### Upload slides from external application to a live BigBlueButton session
 
-For external applications that integrate to BigBlueButton using the [insertDocument](/development/api#insertdocument) API call, `presentationUploadExternalUrl` and `presentationUploadExternalDescription` parameters can be used in the `create` API call in order to display a button and a message in the bottom of the presentation upload dialog. 
+For external applications that integrate to BigBlueButton using the [insertDocument](/development/api#insertdocument) API call, `presentationUploadExternalUrl` and `presentationUploadExternalDescription` parameters can be used in the `create` API call in order to display a button and a message in the bottom of the presentation upload dialog.
 
 Clicking this button will open the URL in a new tab that shows the file picker for the external application. The user can then select files in the external application and they will be sent to the live session.
 
@@ -447,7 +522,7 @@ The receiving endpoint should respond with one of the following HTTP codes to in
 
 All other HTTP response codes will be treated as transient errors.
 
-### join
+### `GET` join
 
 Joins a user to the meeting specified in the meetingID parameter.
 
@@ -463,9 +538,9 @@ http&#58;//yourserver.com/bigbluebutton/api/join?[parameters]&checksum=[checksum
 
 **Example Requests:**
 
-- http&#58;//yourserver.com/bigbluebutton/api/join?meetingID=test01&password=mp&fullName=John&checksum=1234
-- http&#58;//yourserver.com/bigbluebutton/api/join?meetingID=test01&password=ap&fullName=Mark&checksum=wxyz
-- http&#58;//yourserver.com/bigbluebutton/api/join?meetingID=test01&password=ap&fullName=Chris&createTime=273648&checksum=abcd
+- http&#58;//yourserver.com/bigbluebutton/api/join?meetingID=test01&role=moderator&fullName=John&checksum=1234
+- http&#58;//yourserver.com/bigbluebutton/api/join?meetingID=test01&role=viewer&fullName=Mark&checksum=wxyz
+- http&#58;//yourserver.com/bigbluebutton/api/join?meetingID=test01&role=viewer&fullName=Chris&createTime=273648&checksum=abcd
 
 **Example Response:**
 
@@ -484,9 +559,11 @@ There is a XML response for this call only when the `redirect` parameter is set 
 </response>
 ```
 
-### insertDocument
+See [Passing user metadata to the client on join](/administration/customize/#passing-user-metadata-to-the-client-on-join) for additional `join` parameters that can override default settings for the user.
 
-This endpoint insert one or more documents into a running meeting via API call
+### `POST` insertDocument
+
+This endpoint insert one or more documents into a running meeting via API call.
 
 **Resource URL:**
 
@@ -534,9 +611,9 @@ curl -s -X POST "https://{your-host}/bigbluebutton/api/insertDocument?meetingID=
 </modules>'
 ```
 
-There is also the possibility of passing the removable and downloadable variables inside the payload, they go in the `document` tag as already demonstrated. The way it works is exactly the same as in the [(POST) create endpoint](#pre-upload-slides) 
+There is also the possibility of passing the removable and downloadable variables inside the payload, they go in the `document` tag as already demonstrated. The way it works is exactly the same as in the [(POST) create endpoint](#pre-upload-slides)
 
-### isMeetingRunning
+### `GET` `POST` isMeetingRunning
 
 This call enables you to simply check on whether or not a meeting is running by looking it up with your meeting ID.
 
@@ -565,7 +642,7 @@ http&#58;//yourserver.com/bigbluebutton/api/isMeetingRunning?meetingID=test01&ch
 
 running can be “true” or “false” that signals whether a meeting with this ID is currently running.
 
-### end
+### `GET` `POST` end
 
 Use this to forcibly end a meeting and kick all participants out of the meeting.
 
@@ -581,7 +658,7 @@ Use this to forcibly end a meeting and kick all participants out of the meeting.
 
 **Example Requests:**
 
-- http&#58;//yourserver.com/bigbluebutton/api/end?meetingID=1234567890&password=mp&checksum=1234
+- http&#58;//yourserver.com/bigbluebutton/api/end?meetingID=1234567890&checksum=1234
 
 **Example Response:**
 
@@ -603,13 +680,12 @@ curl --request POST \
 	--url https://<your-host>/bigbluebutton/api/end \
 	--header 'Content-Type: application/x-www-form-urlencoded' \
 	--data meetingID=Test+Meeting \
-	--data password=mp \
 	--data checksum=1234
 ```
 
-**IMPORTANT NOTE:** You should note that when you call end meeting, it is simply sending a request to the backend (Red5) server that is handling all the conference traffic. That backend server will immediately attempt to send every connected client a logout event, kicking them from the meeting. It will then disconnect them, and the meeting will be ended. However, this may take several seconds, depending on network conditions. Therefore, the end meeting call will return a success as soon as the request is sent. But to be sure that it completed, you should then check back a few seconds later by using the `getMeetingInfo` or `isMeetingRunning` calls to verify that all participants have left the meeting and that it successfully ended.
+**IMPORTANT NOTE:** You should note that when you call end meeting, it is simply sending a request to the backend server that is handling all the conference traffic. That backend server will immediately attempt to send every connected client a logout event, kicking them from the meeting. It will then disconnect them, and the meeting will be ended. However, this may take several seconds, depending on network conditions. Therefore, the end meeting call will return a success as soon as the request is sent. But to be sure that it completed, you should then check back a few seconds later by using the `getMeetingInfo` or `isMeetingRunning` calls to verify that all participants have left the meeting and that it successfully ended.
 
-### getMeetingInfo
+### `GET` `POST` getMeetingInfo
 
 This call will return all of a meeting's information, including the list of attendees as well as start and end times.
 
@@ -631,53 +707,50 @@ Resource URL:
 
 ```xml
 <response>
-  <returncode>SUCCESS</returncode>
-  <meetingName>Demo Meeting</meetingName>
-  <meetingID>Demo Meeting</meetingID>
-  <internalMeetingID>183f0bf3a0982a127bdb8161e0c44eb696b3e75c-1531240585189</internalMeetingID>
-  <createTime>1531240585189</createTime>
-  <createDate>Tue Jul 10 16:36:25 UTC 2018</createDate>
-  <`voiceBridge`>70066</`voiceBridge`>
-  <dialNumber>613-555-1234</dialNumber>
-  <attendeePW>ap</attendeePW>
-  <moderatorPW>mp</moderatorPW>
-  <running>true</running>
-  <duration>0</duration>
-  <hasUserJoined>true</hasUserJoined>
-  <recording>false</recording>
-  <hasBeenForciblyEnded>false</hasBeenForciblyEnded>
-  <startTime>1531240585239</startTime>
-  <endTime>0</endTime>
-  <participantCount>2</participantCount>
-  <listenerCount>1</listenerCount>
-  <voiceParticipantCount>1</voiceParticipantCount>
-  <videoCount>1</videoCount>
-  <maxUsers>20</maxUsers>
-  <moderatorCount>1</moderatorCount>
-  <attendees>
-    <attendee>
-      <userID>w_2wzzszfaptsp</userID>
-      <fullName>stu</fullName>
-      <role>VIEWER</role>
-      <isPresenter>false</isPresenter>
-      <isListeningOnly>true</isListeningOnly>
-      <hasJoinedVoice>false</hasJoinedVoice>
-      <hasVideo>false</hasVideo>
-      <clientType>FLASH</clientType>
-    </attendee>
-    <attendee>
-      <userID>w_eo7lxnx3vwuj</userID>
-      <fullName>mod</fullName>
-      <role>MODERATOR</role>
-      <isPresenter>true</isPresenter>
-      <isListeningOnly>false</isListeningOnly>
-      <hasJoinedVoice>true</hasJoinedVoice>
-      <hasVideo>true</hasVideo>
-      <clientType>HTML5</clientType>
-    </attendee>
-  </attendees>
-  <metadata />
-  <isBreakout>false</isBreakout>
+	<returncode>SUCCESS</returncode>
+	<meetingName>Anton G's Room</meetingName>
+	<meetingID>gbesu6dht08uobpislzqxsizjzihn87cmewqyacs</meetingID>
+	<internalMeetingID>a0715c95000a2bcb90604ecc7097dbc94592c690-1715261728123</internalMeetingID>
+	<createTime>1715261728123</createTime>
+	<createDate>Thu May 09 13:35:28 UTC 2024</createDate>
+	<voiceBridge>66052</voiceBridge>
+	<dialNumber>613-555-1234</dialNumber>
+	<attendeePW>1umEM3ic</attendeePW>
+	<moderatorPW>V91JirCa</moderatorPW>
+	<running>true</running>
+	<duration>0</duration>
+	<hasUserJoined>true</hasUserJoined>
+	<recording>true</recording>
+	<hasBeenForciblyEnded>false</hasBeenForciblyEnded>
+	<startTime>1715261728142</startTime>
+	<endTime>0</endTime>
+	<participantCount>1</participantCount>
+	<listenerCount>0</listenerCount>
+	<voiceParticipantCount>1</voiceParticipantCount>
+	<videoCount>1</videoCount>
+	<maxUsers>0</maxUsers>
+	<moderatorCount>1</moderatorCount>
+	<attendees>
+		<attendee>
+			<userID>w_ftcrsyuh44oj</userID>
+			<fullName>Anton G</fullName>
+			<role>MODERATOR</role>
+			<isPresenter>true</isPresenter>
+			<isListeningOnly>false</isListeningOnly>
+			<hasJoinedVoice>true</hasJoinedVoice>
+			<hasVideo>true</hasVideo>
+			<clientType>HTML5</clientType>
+			<customdata></customdata>
+		</attendee>
+	</attendees>
+	<metadata>
+		<bbb-origin-version>summit2024-6d8120x</bbb-origin-version>
+		<bbb-origin-server-name>test30.bigbluebutton.org</bbb-origin-server-name>
+		<bbb-recording-ready-url>https://test30.bigbluebutton.org/recording_ready</bbb-recording-ready-url>
+		<bbb-origin>greenlight</bbb-origin>
+		<endcallbackurl>https://test30.bigbluebutton.org/meeting_ended</endcallbackurl>
+	</metadata>
+	<isBreakout>false</isBreakout>
 </response>
 ```
 
@@ -709,7 +782,7 @@ If a meeting is a breakout room itself, then `getMeetingInfo` will also return a
  </response>
 ```
 
-### getMeetings
+### `GET` `POST` getMeetings
 
 This call will return a list of all the meetings found on this server.
 
@@ -762,7 +835,7 @@ http&#58;//yourserver.com/bigbluebutton/api/getMeetings?checksum=1234
 </response>
 ```
 
-### getRecordings
+### `GET` getRecordings
 
 Retrieves the recordings that are available for playback for a given meetingID (or set of meeting IDs). Support for pagination was added in 2.6.
 
@@ -877,7 +950,7 @@ Here the `getRecordings` API call returned back two recordings for the meetingID
 </response>
 ```
 
-### publishRecordings
+### `GET` publishRecordings
 
 Publish and unpublish recordings for a given recordID (or set of record IDs).
 
@@ -905,7 +978,7 @@ Publish and unpublish recordings for a given recordID (or set of record IDs).
 </response>
 ```
 
-### deleteRecordings
+### `GET` deleteRecordings
 
 Delete one or more recordings for a given recordID (or set of record IDs).
 
@@ -933,7 +1006,7 @@ http&#58;//yourserver.com/bigbluebutton/api/deleteRecordings?[parameters]&checks
 </response>
 ```
 
-### updateRecordings
+### `GET` `POST` updateRecordings
 
 Update metadata for a given recordID (or set of record IDs). Available since version 1.1
 
@@ -960,7 +1033,7 @@ Update metadata for a given recordID (or set of record IDs). Available since ver
 </response>
 ```
 
-### getRecordingTextTracks
+### `GET` `POST` getRecordingTextTracks
 
 Get a list of the caption/subtitle files currently available for a recording. It will include information about the captions (language, etc.), as well as a download link. This may be useful to retrieve live or automatically transcribed subtitles from a recording for manual editing.
 
@@ -1040,7 +1113,7 @@ missingParameter
 noRecordings
 : No recording was found matching the provided recording ID.
 
-### putRecordingTextTrack
+### `POST` putRecordingTextTrack
 
 Upload a caption or subtitle file to add it to the recording. If there is any existing track with the same values for kind and lang, it will be replaced.
 
@@ -1148,6 +1221,71 @@ Missing parameter error
 }
 ```
 
+
+### `GET` sendChatMessage
+
+This call enables you to send a message to the public chat of a running meeting.
+
+<i>Added:</i> 3.0
+
+**Resource URL:**
+
+http&#58;//yourserver.com/bigbluebutton/api/sendChatMessage?[parameters]&checksum=[checksum]
+
+**Parameters:**
+
+```mdx-code-block
+<APITableComponent data={sendChatMessageEndpointTableData}/>
+```
+
+**Example Requests:**
+
+http&#58;//yourserver.com/bigbluebutton/api/sendChatMessage?meetingID=test01&message=my+test&userName=System+Admin&checksum=1234
+
+**Example Response:**
+
+```xml
+<response>
+    <returncode>SUCCESS</returncode>
+    <messageKey></messageKey>
+    <message></message>
+</response>
+```
+
+### `GET` getJoinUrl
+
+The `getJoinUrl` endpoint generates a new `/join` URL that can be used to create a new session for an existing user. By associating the new session token with the same user ID, all sessions will appear as the same user in the user list, ensuring accurate user counts. Users can also customize the new session’s layout and user data parameters, allowing flexible control over the session’s environment and functionality.
+
+This is particularly useful for hybrid environments where multiple screens in the same room each require a distinct session with different layouts.
+
+It also facilitates seamless user session transfers to another device. For example, a mobile device can scan a QR code displayed on a computer, instantly migrating the user’s session from one device to another.
+
+**Resource URL:**
+
+http&#58;//yourserver.com/bigbluebutton/api/getJoinUrl?[parameters]
+
+**Parameters:**
+
+```mdx-code-block
+<APITableComponent data={getJoinUrlTableData}/>
+```
+
+**Example Requests:**
+
+https://bbb30.bbb.imdt.dev/bigbluebutton/api/getJoinUrl?sessionToken=xyn1fbqlrhug1j6z&enforceLayout=PRESENTATION_ONLY&sessionName=Presentation%20session&userdata-bbb_client_title=Presentation%20client
+
+**Example Response:**
+
+```json
+{
+    "response": {
+        "returncode": "SUCCESS",
+        "message": "Join URL provided successfully.",
+        "url": "https://bbb30.bbb.imdt.dev/bigbluebutton/api/join?&redirect=true&existingUserID=w_t18rn7uc1wjm&role=MODERATOR&userdata-bbb_client_title=Presentation+client&sessionName=Presentation+session&fullName=teacher%2B1&meetingID=random-7653737&enforceLayout=PRESENTATION_ONLY&checksum=135f230a2339b9485d91a3e87b1a22420ca57e8b"
+    }
+}
+```
+
 ## API Sample Code
 
 BigBlueButton provides API Sample Codes so you can integrated easily with your application. Feel free to contribute and post your implementation of the API in other language code in the bigbluebutton-dev mailing list.
@@ -1170,7 +1308,7 @@ See the following [bigbluebutton-api-ruby](https://github.com/mconf/bigbluebutto
 
 To help you create/test valid API calls against your BigBlueButton server, use the excellent [API Mate](http://mconf.github.io/api-mate/) to interactively create API calls. API Mate generates the checksums within the browser (no server component needed) so you can use it to test API calls against a local BigBlueButton server.
 
-If you're developing new API calls or adding parameters on API calls, you can still use the API Mate to test them. Just scroll the page down or type "custom" in the parameter filter and you'll see the inputs where you can add custom API calls or custom parameters. New API calls will appear in the list of API links and new parameters will be added to all the API links.
+If you're developing new API calls or adding parameters on API calls, you can still use the API Mate to test them. Just scroll the page down or type "custom" in the parameter filter and you'll see the inputs where you can add custom API calls or user metadata. New API calls will appear in the list of API links and new parameters will be added to all the API links.
 
 If your using API Mate to test recordings and want to query by `meetingID`, be sure to clear the `recordID` field first.  BigBlueButton's API supports querying for recordings by either value, but not both at the same time.
 
@@ -1191,3 +1329,47 @@ For example, the application may be able to register a URL that BigBlueButton wo
 - http&#58;//third-party-app/bbb-integ.php?event=meetingEnded&meetingID=abcd
 - http&#58;//third-party-app/bbb-integ.php?event=userLeft&userID=1234
 - http&#58;//third-party-app/bbb-integ.php?event=meetingEnded&meetingID=abcd
+
+## Other Topics
+
+### Supported Document Types
+
+#### PDF Documents
+
+- PDF:
+  - .pdf
+
+#### Office Documents
+
+- Microsoft Word:
+  - .doc
+  - .docx
+- Microsoft Excel:
+  - .xls
+  - .xlsx
+- Microsoft PowerPoint:
+  - .ppt
+  - .pptx
+- OpenDocument Formats:
+  - .odt (Text Document)
+  - .ods (Spreadsheet)
+  - .odp (Presentation)
+  - .odg (Graphics)
+
+#### Image Files
+
+- Common Image Formats:
+  - .jpg
+  - .jpeg
+  - .png
+  - .webp
+  - .svg
+
+#### Text Files
+
+- Rich Text Format:
+  - .rtf
+- Plain Text:
+  - .txt
+
+All these valid formats are also present in a list in the [back-end](https://github.com/bigbluebutton/bigbluebutton/blob/v2.7.10/bbb-common-web/src/main/java/org/bigbluebutton/presentation/MimeTypeUtils.java#L28-L47) and in the [front-end](https://github.com/bigbluebutton/bigbluebutton/blob/v2.7.10/bigbluebutton-html5/private/config/settings.yml#L824-L862) if more details are needed.

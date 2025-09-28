@@ -32,6 +32,7 @@ public final class UploadedPresentation {
   private final boolean uploadFailed;
   private final ArrayList<String> uploadFailReason;
   private File uploadedFile;
+  private String uploadedFileHash;
   private String fileType = "unknown";
   private int numberOfPages = 0;
   private String conversionStatus;
@@ -42,8 +43,9 @@ public final class UploadedPresentation {
   private boolean current = false;
   private String authzToken;
   private boolean conversionStarted = false;
+  private long maxPageConversionTime;
 
-  private boolean isInitialPresentation;
+  private boolean defaultPresentation;
 
   public UploadedPresentation(String podId,
                               String meetingId,
@@ -55,7 +57,7 @@ public final class UploadedPresentation {
                               String authzToken,
                               Boolean uploadFailed,
                               ArrayList<String> uploadFailReason,
-                              Boolean isInitialPresentation) {
+                              Boolean defaultPresentation) {
     this.podId = podId;
     this.meetingId = meetingId;
     this.id = id;
@@ -67,7 +69,7 @@ public final class UploadedPresentation {
     this.authzToken = authzToken;
     this.uploadFailed = uploadFailed;
     this.uploadFailReason = uploadFailReason;
-    this.isInitialPresentation = isInitialPresentation;
+    this.defaultPresentation = defaultPresentation;
   }
 
   public UploadedPresentation(String podId,
@@ -106,9 +108,9 @@ public final class UploadedPresentation {
                               String authzToken,
                               Boolean uploadFailed,
                               ArrayList<String> uploadFailReason,
-                              Boolean isInitialPresentation) {
+                              Boolean defaultPresentation) {
     this(podId, meetingId, id, "", name, baseUrl,
-            current, authzToken, uploadFailed, uploadFailReason, isInitialPresentation);
+            current, authzToken, uploadFailed, uploadFailReason, defaultPresentation);
   }
 
   public File getUploadedFile() {
@@ -117,6 +119,14 @@ public final class UploadedPresentation {
 
   public void setUploadedFile(File uploadedFile) {
     this.uploadedFile = uploadedFile;
+  }
+
+  public String getUploadedFileHash() {
+    return uploadedFileHash;
+  }
+
+  public void setUploadedFileHash(String uploadedFileHash) {
+    this.uploadedFileHash = uploadedFileHash;
   }
 
   public String getMeetingId() {
@@ -211,8 +221,8 @@ public final class UploadedPresentation {
     return uploadFailReason;
   }
 
-  public boolean getIsInitialPresentation() {
-    return isInitialPresentation;
+  public boolean isDefaultPresentation() {
+    return defaultPresentation;
   }
 
   public String getFilenameConverted() {
@@ -228,13 +238,19 @@ public final class UploadedPresentation {
     this.filenameConverted = nameWithoutExtension.concat("." + newExtension);
   }
 
-  public void deleteOriginalFile() {
-    String pathToFileWithoutExtension = FilenameUtils.removeExtension(uploadedFile.getPath());
-    String newExtension = FilenameUtils.getExtension(uploadedFile.getPath());
-    String originalExtension = FilenameUtils.getExtension(name);
-    if (!originalExtension.equals("pdf") && newExtension.equals("pdf")) {
-      File originalFile = new File(pathToFileWithoutExtension + "." + originalExtension);
-      originalFile.delete();
+  public long getMaxPageConversionTime() {
+    return maxPageConversionTime;
+  }
+
+  public void setMaxPageConversionTime(long maxPageConversionTime) {
+    if (maxPageConversionTime <= 0) maxPageConversionTime = 30L;
+    this.maxPageConversionTime = maxPageConversionTime;
+  }
+
+  public long getMaxTotalConversionTime() {
+    if (numberOfPages == 0) {
+      return maxPageConversionTime;
     }
+    return maxPageConversionTime * numberOfPages;
   }
 }

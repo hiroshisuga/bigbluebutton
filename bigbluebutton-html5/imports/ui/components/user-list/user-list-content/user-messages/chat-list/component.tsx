@@ -1,69 +1,94 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { TransitionGroup, CSSTransition } from 'react-transition-group';
-import { useSubscription } from '@apollo/client';
-import Styled from './styles';
 import { defineMessages, useIntl } from 'react-intl';
-import {
-    CHATS_SUBSCRIPTION
-} from './queries';
-import ChatListItem from './chat-list-item/component'
-import { Chat } from './chat-list-item/chatTypes';
+import Styled from './styles';
+import ChatListItem from './chat-list-item/component';
+import useChat from '/imports/ui/core/hooks/useChat';
+import { Chat } from '/imports/ui/Types/chat';
+import { GraphqlDataHookSubscriptionResponse } from '/imports/ui/Types/hook';
+import deviceInfo from '/imports/utils/deviceInfo';
+import roveBuilder from '/imports/ui/core/utils/keyboardRove';
+import { useIsChatEnabled } from '/imports/ui/services/features';
+
+const { isMobile } = deviceInfo;
 
 const intlMessages = defineMessages({
-    messagesTitle: {
+  messagesTitle: {
     id: 'app.userList.messagesTitle',
     description: 'Title for the messages list',
-    },
+  },
 });
 
-const ChatList: React.FC = () => {
-    const { data } = useSubscription(CHATS_SUBSCRIPTION);
+interface ChatListProps {
+  chats: Chat[],
+}
 
-    const getActiveChats = () => {
-        if (data) {
-            const { chat: chats } = data;
+const getActiveChats = (chats: Chat[], chatNodeRef: React.Ref<HTMLButtonElement>) => chats.map((chat, idx) => (
+  <CSSTransition
+    classNames="transition"
+    appear
+    enter
+    exit={false}
+    timeout={0}
+    component="div"
+    key={chat.chatId}
+    nodeRef={chatNodeRef}
+  >
+    <Styled.ListTransition>
+      <ChatListItem
+        chat={chat}
+        chatNodeRef={chatNodeRef}
+        index={idx}
+      />
+    </Styled.ListTransition>
+  </CSSTransition>
+));
 
-            return chats.map( (chat: Chat) => (
-                <CSSTransition
-                  classNames={"transition"}
-                  appear
-                  enter
-                  exit={false}
-                  timeout={0}
-                  component="div"
-                  key={chat.chatId}
-                >
-                  <Styled.ListTransition >
-                    <ChatListItem
-                      chat={chat}
-                    />
-                  </Styled.ListTransition>
-                </CSSTransition>
-              ));
-        } else {
-            return null;
-        }
-    }
-    const intl = useIntl();
-    return (
+const ChatList: React.FC<ChatListProps> = ({ chats }) => {
+  const messageListRef = React.useRef<HTMLDivElement | null>(null);
+  const messageItemsRef = React.useRef<HTMLDivElement | null>(null);
+  const chatNodeRef = React.useRef<HTMLButtonElement | null>(null);
+
+  const rove = useMemo(() => roveBuilder(messageItemsRef, 'chat-list'), []);
+
+  const intl = useIntl();
+  return (
     <Styled.Messages>
-        <Styled.Container>
-            <Styled.MessagesTitle data-test="messageTitle">
-                {intl.formatMessage(intlMessages.messagesTitle)}
-            </Styled.MessagesTitle>
-        </Styled.Container>
+      <Styled.Container>
+        <Styled.MessagesTitle data-test="messageTitle">
+          {intl.formatMessage(intlMessages.messagesTitle)}
+        </Styled.MessagesTitle>
+      </Styled.Container>
+      {!isMobile ? (
         <Styled.ScrollableList
-        role="tabpanel"
-        tabIndex={-1}
+          role="tabpanel"
+          tabIndex={0}
+          ref={messageListRef}
+          onKeyDown={(e:React.KeyboardEvent<HTMLDivElement>) => rove(e)}
         >
-        <Styled.List>
-            <TransitionGroup >
-                {getActiveChats()}
+          <Styled.List ref={messageItemsRef}>
+            <TransitionGroup>
+              {getActiveChats(chats, chatNodeRef) ?? null}
             </TransitionGroup>
-        </Styled.List>
+          </Styled.List>
         </Styled.ScrollableList>
-    </Styled.Messages>)
+      )
+        : (getActiveChats(chats, chatNodeRef) ?? null) }
+    </Styled.Messages>
+  );
 };
 
-export default ChatList;
+const ChatListContainer: React.FC = () => {
+  const { data: chats } = useChat((chat) => chat) as GraphqlDataHookSubscriptionResponse<Chat[]>;
+  const isChatEnabled = useIsChatEnabled();
+  const CHAT_CONFIG = window.meetingClientSettings.public.chat;
+  const PUBLIC_GROUP_CHAT_ID = CHAT_CONFIG.public_group_id;
+  const allowedChats = isChatEnabled ? chats : chats?.filter((c) => c.chatId !== PUBLIC_GROUP_CHAT_ID);
+  if (allowedChats && allowedChats.length) {
+    return (
+      <ChatList chats={allowedChats} />
+    );
+  } return <></>;
+};
 
+export default ChatListContainer;

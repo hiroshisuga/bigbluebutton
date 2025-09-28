@@ -1,42 +1,79 @@
 import React, { useState } from 'react';
 import { User } from '/imports/ui/Types/user';
-import {LockSettings, UsersPolicies} from '/imports/ui/Types/meeting';
-import { generateActionsPermissions, isVoiceOnlyUser } from './service';
+import { LockSettings, UsersPolicies } from '/imports/ui/Types/meeting';
 import { useIntl, defineMessages } from 'react-intl';
+import * as PluginSdk from 'bigbluebutton-html-plugin-sdk';
+import logger from '/imports/startup/client/logger';
+import { UserListDropdownItemType } from 'bigbluebutton-html-plugin-sdk/dist/cjs/extensible-areas/user-list-dropdown-item/enums';
+import {
+  SET_ROLE,
+  USER_EJECT_CAMERAS,
+  CHAT_CREATE_WITH_USER,
+} from './mutations';
+import {
+  SET_CAMERA_PINNED,
+  EJECT_FROM_MEETING,
+  EJECT_FROM_VOICE,
+  SET_PRESENTER,
+  SET_LOCKED,
+  SET_USER_CHAT_LOCKED,
+} from '/imports/ui/core/graphql/mutations/userMutations';
 import {
   isVideoPinEnabledForCurrentUser,
-  sendCreatePrivateChat,
-  setEmojiStatus,
   toggleVoice,
-  changeWhiteboardAccess,
   isMe,
-  removeUser,
+  generateActionsPermissions,
+  isVoiceOnlyUser,
 } from './service';
 
-import { makeCall } from '/imports/ui/services/api';
-import { isChatEnabled } from '/imports/ui/services/features';
+import { useIsChatEnabled, useIsPrivateChatEnabled } from '/imports/ui/services/features';
 import { layoutDispatch } from '/imports/ui/components/layout/context';
 import { PANELS, ACTIONS } from '/imports/ui/components/layout/enums';
-import { EMOJI_STATUSES } from '/imports/utils/statuses';
 
 import ConfirmationModal from '/imports/ui/components/common/modal/confirmation/component';
 
 import BBBMenu from '/imports/ui/components/common/menu/component';
+import { setPendingChat } from '/imports/ui/core/local-states/usePendingChat';
+import Styled from './styles';
+import { useMutation, useLazyQuery } from '@apollo/client';
+import { CURRENT_PAGE_WRITERS_QUERY } from '/imports/ui/components/whiteboard/queries';
+import { PRESENTATION_SET_WRITERS } from '/imports/ui/components/presentation/mutations';
+import useToggleVoice from '/imports/ui/components/audio/audio-graphql/hooks/useToggleVoice';
+import useWhoIsUnmuted from '/imports/ui/core/hooks/useWhoIsUnmuted';
+import { notify } from '/imports/ui/services/notification';
 
 interface UserActionsProps {
+  userListDropdownItems: PluginSdk.UserListDropdownInterface[];
   user: User;
   currentUser: User;
   lockSettings: LockSettings;
   usersPolicies: UsersPolicies;
   isBreakout: boolean;
   children: React.ReactNode;
-};
+  pageId: string;
+  open: boolean;
+  setOpenUserAction: React.Dispatch<React.SetStateAction<string | null>>;
+}
+
+interface DropdownItem {
+  key: string;
+  label?: string;
+  icon?: string;
+  tooltip?: string;
+  allowed?: boolean;
+  iconRight?: string;
+  textColor?: string;
+  isSeparator?: boolean;
+  contentFunction?: ((element: HTMLElement) => void);
+  onClick?: (() => void);
+}
+
+interface Writer {
+  pageId: string;
+  userId: string;
+}
 
 const messages = defineMessages({
-  statusTriggerLabel: {
-    id: 'app.actionsBar.emojiMenu.statusTriggerLabel',
-    description: 'label for option to show emoji menu',
-  },
   UnpinUserWebcam: {
     id: 'app.userList.menu.webcamUnpin.label',
     description: 'label for pin user webcam',
@@ -48,10 +85,6 @@ const messages = defineMessages({
   StartPrivateChat: {
     id: 'app.userList.menu.chat.label',
     description: 'label for option to start a new private chat',
-  },
-  ClearStatusLabel: {
-    id: 'app.userList.menu.clearStatus.label',
-    description: 'Clear the emoji status of this user',
   },
   MuteUserAudioLabel: {
     id: 'app.userList.menu.muteUserAudio.label',
@@ -93,6 +126,14 @@ const messages = defineMessages({
     id: 'app.userList.menu.lockUser.label',
     description: 'Lock a unlocked user',
   },
+  lockPublicChat: {
+    id: 'app.userList.menu.lockPublicChat.label',
+    description: 'label for option to lock user\'s public chat',
+  },
+  unlockPublicChat: {
+    id: 'app.userList.menu.unlockPublicChat.label',
+    description: 'label for option to lock user\'s public chat',
+  },
   DirectoryLookupLabel: {
     id: 'app.userList.menu.directoryLookup.label',
     description: 'Directory lookup',
@@ -105,11 +146,67 @@ const messages = defineMessages({
     id: 'app.userList.menu.ejectUserCameras.label',
     description: 'label to eject user cameras',
   },
-  backTriggerLabel: {
-    id: 'app.audio.backLabel',
-    description: 'label for option to hide emoji menu',
+  multiUserLimitHasBeenReachedNotification: {
+    id: 'app.whiteboard.toolbar.multiUserLimitHasBeenReachedNotification',
+    description: 'message for when the maximum number of whiteboard writers has been reached',
+  },
+  removeUserConfirmation: {
+    id: 'app.userList.menu.removeConfirmation.label',
+    description: 'Confirmation message for removing a user from the meeting',
   },
 });
+const makeDropdownPluginItem: (
+  userDropdownItems: PluginSdk.UserListDropdownInterface[]) => DropdownItem[] = (
+    userDropdownItems: PluginSdk.UserListDropdownInterface[],
+  ) => userDropdownItems.map(
+    (userDropdownItem: PluginSdk.UserListDropdownInterface) => {
+      const returnValue: DropdownItem = {
+        isSeparator: false,
+        key: userDropdownItem.id,
+        iconRight: undefined,
+        onClick: undefined,
+        label: undefined,
+        icon: undefined,
+        tooltip: undefined,
+        textColor: undefined,
+        allowed: undefined,
+      };
+      switch (userDropdownItem.type) {
+        case UserListDropdownItemType.OPTION: {
+          const dropdownButton = userDropdownItem as PluginSdk.UserListDropdownOption;
+          returnValue.label = dropdownButton.label;
+          returnValue.tooltip = dropdownButton.tooltip;
+          returnValue.icon = dropdownButton.icon;
+          returnValue.allowed = dropdownButton.allowed;
+          returnValue.onClick = dropdownButton.onClick;
+          break;
+        }
+        case UserListDropdownItemType.FIXED_CONTENT_INFORMATION: {
+          const dropdownButton = userDropdownItem as PluginSdk.UserListDropdownFixedContentInformation;
+          returnValue.label = dropdownButton.label;
+          returnValue.icon = dropdownButton.icon;
+          returnValue.iconRight = dropdownButton.iconRight;
+          returnValue.textColor = dropdownButton.textColor;
+          returnValue.allowed = dropdownButton.allowed;
+          break;
+        }
+        case UserListDropdownItemType.GENERIC_CONTENT_INFORMATION: {
+          const dropdownButton = userDropdownItem as PluginSdk.UserListDropdownGenericContentInformation;
+          returnValue.allowed = dropdownButton.allowed;
+          returnValue.contentFunction = dropdownButton.contentFunction;
+          break;
+        }
+        case UserListDropdownItemType.SEPARATOR: {
+          returnValue.allowed = true;
+          returnValue.isSeparator = true;
+          break;
+        }
+        default:
+          break;
+      }
+      return returnValue;
+    },
+  );
 
 const UserActions: React.FC<UserActionsProps> = ({
   user,
@@ -118,24 +215,90 @@ const UserActions: React.FC<UserActionsProps> = ({
   usersPolicies,
   isBreakout,
   children,
+  pageId = '',
+  userListDropdownItems,
+  open,
+  setOpenUserAction,
 }) => {
   const intl = useIntl();
-  const [showNestedOptions, setShowNestedOptions] = useState(false);
   const [isConfirmationModalOpen, setIsConfirmationModalOpen] = useState(false);
-  const [selected, setSelected] = useState(false);
   const layoutContextDispatch = layoutDispatch();
+
+  const [presentationSetWriters] = useMutation(PRESENTATION_SET_WRITERS);
+  const [getWriters] = useLazyQuery(
+    CURRENT_PAGE_WRITERS_QUERY,
+    {
+      variables: { pageId },
+      fetchPolicy: 'no-cache',
+    },
+  );
+  const voiceToggle = useToggleVoice();
+  const isChatEnabled = useIsChatEnabled();
+  const isPrivateChatEnabled = useIsPrivateChatEnabled();
+
+  const handleWhiteboardAccessChange = async () => {
+    // There is no presentation available, so access cannot be granted.
+    if (!pageId) return;
+    try {
+      // Fetch the writers data
+      const { data } = await getWriters();
+      const allWriters: Writer[] = data?.pres_page_writers || [];
+      const currentWriters = allWriters?.filter((writer: Writer) => writer.pageId === pageId);
+
+      // Determine if the user has access
+      const { userId, presPagesWritable } = user;
+      const hasAccess = presPagesWritable.some(
+        (page: { userId: string; isCurrentPage: boolean }) => (page?.userId === userId && page?.isCurrentPage),
+      );
+
+      // Prepare the updated list of user IDs for whiteboard access
+      const usersIds = currentWriters?.map((writer: { userId: string }) => writer?.userId);
+      const newUsersIds: string[] = hasAccess
+        ? usersIds.filter((id: string) => id !== userId)
+        : [...usersIds, userId];
+
+      // Check if the maximum number of writers has been reached.
+      // If so, notify the user then return.
+      const WHITEBOARD_CONFIG = window.meetingClientSettings.public.whiteboard;
+      if (newUsersIds.length >= WHITEBOARD_CONFIG.maxNumberOfActiveUsers) {
+        notify(
+          intl.formatMessage(
+            messages.multiUserLimitHasBeenReachedNotification,
+            { numberOfUsers: WHITEBOARD_CONFIG.maxNumberOfActiveUsers },
+          ),
+          'info',
+          'pen_tool',
+        );
+        return;
+      }
+
+      // Update the writers
+      await presentationSetWriters({
+        variables: {
+          pageId,
+          usersIds: newUsersIds,
+        },
+      });
+    } catch (error) {
+      logger.warn({
+        logCode: 'user_action_whiteboard_access_failed',
+      }, 'Error updating whiteboard access.');
+    }
+  };
+
+  const { data: unmutedUsers } = useWhoIsUnmuted();
+  const isMuted = !unmutedUsers[user.userId];
+
   const actionsnPermitions = generateActionsPermissions(
     user,
     currentUser,
     lockSettings,
     usersPolicies,
-    isBreakout
+    isBreakout,
+    isMuted,
   );
-
   const {
-    allowedToChangeStatus,
     allowedToChatPrivately,
-    allowedToResetStatus,
     allowedToMuteAudio,
     allowedToUnmuteAudio,
     allowedToChangeWhiteboardAccess,
@@ -143,31 +306,73 @@ const UserActions: React.FC<UserActionsProps> = ({
     allowedToPromote,
     allowedToDemote,
     allowedToChangeUserLockStatus,
-    allowUserLookup,
     allowedToRemove,
     allowedToEjectCameras,
-  } = actionsnPermitions
+  } = actionsnPermitions;
 
-  const {
-    disablePrivateChat,
-  } = lockSettings;
-  
   const userLocked = user.locked
-    && lockSettings.hasActiveLockSetting
-    && user.isModerator;
+    && lockSettings?.hasActiveLockSetting
+    && !user.isModerator;
 
+  const userChatLocked = user.userLockSettings?.disablePublicChat;
+
+  const userDropdownItems = userListDropdownItems.filter(
+    (item: PluginSdk.UserListDropdownInterface) => (user?.userId === item?.userId),
+  );
+
+  const hasWhiteboardAccess = user.presPagesWritable?.some(
+    (page: { pageId: string; userId: string }) => (page.pageId === pageId && page.userId === user.userId),
+  );
+
+  const [setRole] = useMutation(SET_ROLE);
+  const [chatCreateWithUser] = useMutation(CHAT_CREATE_WITH_USER);
+  const [setCameraPinned] = useMutation(SET_CAMERA_PINNED);
+  const [ejectFromMeeting] = useMutation(EJECT_FROM_MEETING);
+  const [ejectFromVoice] = useMutation(EJECT_FROM_VOICE);
+  const [setPresenter] = useMutation(SET_PRESENTER);
+  const [setLocked] = useMutation(SET_LOCKED);
+  const [setUserChatLocked] = useMutation(SET_USER_CHAT_LOCKED);
+  const [userEjectCameras] = useMutation(USER_EJECT_CAMERAS);
+
+  const removeUser = (userId: string, banUser: boolean) => {
+    if (isVoiceOnlyUser(user.userId)) {
+      ejectFromVoice({
+        variables: {
+          userId,
+          banUser,
+        },
+      });
+    } else {
+      ejectFromMeeting({
+        variables: {
+          userId,
+          banUser,
+        },
+      });
+    }
+  };
+  const titleActions = userDropdownItems.filter(
+    (item: PluginSdk.UserListDropdownInterface) => (
+      item?.type === UserListDropdownItemType.TITLE_ACTION),
+  );
   const dropdownOptions = [
     {
-      allowed: allowedToChangeStatus,
-      key: 'setstatus',
-      label: intl.formatMessage(messages.statusTriggerLabel),
-      onClick: () => setShowNestedOptions(true),
-      icon: 'user',
-      iconRight: 'right_arrow',
-      dataTest: 'setStatus',
+      allowed: true,
+      key: 'userName',
+      label: user.name,
+      titleActions,
+      isTitle: true,
     },
+    ...makeDropdownPluginItem(userDropdownItems.filter(
+      (item: PluginSdk.UserListDropdownInterface) => (
+        item?.type === UserListDropdownItemType.FIXED_CONTENT_INFORMATION
+        || item?.type === UserListDropdownItemType.GENERIC_CONTENT_INFORMATION
+        || (item?.type === UserListDropdownItemType.SEPARATOR
+          && (item as PluginSdk.UserListDropdownSeparator)?.position
+          === PluginSdk.UserListDropdownSeparatorPosition.BEFORE)),
+    )),
     {
-      allowed: user.cameras.length > 0
+      allowed: user?.cameras?.length > 0
         && isVideoPinEnabledForCurrentUser(currentUser, isBreakout),
       key: 'pinVideo',
       label: user.pinned
@@ -175,27 +380,42 @@ const UserActions: React.FC<UserActionsProps> = ({
         : intl.formatMessage(messages.PinUserWebcam),
       onClick: () => {
         // toggle user pinned status
-        makeCall('changePin', user.userId, !user.pinned);
+        setCameraPinned({
+          variables: {
+            userId: user.userId,
+            pinned: !user.pinned,
+          },
+        });
       },
       icon: user.pinned ? 'pin-video_off' : 'pin-video_on',
     },
     {
-      allowed: isChatEnabled()
-        && (
-          currentUser.isModerator ? allowedToChatPrivately
-          : allowedToChatPrivately && (
-            !(currentUser.locked && disablePrivateChat)
-            // TODO: Add check for hasPrivateChat between users
-            || user.isModerator
-          )
-        )
-        && !isVoiceOnlyUser(user.userId)
-        && !isBreakout,
+      allowed: (() => {
+        const preventSelfChat = user.userId !== currentUser.userId;
+        const moderatorOverride = currentUser.isModerator
+          && allowedToChatPrivately;
+        const regularUserCondition = (isPrivateChatEnabled
+          && isChatEnabled
+          && !lockSettings?.disablePrivateChat
+          && !isVoiceOnlyUser(user.userId)
+          && !isBreakout)
+          || user.isModerator;
+
+        const isAllowed = preventSelfChat
+          && (moderatorOverride || regularUserCondition || !currentUser.locked);
+
+        return isAllowed;
+      })(),
       key: 'activeChat',
       label: intl.formatMessage(messages.StartPrivateChat),
       onClick: () => {
-        setSelected(false);
-        sendCreatePrivateChat(user);
+        setPendingChat(user.userId);
+        setOpenUserAction(null);
+        chatCreateWithUser({
+          variables: {
+            userId: user.userId,
+          },
+        });
         layoutContextDispatch({
           type: ACTIONS.SET_SIDEBAR_CONTENT_IS_OPEN,
           value: true,
@@ -206,22 +426,31 @@ const UserActions: React.FC<UserActionsProps> = ({
         });
         layoutContextDispatch({
           type: ACTIONS.SET_ID_CHAT_OPEN,
-          value: user.userId,
+          value: '',
         });
       },
       icon: 'chat',
       dataTest: 'startPrivateChat',
     },
     {
-      allowed: allowedToResetStatus
-        && user.emoji !== 'none',
-      key: 'clearStatus',
-      label: intl.formatMessage(messages.ClearStatusLabel),
+      allowed: isChatEnabled
+        && !user.isModerator
+        && currentUser.isModerator
+        && !isVoiceOnlyUser(user.userId),
+      key: 'lockChat',
+      label: userChatLocked
+        ? intl.formatMessage(messages.unlockPublicChat)
+        : intl.formatMessage(messages.lockPublicChat),
       onClick: () => {
-        setEmojiStatus(user.userId, 'none');
-        setSelected(false);
+        try {
+          setUserChatLocked({ variables: { userId: user.userId, disablePubChat: !userChatLocked } });
+        } catch (e) {
+          logger.error('Error on trying to toggle muted');
+        }
+        setOpenUserAction(null);
       },
-      icon: 'clear_status',
+      icon: userChatLocked ? 'unlock' : 'lock',
+      dataTest: 'togglePublicChat',
     },
     {
       allowed: allowedToMuteAudio
@@ -229,34 +458,36 @@ const UserActions: React.FC<UserActionsProps> = ({
       key: 'mute',
       label: intl.formatMessage(messages.MuteUserAudioLabel),
       onClick: () => {
-        toggleVoice(user.userId);
-        setSelected(false);
+        toggleVoice(user.userId, true, voiceToggle);
+        setOpenUserAction(null);
       },
       icon: 'mute',
     },
     {
       allowed: allowedToUnmuteAudio
-        && !lockSettings.disableMic
+        && !lockSettings?.disableMic
         && !isBreakout,
       key: 'unmute',
       label: intl.formatMessage(messages.UnmuteUserAudioLabel),
       onClick: () => {
-        toggleVoice(user.userId);
-        setSelected(false);
+        toggleVoice(user.userId, false, voiceToggle);
+        setOpenUserAction(null);
       },
       icon: 'unmute',
+      dataTest: 'unmuteUser',
     },
     {
       allowed: allowedToChangeWhiteboardAccess
         && !user.presenter
-        && !isVoiceOnlyUser(user.userId),
+        && !isVoiceOnlyUser(user.userId)
+        && pageId,
       key: 'changeWhiteboardAccess',
-      label: user.whiteboardAccess
+      label: hasWhiteboardAccess
         ? intl.formatMessage(messages.removeWhiteboardAccess)
         : intl.formatMessage(messages.giveWhiteboardAccess),
       onClick: () => {
-        changeWhiteboardAccess(user.userId, user.presPagesWritable.length > 0)
-        setSelected(false);
+        handleWhiteboardAccessChange();
+        setOpenUserAction(null);
       },
       icon: 'pen_tool',
       dataTest: 'changeWhiteboardAccess',
@@ -268,8 +499,12 @@ const UserActions: React.FC<UserActionsProps> = ({
         ? intl.formatMessage(messages.takePresenterLabel)
         : intl.formatMessage(messages.makePresenterLabel),
       onClick: () => {
-        makeCall('assignPresenter', user.userId);
-        setSelected(false);
+        setPresenter({
+          variables: {
+            userId: user.userId,
+          },
+        });
+        setOpenUserAction(null);
       },
       icon: 'presentation',
       dataTest: isMe(user.userId) ? 'takePresenter' : 'makePresenter',
@@ -279,8 +514,13 @@ const UserActions: React.FC<UserActionsProps> = ({
       key: 'promote',
       label: intl.formatMessage(messages.PromoteUserLabel),
       onClick: () => {
-        makeCall('changeRole', user.userId, 'MODERATOR');
-        setSelected(false);
+        setRole({
+          variables: {
+            userId: user.userId,
+            role: 'MODERATOR',
+          },
+        });
+        setOpenUserAction(null);
       },
       icon: 'promote',
       dataTest: 'promoteToModerator',
@@ -290,8 +530,13 @@ const UserActions: React.FC<UserActionsProps> = ({
       key: 'demote',
       label: intl.formatMessage(messages.DemoteUserLabel),
       onClick: () => {
-        makeCall('changeRole', user.userId, 'VIEWER');
-        setSelected(false);
+        setRole({
+          variables: {
+            userId: user.userId,
+            role: 'VIEWER',
+          },
+        });
+        setOpenUserAction(null);
       },
       icon: 'user',
       dataTest: 'demoteToViewer',
@@ -299,121 +544,112 @@ const UserActions: React.FC<UserActionsProps> = ({
     {
       allowed: allowedToChangeUserLockStatus,
       key: 'unlockUser',
-      label: userLocked ? intl.formatMessage(messages.UnlockUserLabel, { 0: user.name })
-        : intl.formatMessage(messages.LockUserLabel, { 0: user.name }),
+      label: userLocked ? intl.formatMessage(messages.UnlockUserLabel, { userName: user.name })
+        : intl.formatMessage(messages.LockUserLabel, { userName: user.name }),
       onClick: () => {
-        makeCall('toggleUserLock', user.userId, !userLocked);
-        setSelected(false);
+        setLocked({
+          variables: {
+            userId: user.userId,
+            locked: !userLocked,
+          },
+        });
+        setOpenUserAction(null);
       },
       icon: userLocked ? 'unlock' : 'lock',
       dataTest: 'unlockUserButton',
-    },
-    {
-      allowed: allowUserLookup,
-      key: 'directoryLookup',
-      label: intl.formatMessage(messages.DirectoryLookupLabel),
-      onClick: () => {
-        makeCall('requestUserInformation', user.extId);
-        setSelected(false);
-      },
-      icon: 'user',
     },
     {
       allowed: allowedToRemove,
       key: 'remove',
       label: intl.formatMessage(messages.RemoveUserLabel, { 0: user.name }),
       onClick: () => {
-        setIsConfirmationModalOpen(true)
-        setSelected(false);
+        setIsConfirmationModalOpen(true);
+        setOpenUserAction(null);
       },
       icon: 'circle_close',
-      dataTest: 'removeUser'
+      dataTest: 'removeUser',
     },
     {
       allowed: allowedToEjectCameras
-        && user.cameras.length > 0
+        && user?.cameras?.length > 0
         && !isBreakout,
       key: 'ejectUserCameras',
       label: intl.formatMessage(messages.ejectUserCamerasLabel),
       onClick: () => {
-        makeCall('ejectUserCameras', user.userId);
-        setSelected(false);
+        userEjectCameras({
+          variables: {
+            userId: user.userId,
+          },
+        });
+        setOpenUserAction(null);
       },
       icon: 'video_off',
+      dataTest: 'ejectCamera',
     },
+    ...makeDropdownPluginItem(userDropdownItems.filter(
+      (item: PluginSdk.UserListDropdownInterface) => (
+        item?.type !== UserListDropdownItemType.FIXED_CONTENT_INFORMATION
+        && item?.type !== UserListDropdownItemType.GENERIC_CONTENT_INFORMATION
+        && !(item?.type === UserListDropdownItemType.SEPARATOR
+          && (item as PluginSdk.UserListDropdownSeparator)?.position
+          === PluginSdk.UserListDropdownSeparatorPosition.BEFORE)
+      ),
+    )),
   ];
 
-  const nestedOptions = [
-    {
-      allowed: allowedToChangeStatus,
-      key: 'back',
-      label: intl.formatMessage(messages.backTriggerLabel),
-      onClick: () => setShowNestedOptions(false),
-      icon: 'left_arrow',
-      divider: true,
-    },
-    ...Object.keys(EMOJI_STATUSES).map((key) => ({
-      allowed: showNestedOptions,
-      key: key,
-      label: intl.formatMessage({ id: `app.actionsBar.emojiMenu.${key}Label` }),
-      onClick: () => {
-        setEmojiStatus(user.userId, key);
-        setSelected(false);
-        setShowNestedOptions(false);
-      },
-      icon: EMOJI_STATUSES[key],
-      dataTest: key,
-    })),
-  ];
-
-  const actions = showNestedOptions 
-    ? nestedOptions.filter(key => key.allowed)
-    : dropdownOptions.filter(key => key.allowed);
-  if (!actions.length) return children;
-  return <div>
-  <BBBMenu
-  trigger={
-    (
-      <div
-        isActionsOpen={selected}
-        selected={selected === true}
-        tabIndex={-1}
-        onClick={() => setSelected(true)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            setSelected(true);
-          }
-        }}
-        role="button"
-      >
+  const actions = dropdownOptions.filter((key) => key.allowed);
+  if (!(actions.length > 1) || user.bot) {
+    return (
+      <Styled.NoPointerEvents>
         {children}
-      </div>
-    )
+      </Styled.NoPointerEvents>
+    );
   }
-  actions={actions}
-  selectedEmoji={user.emoji}
-  onCloseCallback={() =>{
-    setSelected(false);
-    setShowNestedOptions(false);
-  }}
-  open={selected}
-/>
-{isConfirmationModalOpen ? <ConfirmationModal
-  intl={intl}
-  titleMessageId="app.userList.menu.removeConfirmation.label"
-  titleMessageExtra={user.name}
-  checkboxMessageId="app.userlist.menu.removeConfirmation.desc"
-  confirmParam={user.userId}
-  onConfirm={removeUser}
-  confirmButtonDataTest="removeUserConfirmation"
-  {...{
-    onRequestClose: () => setIsConfirmationModalOpen(false),
-    priority: "low",
-    setIsOpen: setIsConfirmationModalOpen,
-    isOpen: isConfirmationModalOpen
-  }}
-/> : null}
-  </div>;
+
+  return (
+    <div>
+      <BBBMenu
+        trigger={
+          (
+            <Styled.UserActionsTrigger
+              isActionsOpen={open}
+              selected={open}
+              tabIndex={-1}
+              onClick={() => setOpenUserAction(user.userId)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  setOpenUserAction(user.userId);
+                }
+              }}
+            >
+              {children}
+            </Styled.UserActionsTrigger>
+          )
+        }
+        actions={actions}
+        onCloseCallback={() => {
+          setOpenUserAction(null);
+        }}
+        open={open}
+      />
+      {isConfirmationModalOpen ? (
+        <ConfirmationModal
+          intl={intl}
+          title={intl.formatMessage(messages.removeUserConfirmation, { userName: user.name })}
+          checkboxMessageId="app.userlist.menu.removeConfirmation.desc"
+          confirmParam={user.userId}
+          onConfirm={removeUser}
+          confirmButtonDataTest="removeUserConfirmation"
+          {...{
+            onRequestClose: () => setIsConfirmationModalOpen(false),
+            priority: 'low',
+            setIsOpen: setIsConfirmationModalOpen,
+            isOpen: isConfirmationModalOpen,
+          }}
+        />
+      ) : null}
+    </div>
+  );
 };
 
 export default UserActions;

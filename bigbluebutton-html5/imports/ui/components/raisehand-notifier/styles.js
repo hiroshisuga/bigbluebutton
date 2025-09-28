@@ -4,11 +4,8 @@ import {
   borderSize,
   avatarInset,
   smPaddingX,
-  toastIconSide,
   toastMargin,
   toastMarginMobile,
-  avatarWrapperOffset,
-  jumboPaddingY,
 } from '/imports/ui/stylesheets/styled-components/general';
 import {
   colorWhite,
@@ -38,7 +35,7 @@ const Avatar = styled.div`
   border: solid ${borderSize} ${colorWhite};
   margin-left: ${avatarInset};
   text-align: center;
-  padding: 5px 0;
+  padding: 0.75rem 0;
 
   &:hover,
   &:focus {
@@ -58,11 +55,14 @@ const AvatarsExtra = styled.div`
   border: solid ${borderSize} ${colorWhite};
   margin-left: ${avatarInset};
   text-align: center;
-  padding: 5px 0;
+  padding: 0.75rem 0;
 `;
 
-const ToastIcon = styled.div`
+const ToastContent = styled.div`
   margin-right: ${smPaddingX};
+  display: flex;
+  justify-content: space-between;
+  // justify-content: flex-end;
   [dir="rtl"] & {
     margin-right: 0;
     margin-left: ${smPaddingX};
@@ -71,8 +71,8 @@ const ToastIcon = styled.div`
 
 const IconWrapper = styled.div`
   background-color: ${colorPrimary};
-  width: ${toastIconSide};
-  height: ${toastIconSide};
+  width: ${avatarSide};
+  height: ${avatarSide};
   border-radius: 50%;
   
   & > i {
@@ -100,26 +100,14 @@ const IconWrapper = styled.div`
   }
 `;
 
-const AvatarsWrapper = styled.div`
-  display: flex;
-  flex-direction: row;
-  position: absolute;
-  top: ${avatarWrapperOffset};
-  right: 1rem;
-  left: auto;
-  
-  [dir="rtl"] & {
-    left: ${jumboPaddingY};
-    right: auto;
-  }
-`;
-
 const ToastMessage = styled.div`
   font-size: ${fontSizeSmall};
   margin-top: ${toastMargin};
+  color: black;
 
   & > div {
     font-weight: bold;
+    line-height: 2;
   }
 `;
 
@@ -137,15 +125,24 @@ const ClearButton = styled(Button)`
   }
 `;
 
+const AvatarWrapper = styled.div`
+  display: flex;
+`;
+
+const ToastContentWrapper = styled.div`
+  width: 100%;
+`;
+
 const ToastSeparator = styled(ToastStyled.Separator)``;
 
 export default {
   Avatar,
+  ToastContentWrapper,
   AvatarsExtra,
-  ToastIcon,
+  ToastContent,
   IconWrapper,
-  AvatarsWrapper,
   ToastMessage,
   ClearButton,
   ToastSeparator,
+  AvatarWrapper,
 };

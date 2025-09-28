@@ -1,10 +1,8 @@
-import React, { Fragment, Component } from 'react';
+import React, { Component } from 'react';
 import { defineMessages, injectIntl } from 'react-intl';
 import PropTypes from 'prop-types';
 import Toggle from '/imports/ui/components/common/switch/component';
-import NotesService from '/imports/ui/components/notes/service';
 import Styled from './styles';
-import { isChatEnabled } from '/imports/ui/services/features';
 
 const intlMessages = defineMessages({
   lockViewersTitle: {
@@ -76,13 +74,13 @@ const intlMessages = defineMessages({
     description: 'locked element label',
   },
   hideCursorsLabel: {
-    id: "app.lock-viewers.hideViewersCursor",
+    id: 'app.lock-viewers.hideViewersCursor',
     description: 'label for other viewers cursor',
   },
   hideAnnotationsLabel: {
-    id: "app.lock-viewers.hideAnnotationsLabel",
+    id: 'app.lock-viewers.hideAnnotationsLabel',
     description: 'label for other viewers annotation',
-  }
+  },
 });
 
 const propTypes = {
@@ -90,7 +88,7 @@ const propTypes = {
   intl: PropTypes.shape({
     formatMessage: PropTypes.func.isRequired,
   }).isRequired,
-  meeting: PropTypes.object.isRequired,
+  meeting: PropTypes.shape({}).isRequired,
   showToggleLabel: PropTypes.bool.isRequired,
   updateLockSettings: PropTypes.func.isRequired,
   updateWebcamsOnlyForModerator: PropTypes.func.isRequired,
@@ -100,12 +98,18 @@ class LockViewersComponent extends Component {
   constructor(props) {
     super(props);
 
-    const { meeting: { lockSettingsProps, usersProp } } = this.props;
+    const { meeting: { lockSettings, usersPolicies } } = this.props;
 
     this.state = {
-      lockSettingsProps,
-      usersProp,
+      lockSettingsProps: lockSettings,
+      usersProp: usersPolicies,
     };
+  }
+
+  componentWillUnmount() {
+    const { closeModal } = this.props;
+
+    closeModal();
   }
 
   toggleLockSettings(property) {
@@ -131,16 +135,12 @@ class LockViewersComponent extends Component {
   displayLockStatus(status) {
     const { intl } = this.props;
     return (
-      status && <Styled.ToggleLabel>
-        {intl.formatMessage(intlMessages.lockedLabel)}
-      </Styled.ToggleLabel>
+      status && (
+        <Styled.ToggleLabel>
+          {intl.formatMessage(intlMessages.lockedLabel)}
+        </Styled.ToggleLabel>
+      )
     );
-  }
-
-  componentWillUnmount() {
-    const { closeModal } = this.props;
-
-    closeModal();
   }
 
   render() {
@@ -153,6 +153,9 @@ class LockViewersComponent extends Component {
       isOpen,
       onRequestClose,
       priority,
+      isChatEnabled,
+      isPrivateChatEnabled,
+      isSharedNotesEnabled,
     } = this.props;
 
     const { lockSettingsProps, usersProp } = this.state;
@@ -256,8 +259,8 @@ class LockViewersComponent extends Component {
               </Styled.Col>
             </Styled.Row>
 
-            {isChatEnabled() ? (
-              <Fragment>
+            {isChatEnabled ? (
+              <>
                 <Styled.Row data-test="lockPublicChatItem">
                   <Styled.Col aria-hidden="true">
                     <Styled.FormElement>
@@ -283,35 +286,36 @@ class LockViewersComponent extends Component {
                     </Styled.FormElementRight>
                   </Styled.Col>
                 </Styled.Row>
-                <Styled.Row data-test="lockPrivateChatItem">
-                  <Styled.Col aria-hidden="true">
-                    <Styled.FormElement>
-                      <Styled.Label>
-                        {intl.formatMessage(intlMessages.privateChatLable)}
-                      </Styled.Label>
-                    </Styled.FormElement>
-                  </Styled.Col>
-                  <Styled.Col>
-                    <Styled.FormElementRight>
-                      {this.displayLockStatus(lockSettingsProps.disablePrivateChat)}
-                      <Toggle
-                        icons={false}
-                        defaultChecked={lockSettingsProps.disablePrivateChat}
-                        onChange={() => {
-                          this.toggleLockSettings('disablePrivateChat');
-                        }}
-                        ariaLabel={intl.formatMessage(intlMessages.privateChatLable)}
-                        showToggleLabel={showToggleLabel}
-                        invertColors={invertColors}
-                        data-test="lockPrivateChat"
-                      />
-                    </Styled.FormElementRight>
-                  </Styled.Col>
-                </Styled.Row>
-              </Fragment>
-            ) : null
-            }
-            {NotesService.isEnabled()
+                {isPrivateChatEnabled ? (
+                  <Styled.Row data-test="lockPrivateChatItem">
+                    <Styled.Col aria-hidden="true">
+                      <Styled.FormElement>
+                        <Styled.Label>
+                          {intl.formatMessage(intlMessages.privateChatLable)}
+                        </Styled.Label>
+                      </Styled.FormElement>
+                    </Styled.Col>
+                    <Styled.Col>
+                      <Styled.FormElementRight>
+                        {this.displayLockStatus(lockSettingsProps.disablePrivateChat)}
+                        <Toggle
+                          icons={false}
+                          defaultChecked={lockSettingsProps.disablePrivateChat}
+                          onChange={() => {
+                            this.toggleLockSettings('disablePrivateChat');
+                          }}
+                          ariaLabel={intl.formatMessage(intlMessages.privateChatLable)}
+                          showToggleLabel={showToggleLabel}
+                          invertColors={invertColors}
+                          data-test="lockPrivateChat"
+                        />
+                      </Styled.FormElementRight>
+                    </Styled.Col>
+                  </Styled.Row>
+                ) : null}
+              </>
+            ) : null}
+            {isSharedNotesEnabled
               ? (
                 <Styled.Row data-test="lockEditSharedNotesItem">
                   <Styled.Col aria-hidden="true">
@@ -339,8 +343,7 @@ class LockViewersComponent extends Component {
                   </Styled.Col>
                 </Styled.Row>
               )
-              : null
-            }
+              : null}
             <Styled.Row data-test="lockUserListItem">
               <Styled.Col aria-hidden="true">
                 <Styled.FormElement>

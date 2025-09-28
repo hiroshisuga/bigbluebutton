@@ -9,8 +9,6 @@ export function LockStruct() {
       disableNotes: false,
       disablePrivateChat: false,
       disablePublicChat: false,
-      lockOnJoin: true,
-      lockOnJoinConfigurable: false,
       hideViewersCursor: false,
       hideViewersAnnotation: false,
     },
@@ -20,6 +18,8 @@ export function LockStruct() {
       userNotes: false,
       userPrivateChat: false,
       userPublicChat: false,
+      hideViewersCursor: false,
+      hideViewersAnnotation: false,
     },
   });
 }

@@ -30,6 +30,7 @@ class AudioBroker extends BaseBroker {
     // traceLogs
     // networkPriority
     // gatheringTimeout
+    // transparentListenOnly
     Object.assign(this, options);
   }
 
@@ -51,13 +52,13 @@ class AudioBroker extends BaseBroker {
     const localStream = this.getLocalStream();
     const oldTracks = localStream ? localStream.getAudioTracks() : [];
 
-    peerConnection.getSenders().forEach((sender, index) => {
-      if (sender.track && sender.track.kind === 'audio') {
-        const newTrack = newTracks[index];
+    peerConnection.getSenders().forEach((sender) => {
+      if (sender.track == null || sender?.track?.kind === 'audio') {
+        const newTrack = newTracks.shift();
         if (newTrack == null) return;
 
         // Cleanup old tracks in the local MediaStream
-        const oldTrack = oldTracks[index];
+        const oldTrack = oldTracks.shift();
         sender.replaceTrack(newTrack);
         if (oldTrack) {
           oldTrack.stop();
@@ -66,6 +67,13 @@ class AudioBroker extends BaseBroker {
         localStream.addTrack(newTrack);
       }
     });
+
+    if (oldTracks.length > 0) {
+      oldTracks.forEach((track) => {
+        track.stop();
+        localStream.removeTrack(track);
+      });
+    }
 
     return Promise.resolve();
   }
@@ -89,18 +97,31 @@ class AudioBroker extends BaseBroker {
           gatheringTimeout: this.gatheringTimeout,
         };
 
-        const peerRole = this.role === 'sendrecv' ? this.role : 'recvonly';
+        const peerRole = BaseBroker.getPeerRole(this.role);
         this.webRtcPeer = new WebRtcPeer(peerRole, options);
+        window.peers = window.peers || [];
+        window.peers.push(this.webRtcPeer);
         this.webRtcPeer.iceQueue = [];
         this.webRtcPeer.start();
         this.webRtcPeer.peerConnection.onconnectionstatechange = this.handleConnectionStateChange.bind(this);
 
         if (this.offering) {
+          // We are the offerer
           this.webRtcPeer.generateOffer()
             .then(this.sendStartReq.bind(this))
             .catch(this._handleOfferGenerationFailure.bind(this));
-        } else {
+        } else if (peerRole === 'recvonly'
+          || peerRole === 'recv'
+          || peerRole === 'passive-sendrecv') {
+          // We are the answerer and we are only listening, so we don't need
+          // to acquire local media
           this.sendStartReq();
+        } else {
+          // We are the answerer and we are sending audio, so we need to acquire
+          // local media before sending the start request
+          this.webRtcPeer.mediaStreamFactory()
+            .then(() => { this.sendStartReq(); })
+            .catch(this._handleOfferGenerationFailure.bind(this));
         }
 
         resolve();
@@ -140,6 +161,9 @@ class AudioBroker extends BaseBroker {
       case 'webRTCAudioSuccess':
         this.onstart(parsedMessage.success);
         this.started = true;
+        break;
+      case 'restartIceResponse':
+        this.handleRestartIceResponse(parsedMessage);
         break;
       case 'webRTCAudioError':
       case 'error':
@@ -200,6 +224,7 @@ class AudioBroker extends BaseBroker {
       sdpOffer: offer,
       mediaServer: this.mediaServer,
       extension: this.extension,
+      transparentListenOnly: this.transparentListenOnly,
     };
 
     logger.debug({

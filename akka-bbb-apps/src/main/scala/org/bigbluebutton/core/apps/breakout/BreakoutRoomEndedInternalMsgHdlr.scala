@@ -1,7 +1,7 @@
 package org.bigbluebutton.core.apps.breakout
 
 import org.bigbluebutton.core.api.BreakoutRoomEndedInternalMsg
-import org.bigbluebutton.core.db.BreakoutRoomDAO
+import org.bigbluebutton.core.db.{ BreakoutRoomDAO, NotificationDAO }
 import org.bigbluebutton.core.domain.MeetingState2x
 import org.bigbluebutton.core.running.{ MeetingActor, OutMsgRouter }
 import org.bigbluebutton.core2.message.senders.MsgBuilder
@@ -34,9 +34,10 @@ trait BreakoutRoomEndedInternalMsgHdlr {
             "rooms",
             "app.toast.breakoutRoomEnded",
             "Message when the breakout room is ended",
-            Vector()
+            Map()
           )
           outGW.send(notifyEvent)
+          NotificationDAO.insert(notifyEvent)
 
           BreakoutRoomDAO.updateRoomsEnded(liveMeeting.props.meetingProp.intId)
           state.update(None)

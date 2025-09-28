@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
-
-sudo systemctl stop bbb-html5 mongod
-
 cd "$(dirname "$0")"
 
 for var in "$@"
 do
     if [[ $var == --reset ]] ; then
-    	echo "Performing Meteor reset..."
-        rm -rf node_modules
-		meteor reset
+    	echo "Performing a full reset..."
+      rm -rf node_modules
     fi
 done
 
-if [ ! -d ./node_modules ] ; then
-	meteor npm i
+if [ ! -d ./node_modules ] || ! npm ls --depth=0 >/dev/null 2>&1; then
+    echo "Running npm install..."
+	npm install
 fi
+
+sudo ln -sf /usr/share/bigbluebutton/nginx/bbb-html5.nginx.dev /usr/share/bigbluebutton/nginx/bbb-html5.nginx
+sudo systemctl restart nginx
 
 npm start

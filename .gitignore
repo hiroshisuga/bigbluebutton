@@ -17,9 +17,13 @@ akka-bbb-apps/akka-bbb-apps*.log
 bigbluebutton-web/target-eclipse*
 record-and-playback/.loadpath
 **/.idea/*
+**/.metals/*
 *.iml
 *~
 cache/*
 artifacts/*
 bbb-presentation-video.zip
 bbb-presentation-video
+bbb-graphql-actions-adapter-server/
+bigbluebutton-html5/public/locales/index.json
+node_modules

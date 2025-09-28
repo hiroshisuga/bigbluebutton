@@ -40,7 +40,7 @@ else
   npm install --unsafe-perm --production
 fi
 
-# clean out stuff that is not required in the final package. Most of this are object files from dependant libraries
+# clean out stuff that is not required in the final package. Most of this are object files from dependent libraries
 rm -rf node_modules/mediasoup/worker/out/Release/subprojects
 rm -rf node_modules/mediasoup/worker/out/Release/mediasoup-worker.p
 rm -rf node_modules/mediasoup/worker/out/Release/deps
@@ -61,4 +61,5 @@ fpm -s dir -C ./staging -n $PACKAGE                 \
     --before-remove before-remove.sh                \
     --description "BigBlueButton WebRTC SFU"        \
     $DIRECTORIES                                    \
-    $OPTS
+    $OPTS                                           \
+    -d 'nodejs (>= 18)' -d 'nodejs (<< 23)'

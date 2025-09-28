@@ -37,7 +37,7 @@ public class ResponseBuilder {
         try {
             cfg.setDirectoryForTemplateLoading(templatesLoc);
         } catch (IOException e) {
-            log.error("Exception occured creating ResponseBuilder", e);
+            log.error("Exception occurred creating ResponseBuilder", e);
         }
         setUpConfiguration();
     }
@@ -52,7 +52,8 @@ public class ResponseBuilder {
         return new Date(timestamp).toString();
     }
 
-    public String buildMeetingVersion(String apiVersion, String bbbVersion, String returnCode) {
+    public String buildMeetingVersion(String apiVersion, String bbbVersion, String graphqlWebsocketUrl,
+                                      String html5PluginSdkVersion, String graphqlApiUrl, String returnCode) {
         StringWriter xmlText = new StringWriter();
 
         Map<String, Object> data = new HashMap<String, Object>();
@@ -60,6 +61,9 @@ public class ResponseBuilder {
         data.put("version", apiVersion);
         data.put("apiVersion", apiVersion);
         data.put("bbbVersion", bbbVersion);
+        data.put("graphqlWebsocketUrl", graphqlWebsocketUrl);
+        data.put("html5PluginSdkVersion", html5PluginSdkVersion);
+        data.put("graphqlApiUrl", graphqlApiUrl);
 
         processData(getTemplate("api-version.ftlx"), data, xmlText);
 
@@ -96,12 +100,12 @@ public class ResponseBuilder {
         return xmlText.toString();
     }
 
-    public String buildErrors(ArrayList erros, String returnCode) {
+    public String buildErrors(ArrayList errors, String returnCode) {
         StringWriter xmlText = new StringWriter();
 
         Map<String, Object> data = new HashMap<String, Object>();
         data.put("returnCode", returnCode);
-        data.put("errorsList", erros);
+        data.put("errorsList", errors);
 
         processData(getTemplate("api-errors.ftlx"), data, xmlText);
 
@@ -239,6 +243,19 @@ public class ResponseBuilder {
             log.error("IO exception for {} : ", templateName, e);
         }
         return ftl;
+    }
+
+    public String buildSendChatMessageResponse(String message, String returnCode) {
+
+        StringWriter xmlText = new StringWriter();
+
+        Map<String, Object> data = new HashMap<String, Object>();
+        data.put("returnCode", returnCode);
+        data.put("message", message);
+
+        processData(getTemplate("send-chat-message.ftlx"), data, xmlText);
+
+        return xmlText.toString();
     }
 
     private void processData(Template template, Map data, StringWriter out) {

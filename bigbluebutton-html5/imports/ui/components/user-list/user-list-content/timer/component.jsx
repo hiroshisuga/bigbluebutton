@@ -2,9 +2,8 @@ import React, { PureComponent } from 'react';
 import PropTypes from 'prop-types';
 import { defineMessages, injectIntl } from 'react-intl';
 import Icon from '/imports/ui/components/common/icon/component';
-import TimerService from '/imports/ui/components/timer/service';
-import { PANELS, ACTIONS } from '../../../layout/enums';
 import Styled from './styles';
+import { ACTIONS, PANELS } from '../../../layout/enums';
 
 const propTypes = {
   intl: PropTypes.shape({
@@ -32,18 +31,6 @@ const intlMessages = defineMessages({
 });
 
 class Timer extends PureComponent {
-  componentDidMount() {
-    const { layoutContextDispatch } = this.props;
-    layoutContextDispatch({
-      type: ACTIONS.SET_SIDEBAR_CONTENT_IS_OPEN,
-      value: true,
-    });
-    layoutContextDispatch({
-      type: ACTIONS.SET_SIDEBAR_CONTENT_PANEL,
-      value: PANELS.TIMER,
-    });
-  }
-
   render() {
     const {
       intl,
@@ -69,7 +56,19 @@ class Timer extends PureComponent {
             <Styled.ListItem
               role="button"
               tabIndex={0}
-              onClick={() => TimerService.togglePanel(sidebarContentPanel, layoutContextDispatch)}
+              active={sidebarContentPanel === PANELS.TIMER}
+              onClick={() => {
+                layoutContextDispatch({
+                  type: ACTIONS.SET_SIDEBAR_CONTENT_IS_OPEN,
+                  value: sidebarContentPanel !== PANELS.TIMER,
+                });
+                layoutContextDispatch({
+                  type: ACTIONS.SET_SIDEBAR_CONTENT_PANEL,
+                  value: sidebarContentPanel === PANELS.TIMER
+                    ? PANELS.NONE
+                    : PANELS.TIMER,
+                });
+              }}
             >
               <Icon iconName="time" />
               <span>

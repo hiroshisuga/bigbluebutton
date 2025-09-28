@@ -21,6 +21,7 @@ find -maxdepth 1 ! -path . ! -name staging $(printf "! -name %s " $(cat .build-f
 pushd .
 cd staging/usr/local/bigbluebutton/bbb-pads/
 npm install --production
+chmod -R a+rX .
 popd
 
 mkdir -p staging/usr/lib/systemd/system
@@ -38,5 +39,6 @@ fpm -s dir -C ./staging -n $PACKAGE \
     --before-remove before-remove.sh \
     --description "BigBlueButton Pads" \
     $DIRECTORIES \
-    $OPTS
+    $OPTS \
+    -d 'nodejs (>= 18)' -d 'nodejs (<< 23)'
 

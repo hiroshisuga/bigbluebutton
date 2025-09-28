@@ -2,7 +2,7 @@ import DEFAULT_VALUES from '/imports/ui/components/layout/defaultValues';
 
 export const INITIAL_INPUT_STATE = {
   autoarrAngeLayout: true,
-  customParameters: {
+  userMetadata: {
 
   },
   browser: {
@@ -14,6 +14,7 @@ export const INITIAL_INPUT_STATE = {
   },
   notificationsBar: {
     hasNotification: false,
+    hideNotificationToasts: false,
   },
   navBar: {
     hasNavBar: true,
@@ -95,6 +96,13 @@ export const INITIAL_INPUT_STATE = {
     browserWidth: 0,
     browserHeight: 0,
   },
+  genericMainContent: {
+    genericContentId: undefined,
+    width: 0,
+    height: 0,
+    browserWidth: 0,
+    browserHeight: 0,
+  },
   sharedNotes: {
     isPinned: false,
     width: 0,
@@ -107,6 +115,7 @@ export const INITIAL_INPUT_STATE = {
 export const INITIAL_OUTPUT_STATE = {
   navBar: {
     display: false,
+    hideTopRow: false,
     width: 0,
     height: 0,
     top: 0,
@@ -226,6 +235,15 @@ export const INITIAL_OUTPUT_STATE = {
     zIndex: 1,
   },
   externalVideo: {
+    display: false,
+    width: 0,
+    height: 0,
+    top: 0,
+    left: 0,
+    tabOrder: 0,
+    zIndex: 1,
+  },
+  genericMainContent: {
     display: false,
     width: 0,
     height: 0,

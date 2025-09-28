@@ -11,6 +11,7 @@ object_relationships:
     using:
       manual_configuration:
         column_mapping:
+          meetingId: meetingId
           participantId: userId
         insertion_order: null
         remote_table:
@@ -21,11 +22,12 @@ select_permissions:
     permission:
       columns:
         - chatId
-        - visible
+        - lastSeenAt
         - participantId
         - public
         - totalMessages
         - totalUnread
+        - visible
       filter:
         _and:
           - meetingId:

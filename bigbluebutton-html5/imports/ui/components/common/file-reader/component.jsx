@@ -37,7 +37,7 @@ const STATUS = {
 
 /**
  * HOC for injecting a file reader utility.
- * @param {React.Component} Component 
+ * @param {(props: any) => JSX.Element} Component
  * @param {string[]} mimeTypesAllowed String array containing MIME types allowed.
  * @param {number} maxFileSize Max file size allowed in Mbytes.
  * @returns A new component which accepts the same props as the wrapped component plus
@@ -105,7 +105,7 @@ const withFileReader = (
       toast.dismiss(toastId.current);
     }
 
-    toastId.current = toast.info(renderToastContent(text, status), {
+    toastId.current = toast(renderToastContent(text, status), {
       hideProgressBar: status === STATUS.DONE ? false : true,
       autoClose: status === STATUS.DONE ? 5000 : false,
       newestOnTop: true,
@@ -133,7 +133,7 @@ const withFileReader = (
       notify(
         intl.formatMessage(
           intlMessages.maximumSizeExceeded,
-          { 0: (maxFileSize / 1000).toFixed(0) },
+          { maxFileSize: (maxFileSize / 1000).toFixed(0) },
         ),
         'error',
       );

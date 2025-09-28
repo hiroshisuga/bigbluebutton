@@ -3,12 +3,14 @@ package org.bigbluebutton.core.apps.users
 import org.bigbluebutton.LockSettingsUtil
 import org.bigbluebutton.common2.msgs._
 import org.bigbluebutton.core.apps.{ PermissionCheck, RightsManagementTrait }
+import org.bigbluebutton.core.db.{ MeetingLockSettingsDAO, NotificationDAO }
+import org.bigbluebutton.core.graphql.GraphqlMiddleware
 import org.bigbluebutton.core.models._
 import org.bigbluebutton.core.running.OutMsgRouter
 import org.bigbluebutton.core.running.MeetingActor
 import org.bigbluebutton.core2.MeetingStatus2x
 import org.bigbluebutton.core2.Permissions
-import org.bigbluebutton.core2.message.senders.{ MsgBuilder }
+import org.bigbluebutton.core2.message.senders.MsgBuilder
 
 trait ChangeLockSettingsInMeetingCmdMsgHdlr extends RightsManagementTrait {
   this: MeetingActor =>
@@ -40,7 +42,20 @@ trait ChangeLockSettingsInMeetingCmdMsgHdlr extends RightsManagementTrait {
 
         val oldPermissions = MeetingStatus2x.getPermissions(liveMeeting.status)
 
-        MeetingStatus2x.setPermissions(liveMeeting.props.meetingProp.intId, liveMeeting.status, settings)
+        MeetingStatus2x.setPermissions(liveMeeting.status, settings)
+
+        //Refresh graphql session for all locked viewers
+        for {
+          user <- Users2x.findAll(liveMeeting.users2x)
+          if user.locked
+          if user.role == Roles.VIEWER_ROLE
+          regUser <- RegisteredUsers.findWithUserId(user.intId, liveMeeting.registeredUsers)
+        } yield {
+          GraphqlMiddleware.requestGraphqlReconnection(regUser.sessionToken, "lockSettings_changed")
+        }
+
+        //Update database
+        MeetingLockSettingsDAO.update(liveMeeting.props.meetingProp.intId, settings)
 
         // Dial-in
         def buildLockMessage(meetingId: String, userId: String, lockedBy: String, locked: Boolean): BbbCommonEnvCoreMsg = {
@@ -61,9 +76,10 @@ trait ChangeLockSettingsInMeetingCmdMsgHdlr extends RightsManagementTrait {
               "lock",
               "app.userList.userOptions.disableCam",
               "Label to disable cam notification",
-              Vector()
+              Map()
             )
             outGW.send(notifyEvent)
+            NotificationDAO.insert(notifyEvent)
 
             LockSettingsUtil.enforceCamLockSettingsForAllUsers(liveMeeting, outGW)
           } else {
@@ -73,9 +89,10 @@ trait ChangeLockSettingsInMeetingCmdMsgHdlr extends RightsManagementTrait {
               "lock",
               "app.userList.userOptions.enableCam",
               "Label to enable cam notification",
-              Vector()
+              Map()
             )
             outGW.send(notifyEvent)
+            NotificationDAO.insert(notifyEvent)
           }
         }
 
@@ -87,9 +104,10 @@ trait ChangeLockSettingsInMeetingCmdMsgHdlr extends RightsManagementTrait {
               "lock",
               "app.userList.userOptions.disableMic",
               "Label to disable mic notification",
-              Vector()
+              Map()
             )
             outGW.send(notifyEvent)
+            NotificationDAO.insert(notifyEvent)
             VoiceUsers.findAll(liveMeeting.voiceUsers) foreach { vu =>
               if (vu.intId.startsWith(IntIdPrefixType.DIAL_IN)) { // only Dial-in users need this
                 val eventExplicitLock = buildLockMessage(liveMeeting.props.meetingProp.intId, vu.intId, msg.body.setBy, settings.disableMic)
@@ -104,9 +122,10 @@ trait ChangeLockSettingsInMeetingCmdMsgHdlr extends RightsManagementTrait {
               "lock",
               "app.userList.userOptions.enableMic",
               "Label to enable mic notification",
-              Vector()
+              Map()
             )
             outGW.send(notifyEvent)
+            NotificationDAO.insert(notifyEvent)
           }
         }
 
@@ -118,9 +137,10 @@ trait ChangeLockSettingsInMeetingCmdMsgHdlr extends RightsManagementTrait {
               "lock",
               "app.userList.userOptions.disablePrivChat",
               "Label to disable private chat notification",
-              Vector()
+              Map()
             )
             outGW.send(notifyEvent)
+            NotificationDAO.insert(notifyEvent)
           } else {
             val notifyEvent = MsgBuilder.buildNotifyAllInMeetingEvtMsg(
               liveMeeting.props.meetingProp.intId,
@@ -128,9 +148,10 @@ trait ChangeLockSettingsInMeetingCmdMsgHdlr extends RightsManagementTrait {
               "lock",
               "app.userList.userOptions.enablePrivChat",
               "Label to enable private chat notification",
-              Vector()
+              Map()
             )
             outGW.send(notifyEvent)
+            NotificationDAO.insert(notifyEvent)
           }
         }
 
@@ -142,9 +163,10 @@ trait ChangeLockSettingsInMeetingCmdMsgHdlr extends RightsManagementTrait {
               "lock",
               "app.userList.userOptions.disablePubChat",
               "Label to disable public chat notification",
-              Vector()
+              Map()
             )
             outGW.send(notifyEvent)
+            NotificationDAO.insert(notifyEvent)
           } else {
             val notifyEvent = MsgBuilder.buildNotifyAllInMeetingEvtMsg(
               liveMeeting.props.meetingProp.intId,
@@ -152,9 +174,10 @@ trait ChangeLockSettingsInMeetingCmdMsgHdlr extends RightsManagementTrait {
               "lock",
               "app.userList.userOptions.enablePubChat",
               "Label to enable public chat notification",
-              Vector()
+              Map()
             )
             outGW.send(notifyEvent)
+            NotificationDAO.insert(notifyEvent)
           }
         }
 
@@ -166,9 +189,10 @@ trait ChangeLockSettingsInMeetingCmdMsgHdlr extends RightsManagementTrait {
               "lock",
               "app.userList.userOptions.disableNotes",
               "Label to disable shared notes notification",
-              Vector()
+              Map()
             )
             outGW.send(notifyEvent)
+            NotificationDAO.insert(notifyEvent)
           } else {
             val notifyEvent = MsgBuilder.buildNotifyAllInMeetingEvtMsg(
               liveMeeting.props.meetingProp.intId,
@@ -176,9 +200,10 @@ trait ChangeLockSettingsInMeetingCmdMsgHdlr extends RightsManagementTrait {
               "lock",
               "app.userList.userOptions.enableNotes",
               "Label to enable shared notes notification",
-              Vector()
+              Map()
             )
             outGW.send(notifyEvent)
+            NotificationDAO.insert(notifyEvent)
           }
         }
 
@@ -190,9 +215,10 @@ trait ChangeLockSettingsInMeetingCmdMsgHdlr extends RightsManagementTrait {
               "lock",
               "app.userList.userOptions.hideUserList",
               "Label to disable user list notification",
-              Vector()
+              Map()
             )
             outGW.send(notifyEvent)
+            NotificationDAO.insert(notifyEvent)
           } else {
             val notifyEvent = MsgBuilder.buildNotifyAllInMeetingEvtMsg(
               liveMeeting.props.meetingProp.intId,
@@ -200,9 +226,10 @@ trait ChangeLockSettingsInMeetingCmdMsgHdlr extends RightsManagementTrait {
               "lock",
               "app.userList.userOptions.showUserList",
               "Label to enable user list notification",
-              Vector()
+              Map()
             )
             outGW.send(notifyEvent)
+            NotificationDAO.insert(notifyEvent)
           }
         }
 

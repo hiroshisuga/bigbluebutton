@@ -45,7 +45,7 @@ const getDeviceIdFromTrack = (track) => {
     const { deviceId } = track.getSettings();
     return deviceId;
   }
-  return '';
+  return null;
 };
 
 const extractDeviceIdFromStream = (stream, kind) => {
@@ -55,18 +55,49 @@ const extractDeviceIdFromStream = (stream, kind) => {
   switch (kind) {
     case 'audio':
       tracks = getAudioTracks(stream);
+      if (tracks.length === 0) return 'listen-only';
       return getDeviceIdFromTrack(tracks[0]);
     case 'video':
       tracks = getVideoTracks(stream);
       return getDeviceIdFromTrack(tracks[0]);
     default: {
-      return '';
+      return null;
     }
+  }
+};
+
+const getMediaStreamLogData = (stream) => {
+  if (!stream) return { audio: [], video: [] };
+
+  try {
+    const audioTracks = getAudioTracks(stream);
+    const videoTracks = getVideoTracks(stream);
+
+    return {
+      valid: true,
+      active: stream.active,
+      id: stream.id,
+      audio: audioTracks.map((track) => ({
+        id: track.id,
+        enabled: track.enabled,
+        deviceId: getDeviceIdFromTrack(track),
+        label: track.label,
+      })),
+      video: videoTracks.map((track) => ({
+        id: track.id,
+        enabled: track.enabled,
+        deviceId: getDeviceIdFromTrack(track),
+        label: track.label,
+      })),
+    };
+  } catch (error) {
+    return { audio: [], video: [], valid: false };
   }
 };
 
 export default {
   stopMediaStreamTracks,
+  getMediaStreamLogData,
   getVideoTracks,
   extractDeviceIdFromStream,
 };

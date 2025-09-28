@@ -17,7 +17,6 @@ import {
   titlePositionLeft,
   mdPaddingX,
   borderSizeLarge,
-  jumboPaddingY,
 } from '/imports/ui/stylesheets/styled-components/general';
 import {
   fontSizeSmall,
@@ -36,7 +35,7 @@ import {
   Tab, Tabs, TabList, TabPanel,
 } from 'react-tabs';
 
-const Item = styled.div`
+const Item = styled.li`
   display: flex;
   width: 100%;
   height: 4rem;
@@ -82,7 +81,6 @@ const ClientNotRespondingText = styled.div`
   }
 `;
 
-
 const Text = styled.div`
   padding-left: .5rem;
   white-space: nowrap;
@@ -118,6 +116,15 @@ const Right = styled.div`
 `;
 
 const Time = styled.div`
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  justify-content: flex-end;
+`;
+
+const TimeActive = styled.time`
+  color: ${colorPrimary} !important;
   display: flex;
   align-items: center;
   width: 100%;
@@ -165,7 +172,7 @@ const CopyContainer = styled.div`
   justify-content: flex-end;
   border: none;
   border-top: 1px solid ${colorOffWhite};
-  padding: ${jumboPaddingY} 0 0;
+  padding: ${mdPaddingX} 0 0 0;
 `;
 
 const ConnectionStatusModal = styled(ModalSimple)`
@@ -322,6 +329,10 @@ const ConnectionTabPanel = styled(TabPanel)`
     flex-flow: column;
   }
 
+  & ul {
+    padding: 0;
+  }
+
   @media ${smallOnly} {
     width: 100%;
     margin: 0;
@@ -389,6 +400,7 @@ export default {
   Icon,
   Right,
   Time,
+  TimeActive,
   NetworkDataContainer,
   NetworkData,
   CopyContainer,

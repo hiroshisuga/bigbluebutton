@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { defineMessages, injectIntl } from 'react-intl';
-import { debounce } from 'radash';
+import { debounce } from '/imports/utils/debounce';
 import withShortcutHelper from '/imports/ui/components/shortcut-help/service';
 import Styled from './styles';
 import UserAvatar from '/imports/ui/components/user-avatar/component';
@@ -9,14 +9,12 @@ import { ACTIONS, PANELS } from '../../layout/enums';
 import Icon from '/imports/ui/components/common/icon/component';
 
 const DEBOUNCE_TIME = 1000;
-const CHAT_CONFIG = Meteor.settings.public.chat;
-const PUBLIC_CHAT_KEY = CHAT_CONFIG.public_id;
 
 let globalAppplyStateToProps = () => {};
 
-const throttledFunc = debounce({ delay: DEBOUNCE_TIME }, () => {
+const throttledFunc = debounce(() => {
   globalAppplyStateToProps();
-});
+}, DEBOUNCE_TIME, { trailing: true, leading: true });
 
 const intlMessages = defineMessages({
   titlePublic: {
@@ -49,25 +47,22 @@ const propTypes = {
   shortcuts: PropTypes.string,
 };
 
-const defaultProps = {
-  shortcuts: '',
-  tabIndex: 0,
-};
-
-const ChatListItem = (props) => {
-  const {
-    chat,
-    activeChatId,
-    idChatOpen,
-    compact,
-    intl,
-    tabIndex,
-    isPublicChat,
-    shortcuts: TOGGLE_CHAT_PUB_AK,
-    sidebarContentIsOpen,
-    sidebarContentPanel,
-    layoutContextDispatch,
-  } = props;
+const ChatListItem = ({
+  chat,
+  activeChatId,
+  idChatOpen,
+  compact,
+  intl,
+  tabIndex = -1,
+  isPublicChat,
+  shortcuts = '',
+  sidebarContentIsOpen,
+  sidebarContentPanel,
+  layoutContextDispatch,
+}) => {
+  const TOGGLE_CHAT_PUB_AK = shortcuts;
+  const CHAT_CONFIG = window.meetingClientSettings.public.chat;
+  const PUBLIC_CHAT_KEY = CHAT_CONFIG.public_id;
 
   const chatPanelOpen = sidebarContentIsOpen && sidebarContentPanel === PANELS.CHAT;
 
@@ -138,7 +133,7 @@ const ChatListItem = (props) => {
 
   const arialabel = `${localizedChatName} ${
     stateUreadCount > 1
-      ? intl.formatMessage(intlMessages.unreadPlural, { 0: stateUreadCount })
+      ? intl.formatMessage(intlMessages.unreadPlural, { unreadCount: stateUreadCount })
       : intl.formatMessage(intlMessages.unreadSingular)}`;
 
   return (
@@ -200,6 +195,5 @@ const ChatListItem = (props) => {
 };
 
 ChatListItem.propTypes = propTypes;
-ChatListItem.defaultProps = defaultProps;
 
 export default withShortcutHelper(injectIntl(ChatListItem), 'togglePublicChat');

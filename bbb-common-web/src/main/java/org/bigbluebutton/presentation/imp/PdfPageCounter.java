@@ -34,20 +34,20 @@ import com.zaxxer.nuprocess.NuProcessBuilder;
 public class PdfPageCounter implements PageCounter {
   private static Logger log = LoggerFactory.getLogger(PdfPageCounter.class);
 
-  private static int waitForSec = 5;
+  private int wait = 5;
 
   public int countNumberOfPages(File presentationFile) {
     int numPages = 0; // total numbers of this pdf
 
     NuProcessBuilder pdfInfo = new NuProcessBuilder(
-        Arrays.asList("pdfinfo", presentationFile.getAbsolutePath()));
+        Arrays.asList("/usr/share/bbb-web/run-in-systemd.sh",String.valueOf(wait),"pdfinfo", presentationFile.getAbsolutePath()));
 
-    PdfPageCounterHandler pHandler = new PdfPageCounterHandler();
+    PdfPageCounterHandler pHandler = new PdfPageCounterHandler("pdfpagecount-" + presentationFile.getName());
     pdfInfo.setProcessListener(pHandler);
 
     NuProcess process = pdfInfo.start();
     try {
-      process.waitFor(waitForSec, TimeUnit.SECONDS);
+      process.waitFor(wait + 1, TimeUnit.SECONDS);
     } catch (InterruptedException e) {
       log.error("InterruptedException while counting PDF pages {}", presentationFile.getName(), e);
     }
@@ -56,4 +56,7 @@ public class PdfPageCounter implements PageCounter {
     return numPages;
   }
 
+  public void setWait(int wait) {
+    this.wait = wait;
+  }
 }

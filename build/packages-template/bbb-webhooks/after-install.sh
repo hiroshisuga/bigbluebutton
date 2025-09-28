@@ -9,20 +9,14 @@ case "$1" in
     chmod 644 $TARGET
     chown bigbluebutton:bigbluebutton $TARGET
 
-    BBB_SECRET=$(cat $SERVLET_DIR/WEB-INF/classes/bigbluebutton.properties | grep securitySalt | cut -d= -f2)
-    BBB_HOST=$(cat $SERVLET_DIR/WEB-INF/classes/bigbluebutton.properties | sed -n '/^bigbluebutton.web.serverURL/{s/.*\///;p}')
+    BBB_HOST=$(bbb-conf --secret | grep -F URL: | sed 's#^.*://##; s#/.*##')
+    BBB_SECRET=$(bbb-conf --secret | grep -F Secret: | sed 's/.*Secret: //')
 
     yq e -i  ".bbb.sharedSecret  = \"$BBB_SECRET\"" $TARGET
     yq e -i  ".bbb.serverDomain = \"$BBB_HOST\"" $TARGET
     yq e -i  '.bbb.auth2_0 = true' $TARGET
-    yq e -i  '.server.port = 3005' $TARGET
-    yq e -i  '.hooks.getRaw = false' $TARGET
-
-    cd /usr/local/bigbluebutton/bbb-webhooks
-    mkdir -p node_modules
-
-    npm config set unsafe-perm true
-    npm rebuild || true
+    yq e -i  '.modules."../out/webhooks/index.js".config.getRaw = false' $TARGET
+    yq e -i  '.log.filename = "/var/log/bbb-webhooks/bbb-webhooks.log"' $TARGET
 
     mkdir -p /var/log/bbb-webhooks/
     touch /var/log/bbb-webhooks/bbb-webhooks.log

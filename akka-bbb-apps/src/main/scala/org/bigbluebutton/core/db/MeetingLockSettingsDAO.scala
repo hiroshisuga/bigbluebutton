@@ -5,9 +5,6 @@ import org.bigbluebutton.core2.Permissions
 import slick.jdbc.PostgresProfile.api._
 import slick.lifted.ProvenShape
 
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.util.{ Failure, Success }
-
 case class MeetingLockSettingsDbModel(
     meetingId:              String,
     disableCam:             Boolean,
@@ -18,7 +15,8 @@ case class MeetingLockSettingsDbModel(
     hideUserList:           Boolean,
     lockOnJoin:             Boolean,
     lockOnJoinConfigurable: Boolean,
-    hideViewersCursor:      Boolean
+    hideViewersCursor:      Boolean,
+    hideViewersAnnotation:  Boolean
 )
 
 class MeetingLockSettingsDbTableDef(tag: Tag) extends Table[MeetingLockSettingsDbModel](tag, "meeting_lockSettings") {
@@ -32,15 +30,16 @@ class MeetingLockSettingsDbTableDef(tag: Tag) extends Table[MeetingLockSettingsD
   val lockOnJoin = column[Boolean]("lockOnJoin")
   val lockOnJoinConfigurable = column[Boolean]("lockOnJoinConfigurable")
   val hideViewersCursor = column[Boolean]("hideViewersCursor")
+  val hideViewersAnnotation = column[Boolean]("hideViewersAnnotation")
 
   //  def fk_meetingId: ForeignKeyQuery[MeetingDbTableDef, MeetingDbModel] = foreignKey("fk_meetingId", meetingId, TableQuery[MeetingDbTableDef])(_.meetingId)
 
-  override def * : ProvenShape[MeetingLockSettingsDbModel] = (meetingId, disableCam, disableMic, disablePrivateChat, disablePublicChat, disableNotes, hideUserList, lockOnJoin, lockOnJoinConfigurable, hideViewersCursor) <> (MeetingLockSettingsDbModel.tupled, MeetingLockSettingsDbModel.unapply)
+  override def * : ProvenShape[MeetingLockSettingsDbModel] = (meetingId, disableCam, disableMic, disablePrivateChat, disablePublicChat, disableNotes, hideUserList, lockOnJoin, lockOnJoinConfigurable, hideViewersCursor, hideViewersAnnotation) <> (MeetingLockSettingsDbModel.tupled, MeetingLockSettingsDbModel.unapply)
 }
 
 object MeetingLockSettingsDAO {
   def insert(meetingId: String, lockSettingsProps: LockSettingsProps) = {
-    DatabaseConnection.db.run(
+    DatabaseConnection.enqueue(
       TableQuery[MeetingLockSettingsDbTableDef].forceInsert(
         MeetingLockSettingsDbModel(
           meetingId = meetingId,
@@ -52,19 +51,15 @@ object MeetingLockSettingsDAO {
           hideUserList = lockSettingsProps.hideUserList,
           lockOnJoin = lockSettingsProps.lockOnJoin,
           lockOnJoinConfigurable = lockSettingsProps.lockOnJoinConfigurable,
-          hideViewersCursor = lockSettingsProps.hideViewersCursor
+          hideViewersCursor = lockSettingsProps.hideViewersCursor,
+          hideViewersAnnotation = lockSettingsProps.hideViewersAnnotation,
         )
       )
-    ).onComplete {
-        case Success(rowsAffected) => {
-          DatabaseConnection.logger.debug(s"$rowsAffected row(s) inserted in MeetingLockSettings table!")
-        }
-        case Failure(e) => DatabaseConnection.logger.error(s"Error inserting MeetingLockSettings: $e")
-      }
+    )
   }
 
   def update(meetingId: String, permissions: Permissions) = {
-    DatabaseConnection.db.run(
+    DatabaseConnection.enqueue(
       TableQuery[MeetingLockSettingsDbTableDef].insertOrUpdate(
         MeetingLockSettingsDbModel(
           meetingId = meetingId,
@@ -76,15 +71,11 @@ object MeetingLockSettingsDAO {
           hideUserList = permissions.hideUserList,
           lockOnJoin = permissions.lockOnJoin,
           lockOnJoinConfigurable = permissions.lockOnJoinConfigurable,
-          hideViewersCursor = permissions.hideViewersCursor
+          hideViewersCursor = permissions.hideViewersCursor,
+          hideViewersAnnotation = permissions.hideViewersAnnotation,
         ),
       )
-    ).onComplete {
-        case Success(rowsAffected) => {
-          DatabaseConnection.logger.debug(s"$rowsAffected row(s) updated in MeetingLockSettings table!")
-        }
-        case Failure(e) => DatabaseConnection.logger.error(s"Error updating MeetingLockSettings: $e")
-      }
+    )
   }
 
 }

@@ -1,91 +1,22 @@
 require('dotenv').config();
-const { expect, default: test } = require('@playwright/test');
+const { expect, test } = require('@playwright/test');
 const { readFileSync } = require('fs');
-const { format } = require('node:util');
-
-// This is version 4 of chalk, not version 5, which uses ESM
-const chalk = require('chalk');
-
 const parameters = require('./parameters');
 const helpers = require('./helpers');
 const e = require('./elements');
 const { env } = require('node:process');
-const { ELEMENT_WAIT_TIME, ELEMENT_WAIT_LONGER_TIME, VIDEO_LOADING_WAIT_TIME } = require('./constants');
+const { ELEMENT_WAIT_TIME, ELEMENT_WAIT_LONGER_TIME, VIDEO_LOADING_WAIT_TIME, ELEMENT_WAIT_EXTRA_LONG_TIME } = require('./constants');
 const { checkElement, checkElementLengthEqualTo } = require('./util');
-const { generateSettingsData, getSettings } = require('./settings');
-
-function formatWithCss(CONSOLE_options, ...args) {
-  // For Chrome, args[0] is a format string that we will process using
-  // node.js's util.format, but that function discards css style
-  // information from "%c" format specifiers.  So first loop over the
-  // format string, replacing every "%c" with "%s" and replacing the
-  // corresponding css style with an ANSI color sequence.
-  //
-  // See https://console.spec.whatwg.org/ sections 2.2.1 and 2.3.4
-
-  let split_arg0 = args[0].split("%");
-  for (let i = 1, j = 1; i < split_arg0.length; i++, j++) {
-    if (split_arg0[i].startsWith('c')) {
-      split_arg0[i] = 's' + split_arg0[i].substr(1);
-      const styles = args[j].split(';');
-      args[j] = '';
-      for (const style of styles) {
-        const stdStyle = style.trim().toLowerCase();
-        if (stdStyle.startsWith('color:') && CONSOLE_options.colorize) {
-          const color = stdStyle.substr(6).trim();
-          args[j] = chalk.keyword(color)._styler.open;
-        } else if (stdStyle.startsWith('font-size:') && CONSOLE_options.drop_references) {
-          // For Chrome, we "drop references" by discarding everything after a font size change
-          split_arg0.length = i;
-          args.length = j;
-        }
-      }
-    } else if (split_arg0[i] == "") {
-      // format is "%%", so don't do special processing for
-      // split_arg0[i+1], and only increment i, not j
-      i++;  // NOSONAR
-    }
-  }
-  args[0] = split_arg0.join('%');
-  return format(...args);
-}
-
-async function console_format(msg, CONSOLE_options) {
-  // see playwright consoleMessage class documentation
-  const args = await Promise.all(msg.args().map(itm => itm.jsonValue()));
-  let result = formatWithCss(CONSOLE_options, ...args);
-
-  if (CONSOLE_options.drop_references) {
-    // For Firefox, we "drop references" by discarding a URL at the end of the line
-    result = result.replace(/https:\/\/\S*$/, '');
-  }
-
-  if (CONSOLE_options.noClientLogger) {
-    result = result.replace(/clientLogger: /, '');
-  }
-
-  if (CONSOLE_options.drop_timestamps) {
-    // timestamp formatting is a bit complicated, with four "%s" fields and corresponding arguments,
-    // so just filter them out (if requested) after all the other formatting is done
-    result = result.replace(/\[\d\d:\d\d:\d\d:\d\d\d\d\] /, '');
-  }
-
-  if (CONSOLE_options.line_label) {
-    if (CONSOLE_options.colorize) {
-      result = chalk.keyword('green')(CONSOLE_options.line_label) + result;
-    } else {
-      result = CONSOLE_options.line_label + result;
-    }
-  }
-
-  return result;
-}
+const { generateSettingsData } = require('./settings');
 
 class Page {
   constructor(browser, page) {
     this.browser = browser;
     this.page = page;
     this.initParameters = Object.assign({}, parameters);
+    try {
+      this.context = page.context();
+    } catch { } // page doesn't have context - likely an iframe
   }
 
   async bringToFront() {
@@ -98,33 +29,43 @@ class Page {
   }
 
   async init(isModerator, shouldCloseAudioModal, initOptions) {
-    const { fullName, meetingId, customParameter, customMeetingId } = initOptions || {};
+    const { fullName,
+      meetingId,
+      createParameter,
+      joinParameter,
+      customMeetingId,
+      isRecording,
+      skipSessionDetailsModal = true,
+      shouldCheckAllInitialSteps,
+      shouldAvoidLayoutCheck,
+    } = initOptions || {};
 
     if (!isModerator) this.initParameters.moderatorPW = '';
     if (fullName) this.initParameters.fullName = fullName;
     this.username = this.initParameters.fullName;
 
-    if (env.CONSOLE !== undefined) {
-      const CONSOLE_strings = env.CONSOLE.split(',').map(opt => opt.trim().toLowerCase());
-      const CONSOLE_options = {
-        colorize: CONSOLE_strings.includes('color') || CONSOLE_strings.includes('colour'),
-        drop_references: CONSOLE_strings.includes('norefs'),
-        drop_timestamps: CONSOLE_strings.includes('nots'),
-        line_label: CONSOLE_strings.includes('label') ? this.username + " " : undefined,
-        noClientLogger: CONSOLE_strings.includes('nocl') || CONSOLE_strings.includes('noclientlogger'),
-      };
-      this.page.on('console', async (msg) => console.log(await console_format(msg, CONSOLE_options)));
-    }
+    if (env.CONSOLE !== undefined) await helpers.setBrowserLogs(this.page);
 
-    this.meetingId = (meetingId) ? meetingId : await helpers.createMeeting(parameters, customParameter, customMeetingId);
-    const joinUrl = helpers.getJoinURL(this.meetingId, this.initParameters, isModerator, customParameter);
+    this.meetingId = (meetingId) ? meetingId : await helpers.createMeeting(parameters, createParameter, customMeetingId);
+    const joinUrl = helpers.getJoinURL(this.meetingId, this.initParameters, isModerator, joinParameter, skipSessionDetailsModal);
     const response = await this.page.goto(joinUrl);
     await expect(response.ok()).toBeTruthy();
     const hasErrorLabel = await this.checkElement(e.errorMessageLabel);
-    await expect(hasErrorLabel, 'Getting error when joining. Check if the BBB_URL and BBB_SECRET are set correctly').toBeFalsy();
-    this.settings = await generateSettingsData(this.page);
-    const { autoJoinAudioModal } = this.settings;
-    if (shouldCloseAudioModal && autoJoinAudioModal) await this.closeAudioModal();
+    await expect(hasErrorLabel, 'should pass the authentication and the layout element should be displayed').toBeFalsy();
+    if (shouldCheckAllInitialSteps != undefined ? shouldCheckAllInitialSteps : true) {
+      if (!shouldAvoidLayoutCheck) await this.waitForSelector('div#layout', ELEMENT_WAIT_EXTRA_LONG_TIME);
+      this.settings = await generateSettingsData(this.page);
+      const { autoJoinAudioModal } = this.settings;
+      if (isRecording && !isModerator) await this.closeRecordingModal();
+      if (shouldCloseAudioModal && autoJoinAudioModal) await this.closeAudioModal();
+    }
+    // overwrite for font used in CI
+    await this.page.addStyleTag({
+      content: `
+        body {
+          font-family: 'Liberation Sans', Arial, sans-serif;
+        }`,
+    });
   }
 
   async handleDownload(locator, testInfo, timeout = ELEMENT_WAIT_TIME) {
@@ -151,44 +92,64 @@ class Page {
     return newPage;
   }
 
-  async joinMicrophone() {
+  async joinMicrophone({ shouldUnmute = true } = {}) {
     await this.waitForSelector(e.audioModal);
     await this.waitAndClick(e.microphoneButton);
     await this.waitForSelector(e.stopHearingButton);
     await this.waitAndClick(e.joinEchoTestButton);
     await this.waitForSelector(e.establishingAudioLabel);
     await this.wasRemoved(e.establishingAudioLabel, ELEMENT_WAIT_LONGER_TIME);
-    await this.waitForSelector(e.isTalking);
+    await this.hasElement(e.unmuteMicButton);
+    if (shouldUnmute) {
+      await this.waitAndClick(e.unmuteMicButton);
+      await this.hasElement(e.muteMicButton);
+      await this.checkUserTalkingIndicator();
+    }
   }
 
   async leaveAudio() {
     await this.waitAndClick(e.audioDropdownMenu);
     await this.waitAndClick(e.leaveAudio);
-    await this.waitForSelector(e.joinAudio);
+    await this.hasElement(e.joinAudio, 'should display the join audio button');
   }
 
   async logoutFromMeeting() {
-    await this.waitAndClick(e.optionsButton);
-    await this.waitAndClick(e.logout);
+    const { directLeaveButton } = this.settings;
+
+    if (directLeaveButton) {
+      await this.waitAndClick(e.leaveMeetingDropdown);
+      await this.waitAndClick(e.directLogoutButton);
+    } else {
+      await this.waitAndClick(e.optionsButton);
+      await this.waitAndClick(e.optionsLogoutButton);
+    }
   }
 
   async shareWebcam(shouldConfirmSharing = true, videoPreviewTimeout = ELEMENT_WAIT_TIME) {
-    const { webcamSharingEnabled } = getSettings();
+    const { webcamSharingEnabled } = this.settings || await generateSettingsData(this.page);
+
     test.fail(!webcamSharingEnabled, 'Webcam sharing is disabled');
 
+    if(!webcamSharingEnabled) {
+      return this.wasRemoved(e.joinVideo, 'should not display the join video button')
+    }
     await this.waitAndClick(e.joinVideo);
     if (shouldConfirmSharing) {
       await this.bringToFront();
-      await this.waitForSelector(e.videoPreview, videoPreviewTimeout);
+      await this.hasElement(e.webcamMirroredVideoPreview, 'should display the video preview when sharing webcam ', videoPreviewTimeout);
       await this.waitAndClick(e.startSharingWebcam);
     }
-    await this.waitForSelector(e.webcamContainer, VIDEO_LOADING_WAIT_TIME);
+    await this.waitForSelector(e.webcamMirroredVideoContainer, VIDEO_LOADING_WAIT_TIME);
     await this.waitForSelector(e.leaveVideo, VIDEO_LOADING_WAIT_TIME);
-    await this.wasRemoved(e.webcamConnecting);
+    await this.wasRemoved(e.webcamConnecting, VIDEO_LOADING_WAIT_TIME);
   }
 
-  getLocator(selector) {
-    return this.page.locator(selector);
+  getLocator(selector, options = {}) {
+    return this.page.locator(selector, options);
+  }
+
+  getVisibleLocator(selector) {
+    return this.getLocator(`${selector}:visible`);
   }
 
   getLocatorByIndex(selector, index) {
@@ -200,14 +161,23 @@ class Page {
     return locator.count();
   }
 
-  async getCopiedText(context) {
-    await context.grantPermissions(['clipboard-write', 'clipboard-read'], { origin: process.env.BBB_URL });
+  async grantClipboardPermissions() {
+    console.log('==> Granting clipboard permissions');
+    await this.context.grantPermissions(['clipboard-write', 'clipboard-read'], { origin: process.env.BBB_URL });
+  }
+
+  async getCopiedText() {
     return this.page.evaluate(async () => navigator.clipboard.readText());
   }
 
   async closeAudioModal() {
-    await this.waitForSelector(e.audioModal, ELEMENT_WAIT_LONGER_TIME);
+    await this.hasElement(e.audioModal, 'should display the audio modal', ELEMENT_WAIT_EXTRA_LONG_TIME);
     await this.waitAndClick(e.closeModal);
+  }
+
+  async closeRecordingModal() {
+    await this.waitForSelector(e.simpleModal, ELEMENT_WAIT_LONGER_TIME);
+    await this.waitAndClick(e.confirmRecording);
   }
 
   async waitForSelector(selector, timeout = ELEMENT_WAIT_TIME) {
@@ -233,8 +203,13 @@ class Page {
 
   async type(selector, text) {
     const handle = this.getLocator(selector);
-    await handle.focus();
+    //await handle.focus();
     await handle.type(text, { timeout: ELEMENT_WAIT_TIME });
+  }
+
+  async fill(selector, text) {
+    const locator = this.getLocator(selector);
+    await locator.fill(text);
   }
 
   async waitAndClickElement(element, index = 0, timeout = ELEMENT_WAIT_TIME) {
@@ -250,17 +225,26 @@ class Page {
     await this.page.click(selector, { timeout });
   }
 
+  async getByLabelAndClick(label, timeout = ELEMENT_WAIT_TIME) {
+    await this.page.getByLabel(label).first().click({ timeout });
+  }
+
   async clickOnLocator(locator, timeout = ELEMENT_WAIT_TIME) {
     await locator.click({ timeout });
+  }
+
+  async checkUserTalkingIndicator() {
+    const isTalkingLocator = await this.page.locator(e.isTalking).locator(`:text-is("${this.username}")`);
+    await expect(isTalkingLocator, `should display the "${this.username}" user's talking indicator to himself`).toBeVisible();
   }
 
   async checkElement(selector, index = 0) {
     return this.page.evaluate(checkElement, [selector, index]);
   }
 
-  async wasRemoved(selector, timeout = ELEMENT_WAIT_TIME) {
+  async wasRemoved(selector, description, timeout = ELEMENT_WAIT_TIME) {
     const locator = this.getLocator(selector);
-    await expect(locator).toBeHidden({ timeout });
+    await expect(locator, description).toBeHidden({ timeout });
   }
 
   async wasNthElementRemoved(selector, count, timeout = ELEMENT_WAIT_TIME) {
@@ -268,29 +252,29 @@ class Page {
     await expect(locator).toBeHidden({ timeout });
   }
 
-  async hasElement(selector, timeout = ELEMENT_WAIT_TIME) {
+  async hasElement(selector, description, timeout = ELEMENT_WAIT_TIME) {
     const locator = this.getLocator(selector);
-    await expect(locator).toBeVisible({ timeout });
+    await expect(locator, description).toBeVisible({ timeout });
   }
 
-  async hasNElements(selector, count, timeout = ELEMENT_WAIT_TIME) {
+  async hasNElements(selector, count, description, timeout = ELEMENT_WAIT_TIME) {
     const locator = this.getLocator(':nth-match(' + selector + ',' + count + ')');
-    await expect(locator).toBeVisible({ timeout });
+    await expect(locator, description).toBeVisible({ timeout });
   }
 
-  async hasElementDisabled(selector, timeout = ELEMENT_WAIT_TIME) {
+  async hasElementDisabled(selector, description, timeout = ELEMENT_WAIT_TIME) {
     const locator = this.getLocator(selector);
-    await expect(locator).toBeDisabled({ timeout });
+    await expect(locator, description).toBeDisabled({ timeout });
   }
 
-  async hasElementEnabled(selector, timeout = ELEMENT_WAIT_TIME) {
+  async hasElementEnabled(selector, description, timeout = ELEMENT_WAIT_TIME) {
     const locator = this.getLocator(`${selector}:not([disabled])`);
-    await expect(locator).toBeEnabled({ timeout });
+    await expect(locator, description).toBeEnabled({ timeout });
   }
 
-  async hasText(selector, text, timeout = ELEMENT_WAIT_TIME) {
+  async hasText(selector, text, description, timeout = ELEMENT_WAIT_TIME) {
     const locator = this.getLocator(selector).first();
-    await expect(locator).toContainText(text, { timeout });
+    await expect(locator, description).toContainText(text, { timeout });
   }
 
   async haveTitle(title) {
@@ -317,6 +301,10 @@ class Page {
     await this.getLocator(selector).dragTo(this.page.locator(position), { timeout: ELEMENT_WAIT_TIME });
   }
 
+  async hoverElement(selector) {
+    await this.getLocator(selector).hover();
+  }
+
   async dragAndDropWebcams(position) {
     await this.getLocator(e.webcamContainer).first().hover({ timeout: 5000 });
     await this.page.mouse.down();
@@ -325,14 +313,19 @@ class Page {
     await this.page.mouse.up();
   }
 
-  async checkElementCount(selector, count) {
-    const locator = await this.page.locator(selector);
-    await expect(locator).toHaveCount(count);
+  async hasElementCount(selector, count, description) {
+    const locator = await this.getVisibleLocator(selector);
+    await expect(locator, description).toHaveCount(count, { timeout: ELEMENT_WAIT_TIME });
   }
 
-  async hasValue(selector, value) {
+  async hasHiddenElementCount(selector, count, description) {
+    const locator = await this.getLocator(selector);
+    await expect(locator, description).toHaveCount(count, { timeout: ELEMENT_WAIT_TIME });
+  }
+
+  async hasValue(selector, value, description) {
     const locator = await this.page.locator(selector);
-    await expect(locator).toHaveValue(value);
+    await expect(locator, description).toHaveValue(value);
   }
 
   async backgroundColorTest(selector, color) {
@@ -349,9 +342,10 @@ class Page {
 
   async comparingSelectorsBackgroundColor(selector1, selector2) {
     const getBackgroundColorComputed = (locator) => locator.evaluate((elem) => getComputedStyle(elem).backgroundColor);
-    const avatarInToastElementColor = this.page.locator(selector1);
-    const avatarInUserListColor = this.page.locator(selector2);
-    await expect(getBackgroundColorComputed(avatarInToastElementColor)).toStrictEqual(getBackgroundColorComputed(avatarInUserListColor));
+    const avatarInToastElementColor = this.getLocator(selector1);
+    const avatarInUserListColor = this.getLocator(selector2);
+    await expect(await getBackgroundColorComputed(avatarInToastElementColor))
+      .toStrictEqual(await getBackgroundColorComputed(avatarInUserListColor));
   }
 
   async reloadPage() {
@@ -360,6 +354,28 @@ class Page {
 
   async selectSlide(slideOption, timeout = ELEMENT_WAIT_TIME) {
     await this.page.locator(e.skipSlide).selectOption({ label: slideOption }, { timeout });
+  }
+
+  async closeAllToastNotifications() {
+    const toastNotificationElement = this.getLocator(e.toastContainer);
+    while (await toastNotificationElement.count() > 0) {
+      try {
+        await toastNotificationElement.first().click({ timeout: ELEMENT_WAIT_TIME });
+        await helpers.sleep(1500);  // expected animation time for toast notification to disappear
+      } catch (error) {
+        console.log('not able to close the toast notification');
+      }
+    }
+    await this.hasElementCount(e.toastContainer, 0, 'should not display any toast notification');
+  }
+
+  async getYoutubeFrame() {
+    await this.waitForSelector(e.youtubeFrame);
+    const iframeElement = await this.getLocator('iframe').elementHandle();
+    const frame = await iframeElement.contentFrame();
+    await frame.waitForURL(/youtube/, { timeout: ELEMENT_WAIT_TIME });
+    const ytFrame = new Page(this.page.browser, frame);
+    return ytFrame;
   }
 }
 

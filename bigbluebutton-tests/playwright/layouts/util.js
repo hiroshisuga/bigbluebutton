@@ -11,17 +11,36 @@ async function reopenChatSidebar(page) {
   }
 }
 
-async function checkScreenshots(layoutTest, maskedSelectors, screenshotName, screenshotNumber) {
-  const modPageWebcamsLocator = layoutTest.modPage.getLocator(maskedSelectors);
-  await expect(layoutTest.modPage.page).toHaveScreenshot(`moderator-${screenshotName}${screenshotNumber ? '-' + screenshotNumber : ''}.png`, {
-    mask: [modPageWebcamsLocator],
+async function checkScreenshots(layoutTest, description, maskedSelectors, screenshotName, screenshotNumber) {
+  const getMaskedLocators = (page) => Array.isArray(maskedSelectors)
+  ? maskedSelectors.map(selector => page.getLocator(selector))
+  : [page.getLocator(maskedSelectors)];
+
+  const modPageMaskedSelectors = getMaskedLocators(layoutTest.modPage);
+  await expect(layoutTest.modPage.page, description).toHaveScreenshot(`moderator-${screenshotName}${screenshotNumber ? '-' + screenshotNumber : ''}.png`, {
+    mask: modPageMaskedSelectors,
   });
 
-  const userWebcamsLocator = layoutTest.userPage.getLocator(maskedSelectors);
-  await expect(layoutTest.userPage.page).toHaveScreenshot(`user-${screenshotName}${screenshotNumber ? '-' + screenshotNumber : ''}.png`, {
-    mask: [userWebcamsLocator],
+  const userPageMaskedSelectors = getMaskedLocators(layoutTest.userPage);
+  await expect(layoutTest.userPage.page, description).toHaveScreenshot(`user-${screenshotName}${screenshotNumber ? '-' + screenshotNumber : ''}.png`, {
+    mask: userPageMaskedSelectors,
   });
+}
+
+async function checkDefaultLocationReset(test) {
+  await test.getLocator(e.webcamContainer).first().hover({ timeout: 5000 });
+  await test.page.mouse.down();
+  await test.getLocator(e.whiteboard).hover({ timeout: 5000 });
+  
+  // checking all dropAreas being displayed
+  await test.hasElement(e.dropAreaBottom);
+  await test.hasElement(e.dropAreaLeft);
+  await test.hasElement(e.dropAreaRight);
+  await test.hasElement(e.dropAreaTop);
+  await test.hasElement(e.dropAreaSidebarBottom);
+  await test.page.mouse.up();
 }
 
 exports.reopenChatSidebar = reopenChatSidebar;
 exports.checkScreenshots = checkScreenshots;
+exports.checkDefaultLocationReset = checkDefaultLocationReset;

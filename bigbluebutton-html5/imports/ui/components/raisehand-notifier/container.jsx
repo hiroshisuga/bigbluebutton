@@ -1,48 +1,63 @@
-import React, { useContext } from 'react';
-import { withTracker } from 'meteor/react-meteor-data';
-import Auth from '/imports/ui/services/auth';
-import Users from '/imports/api/users';
-import Settings from '/imports/ui/services/settings';
-import { UsersContext } from '/imports/ui/components/components-data/users-context/context';
-import { makeCall } from '/imports/ui/services/api';
+import React from 'react';
+import { useMutation } from '@apollo/client';
 import RaiseHandNotifier from './component';
-
-const ROLE_VIEWER = Meteor.settings.public.user.role_viewer;
+import { SET_RAISE_HAND } from '/imports/ui/core/graphql/mutations/userMutations';
+import useCurrentUser from '/imports/ui/core/hooks/useCurrentUser';
+import { RAISED_HAND_USERS } from './queries';
+import logger from '/imports/startup/client/logger';
+import useDeduplicatedSubscription from '../../core/hooks/useDeduplicatedSubscription';
+import useSettings from '/imports/ui/services/settings/hooks/useSettings';
+import { SETTINGS } from '/imports/ui/services/settings/enums';
 
 const StatusNotifierContainer = (props) => {
-  const usingUsersContext = useContext(UsersContext);
-  const { users } = usingUsersContext;
-  const currentUser = users[Auth.meetingID][Auth.userID];
-  const isViewer = currentUser.role === ROLE_VIEWER;
-  const isPresenter = currentUser.presenter;
+  const { data: currentUserData } = useCurrentUser((user) => ({
+    presenter: user.presenter,
+    isModerator: user.isModerator,
+  }));
+  const isViewer = !currentUserData?.isModerator;
+  const isPresenter = currentUserData?.presenter;
+
+  const {
+    data: usersData,
+    error: usersError,
+  } = useDeduplicatedSubscription(RAISED_HAND_USERS);
+  const raiseHandUsers = usersData?.user || [];
+
+  if (usersError) {
+    logger.error({
+      logCode: 'raisehand_notifier_container_subscription_error',
+      extraInfo: { usersError },
+    }, 'Error on requesting raise hand data');
+  }
+
+  const [setRaiseHand] = useMutation(SET_RAISE_HAND);
+
+  const lowerUserHands = (userId) => {
+    setRaiseHand({
+      variables: {
+        userId,
+        raiseHand: false,
+      },
+    });
+  };
+
+  const {
+    raiseHandAudioAlerts,
+    raiseHandPushAlerts,
+  } = useSettings(SETTINGS.APPLICATION);
+
   return (
     <RaiseHandNotifier {...{
       ...props,
+      raiseHandAudioAlert: raiseHandAudioAlerts,
+      raiseHandPushAlert: raiseHandPushAlerts,
       isViewer,
       isPresenter,
+      lowerUserHands,
+      raiseHandUsers,
     }}
     />
   );
 };
 
-export default withTracker(() => {
-  const AppSettings = Settings.application;
-  const raiseHandUsers = Users.find({
-    meetingId: Auth.meetingID,
-    raiseHand: true,
-    userId: { $ne: Auth.userID },
-  }, {
-    fields: {
-      raiseHandTime: 1, raiseHand: 1, userId: 1, name: 1, color: 1, role: 1, avatar: 1,
-    },
-    sort: { raiseHandTime: 1 },
-  }).fetch();
-  const lowerUserHands = (userId) => makeCall('changeRaiseHand', false, userId);
-
-  return {
-    lowerUserHands,
-    raiseHandUsers,
-    raiseHandAudioAlert: AppSettings.raiseHandAudioAlerts,
-    raiseHandPushAlert: AppSettings.raiseHandPushAlerts,
-  };
-})(StatusNotifierContainer);
+export default StatusNotifierContainer;

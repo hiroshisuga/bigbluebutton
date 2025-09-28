@@ -1,41 +1,56 @@
 package writer
 
 import (
-	"context"
-	log "github.com/sirupsen/logrus"
+	"bytes"
+	"encoding/json"
 	"sync"
 
-	"nhooyr.io/websocket"
-	"nhooyr.io/websocket/wsjson"
+	"bbb-graphql-middleware/internal/common"
+
+	"github.com/coder/websocket"
 )
 
-func BrowserConnectionWriter(browserConnectionId string, ctx context.Context, c *websocket.Conn, toBrowserChannel chan interface{}, wg *sync.WaitGroup) {
-	log := log.WithField("_routine", "websocketConnectionWriter").WithField("browserConnectionId", browserConnectionId)
-
+func BrowserConnectionWriter(
+	browserConnection *common.BrowserConnection,
+	wg *sync.WaitGroup,
+) {
+	defer browserConnection.Logger.Debugf("finished")
+	browserConnection.Logger.Debugf("starting")
 	defer wg.Done()
-	defer log.Printf("finished")
 
 RangeLoop:
 	for {
 		select {
-		case <-ctx.Done():
+		case <-browserConnection.Context.Done():
+			browserConnection.Logger.Debug("Browser context cancelled.")
 			break RangeLoop
-		case toBrowserMessage := <-toBrowserChannel:
+		case toBrowserMessage := <-browserConnection.FromHasuraToBrowserChannel.ReceiveChannel():
 			{
-				var toBrowserMessageAsMap = toBrowserMessage.(map[string]interface{})
+				if toBrowserMessage == nil {
+					if browserConnection.FromHasuraToBrowserChannel.Closed() {
+						break RangeLoop
+					}
+					continue
+				}
 
-				log.Tracef("sending to browser: %v", toBrowserMessage)
-				err := wsjson.Write(ctx, c, toBrowserMessage)
+				browserConnection.Logger.Tracef("sending to browser: %s", string(toBrowserMessage))
+				err := browserConnection.Websocket.Write(browserConnection.Context, websocket.MessageText, toBrowserMessage)
 				if err != nil {
-					log.Errorf("error on write (browser is disconnected): %v", err)
+					browserConnection.Logger.Debugf("Browser is disconnected, skipping writing of ws message: %v", err)
 					return
 				}
 
 				// After the error is sent to client, close its connection
 				// Authentication hook unauthorized this request
-				if toBrowserMessageAsMap["type"] == "connection_error" {
-					var payloadAsString = toBrowserMessageAsMap["payload"].(string)
-					c.Close(websocket.StatusInternalError, payloadAsString)
+				if bytes.Contains(toBrowserMessage, []byte("connection_error")) {
+					type HasuraMessage struct {
+						Type string `json:"type"`
+					}
+					var hasuraMessage HasuraMessage
+					_ = json.Unmarshal(toBrowserMessage, &hasuraMessage)
+					if hasuraMessage.Type == "connection_error" {
+						_ = browserConnection.Websocket.Close(websocket.StatusInternalError, string(toBrowserMessage))
+					}
 				}
 			}
 		}

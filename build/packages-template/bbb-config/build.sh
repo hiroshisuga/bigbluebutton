@@ -2,13 +2,6 @@
 
 TARGET=`basename $(pwd)`
 
-# inject dependency to bigbluebutton.target
-for unit in freeswitch nginx redis-server; do
-  mkdir -p "staging/usr/lib/systemd/system/${unit}.service.d"
-  cp bigbluebutton.conf "staging/usr/lib/systemd/system/${unit}.service.d/"
-done
-
-
 PACKAGE=$(echo $TARGET | cut -d'_' -f1)
 VERSION=$(echo $TARGET | cut -d'_' -f2)
 DISTRO=$(echo $TARGET | cut -d'_' -f3)
@@ -56,7 +49,15 @@ mkdir -p staging/usr/share/bigbluebutton/nginx
 
 cp include_default.nginx staging/usr/share/bigbluebutton/
 
+cp plugins-assets-cors.nginx staging/usr/share/bigbluebutton/nginx/
+
 cp bigbluebutton.target staging/usr/lib/systemd/system/
+
+# inject dependency to bigbluebutton.target
+for unit in freeswitch nginx redis-server postgresql; do
+  mkdir -p "staging/usr/lib/systemd/system/${unit}.service.d"
+  cp bigbluebutton.conf "staging/usr/lib/systemd/system/${unit}.service.d/"
+done
 
 . ./opts-$DISTRO.sh
 

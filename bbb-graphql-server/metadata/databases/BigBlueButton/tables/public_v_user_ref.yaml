@@ -12,27 +12,37 @@ select_permissions:
       columns:
         - authed
         - avatar
+        - away
         - banned
+        - captionLocale
         - clientType
         - color
-        - emoji
+        - disconnected
+        - expired
         - extId
         - guest
         - guestStatus
         - hasDrawPermissionOnCurrentPage
         - isDialIn
         - isModerator
-        - isOnline
+        - currentlyInMeeting
         - joined
-        - disconnected
         - locked
         - loggedOut
         - mobile
         - name
+        - nameSortable
+        - firstName
+        - firstNameSortable
+        - lastName
+        - lastNameSortable
         - pinned
         - presenter
+        - raiseHand
+        - reactionEmoji
         - registeredOn
         - role
+        - speechLocale
         - userId
       filter:
         meetingId:

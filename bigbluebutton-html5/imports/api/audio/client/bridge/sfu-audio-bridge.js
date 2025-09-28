@@ -7,7 +7,7 @@ import {
   fetchWebRTCMappedStunTurnServers,
   getMappedFallbackStun,
 } from '/imports/utils/fetchStunTurnServers';
-import getFromMeetingSettings from '/imports/ui/services/meeting-settings';
+import getFromUserSettings from '/imports/ui/services/users-settings';
 import browserInfo from '/imports/utils/browserInfo';
 import {
   getAudioSessionNumber,
@@ -17,19 +17,9 @@ import {
 } from '/imports/api/audio/client/bridge/service';
 import { shouldForceRelay } from '/imports/ui/services/bbb-webrtc-sfu/utils';
 
-const SFU_URL = Meteor.settings.public.kurento.wsUrl;
-const DEFAULT_LISTENONLY_MEDIA_SERVER = Meteor.settings.public.kurento.listenOnlyMediaServer;
-const SIGNAL_CANDIDATES = Meteor.settings.public.kurento.signalCandidates;
-const TRACE_LOGS = Meteor.settings.public.kurento.traceLogs;
-const GATHERING_TIMEOUT = Meteor.settings.public.kurento.gatheringTimeout;
-const MEDIA = Meteor.settings.public.media;
-const DEFAULT_FULLAUDIO_MEDIA_SERVER = MEDIA.audio.fullAudioMediaServer;
-const LISTEN_ONLY_OFFERING = MEDIA.listenOnlyOffering;
-const MEDIA_TAG = MEDIA.mediaTag.replace(/#/g, '');
-const RECONNECT_TIMEOUT_MS = MEDIA.listenOnlyCallTimeout || 15000;
-const { audio: NETWORK_PRIORITY } = MEDIA.networkPriorities || {};
 const SENDRECV_ROLE = 'sendrecv';
 const RECV_ROLE = 'recv';
+const PASSIVE_SENDRECV_ROLE = 'passive-sendrecv';
 const BRIDGE_NAME = 'fullaudio';
 const IS_CHROME = browserInfo.isChrome;
 
@@ -44,6 +34,10 @@ const errorCodeMap = {
   1307: 1007,
 };
 
+// Error codes that are prone to a retry according to RETRY_THROUGH_RELAY
+const RTC_CONNECTIVITY_ERRORS = [1007, 1010];
+const RETRYABLE_ERRORS = [...RTC_CONNECTIVITY_ERRORS, 1002, 1005];
+
 const mapErrorCode = (error) => {
   const { errorCode } = error;
   const mappedErrorCode = errorCodeMap[errorCode];
@@ -54,20 +48,39 @@ const mapErrorCode = (error) => {
 };
 
 const getMediaServerAdapter = (listenOnly = false) => {
+  const SETTINGS = window.meetingClientSettings;
+  const MEDIA = SETTINGS.public.media;
+  const DEFAULT_LISTENONLY_MEDIA_SERVER = SETTINGS.public.kurento.listenOnlyMediaServer;
+  const DEFAULT_FULLAUDIO_MEDIA_SERVER = MEDIA.audio.fullAudioMediaServer;
+
   if (listenOnly) {
-    return getFromMeetingSettings(
-      'media-server-listenonly',
-      DEFAULT_LISTENONLY_MEDIA_SERVER,
-    );
+    return DEFAULT_LISTENONLY_MEDIA_SERVER;
   }
 
-  return getFromMeetingSettings(
-    'media-server-fullaudio',
-    DEFAULT_FULLAUDIO_MEDIA_SERVER,
+  return DEFAULT_FULLAUDIO_MEDIA_SERVER;
+};
+
+const isTransparentListenOnlyEnabled = () => {
+  const SETTINGS = window.meetingClientSettings;
+  const MEDIA = SETTINGS.public.media;
+  const TRANSPARENT_LISTEN_ONLY = MEDIA.transparentListenOnly;
+  return getFromUserSettings(
+    'bbb_transparent_listen_only',
+    TRANSPARENT_LISTEN_ONLY,
   );
 };
 
 export default class SFUAudioBridge extends BaseAudioBridge {
+  static getOfferingRole(isListenOnly) {
+    const SETTINGS = window.meetingClientSettings;
+    const MEDIA = SETTINGS.public.media;
+    const LISTEN_ONLY_OFFERING = MEDIA.listenOnlyOffering;
+    const FULLAUDIO_OFFERING = MEDIA.fullAudioOffering;
+    return isListenOnly && !isTransparentListenOnlyEnabled()
+      ? LISTEN_ONLY_OFFERING
+      : (!isTransparentListenOnlyEnabled() && FULLAUDIO_OFFERING);
+  }
+
   constructor(userData) {
     super();
     this.userId = userData.userId;
@@ -76,12 +89,26 @@ export default class SFUAudioBridge extends BaseAudioBridge {
     this.broker = null;
     this.reconnecting = false;
     this.iceServers = [];
-    this.inEchoTest = false;
     this.bridgeName = BRIDGE_NAME;
+    this.isListenOnly = false;
+    this.bypassGUM = false;
+    this.supportsTransparentListenOnly = isTransparentListenOnlyEnabled;
+
+    this.handleTermination = this.handleTermination.bind(this);
+  }
+
+  set reconnecting(value) {
+    this._reconnecting = value;
+  }
+
+  get reconnecting() {
+    return this._reconnecting;
   }
 
   get inputStream() {
-    if (this.broker) {
+    // Only return the stream if the broker is active and the role isn't recvonly
+    // Input stream == actual input-capturing stream, not the one that's being played
+    if (this.broker && this.role !== RECV_ROLE) {
       return this.broker.getLocalStream();
     }
 
@@ -90,6 +117,18 @@ export default class SFUAudioBridge extends BaseAudioBridge {
 
   get role() {
     return this.broker?.role;
+  }
+
+  getBrokerRole({ hasInputStream }) {
+    if (this.isListenOnly) {
+      return isTransparentListenOnlyEnabled()
+        ? PASSIVE_SENDRECV_ROLE
+        : RECV_ROLE;
+    }
+
+    if (this.bypassGUM && !hasInputStream) return PASSIVE_SENDRECV_ROLE;
+
+    return SENDRECV_ROLE;
   }
 
   setInputStream(stream) {
@@ -111,73 +150,128 @@ export default class SFUAudioBridge extends BaseAudioBridge {
     return doGUM(constraints, true);
   }
 
-  handleTermination() {
-    return this.callback({ status: this.baseCallStates.ended, bridge: this.bridgeName });
+  setConnectionTimeout() {
+    if (this.connectionTimeout) this.clearConnectionTimeout();
+
+    const SETTINGS = window.meetingClientSettings;
+    const MEDIA = SETTINGS.public.media;
+    const CONNECTION_TIMEOUT_MS = MEDIA.listenOnlyCallTimeout || 15000;
+
+    const createTimeout = (resolve, reject) => {
+      this.connectionTimeout = setTimeout(() => {
+        const error = new Error(`ICE negotiation timeout after ${CONNECTION_TIMEOUT_MS / 1000}s`);
+        error.errorCode = 1010;
+        // Duplicating key-vals because I can'decide settle on an error pattern - prlanzarin again
+        error.errorCause = error.message;
+        error.errorMessage = error.message;
+        this.handleBrokerFailure(error).then(resolve).catch(reject);
+      }, CONNECTION_TIMEOUT_MS);
+    };
+
+    this._timeoutPromise = new Promise((resolve, reject) => {
+      createTimeout(resolve, reject);
+    });
+
+    return this._timeoutPromise;
   }
 
-  clearReconnectionTimeout() {
-    this.reconnecting = false;
-    if (this.reconnectionTimeout) {
-      clearTimeout(this.reconnectionTimeout);
-      this.reconnectionTimeout = null;
+  clearConnectionTimeout() {
+    if (this.connectionTimeout) {
+      clearTimeout(this.connectionTimeout);
+      this.connectionTimeout = null;
+    }
+
+    if (this._timeoutPromise) {
+      this._timeoutPromise = null;
     }
   }
 
-  reconnect() {
-    this.broker.stop();
+  dispatchAutoplayHandlingEvent(mediaElement) {
+    const tagFailedEvent = new CustomEvent('audioPlayFailed', {
+      detail: { mediaElement },
+    });
+    window.dispatchEvent(tagFailedEvent);
+    this.callback({ status: this.baseCallStates.autoplayBlocked, bridge: this.bridgeName });
+  }
+
+  reconnect(options = {}) {
+    // If broker hasn't started, override termination handler so the ended callback
+    // doesn't get triggered - this is a retry attempt and the user shouldn't be
+    // terminated yet
+    if (!this.broker?.started) {
+      this.broker.onended = () => {};
+    }
+
+    // Notify the user that the bridge is reconnecting - this can be read as
+    // a re-connect attempt or a retry attempt (when join fails)
     this.callback({ status: this.baseCallStates.reconnecting, bridge: this.bridgeName });
     this.reconnecting = true;
-    // Set up a reconnectionTimeout in case the server is unresponsive
-    // for some reason. If it gets triggered, end the session and stop
-    // trying to reconnect
-    this.reconnectionTimeout = setTimeout(() => {
-      this.callback({
-        status: this.baseCallStates.failed,
-        error: 1010,
-        bridgeError: 'Reconnection timeout',
-        bridge: this.bridgeName,
-      });
-      this.broker.stop();
-      this.clearReconnectionTimeout();
-    }, RECONNECT_TIMEOUT_MS);
 
-    this.joinAudio({ isListenOnly: this.isListenOnly }, this.callback).then(
-      () => this.clearReconnectionTimeout(),
-    ).catch((error) => {
-      // Error handling is a no-op because it will be "handled" in handleBrokerFailure
-      logger.debug({
-        logCode: 'sfuaudio_reconnect_failed',
-        extraInfo: {
-          errorMessage: error.errorMessage,
-          reconnecting: this.reconnecting,
-          bridge: this.bridgeName,
-          role: this.role,
-        },
-      }, 'SFU audio reconnect failed');
-    });
+    if (this.broker) this.broker.stop();
+
+    return this._startBroker({ isListenOnly: this.isListenOnly, ...options })
+      .catch((error) => {
+        // Error handling is a no-op because it will be "handled" in handleBrokerFailure
+        logger.debug({
+          logCode: 'sfuaudio_reconnect_failed',
+          extraInfo: {
+            errorMessage: error.errorMessage,
+            reconnecting: this.reconnecting,
+            bridge: this.bridgeName,
+            role: this.role,
+          },
+        }, 'SFU audio reconnect failed');
+
+        throw error;
+      });
   }
 
   handleBrokerFailure(error) {
     return new Promise((resolve, reject) => {
+      this.clearConnectionTimeout();
       mapErrorCode(error);
       const { errorMessage, errorCause, errorCode } = error;
+      const SETTINGS = window.meetingClientSettings;
+      const MEDIA = SETTINGS.public.media;
+      const RETRY_THROUGH_RELAY = MEDIA.audio.retryThroughRelay || false;
 
-      if (this.broker.started && !this.reconnecting) {
-        logger.error({
-          logCode: 'sfuaudio_error_try_to_reconnect',
-          extraInfo: {
-            errorMessage,
-            errorCode,
-            errorCause,
-            bridge: this.bridgeName,
-            role: this.role,
-          },
-        }, 'SFU audio failed, try to reconnect');
-        this.reconnect();
-        return resolve();
+      if (!this.reconnecting) {
+        if (this.broker?.started) {
+          logger.error({
+            logCode: 'sfuaudio_error_try_to_reconnect',
+            extraInfo: {
+              errorMessage,
+              errorCode,
+              errorCause,
+              bridge: this.bridgeName,
+              role: this.role,
+            },
+          }, 'SFU audio failed, try to reconnect');
+
+          return this.reconnect().then(resolve).catch(reject);
+        }
+
+        if (RETRYABLE_ERRORS.includes(errorCode)) {
+          const forceRelay = RETRY_THROUGH_RELAY && RTC_CONNECTIVITY_ERRORS.includes(errorCode);
+          logger.error({
+            logCode: 'sfuaudio_error_retry',
+            extraInfo: {
+              errorMessage,
+              errorCode,
+              errorCause,
+              bridge: this.bridgeName,
+              role: this.role,
+              forceRelay,
+            },
+          }, `SFU audio failed to connect, retrying (relay=${forceRelay})`);
+
+          return this.reconnect({ forceRelay }).then(resolve).catch(reject);
+        }
       }
-      // Already tried reconnecting once OR the user handn't succesfully
-      // connected firsthand. Just finish the session and reject with error
+
+      // Already tried reconnecting once OR the user handn't successfully
+      // connected firsthand and retrying isn't an option. Finish the session
+      // and reject with the error
       logger.error({
         logCode: 'sfuaudio_error',
         extraInfo: {
@@ -189,8 +283,10 @@ export default class SFUAudioBridge extends BaseAudioBridge {
           role: this.role,
         },
       }, 'SFU audio failed');
-      this.clearReconnectionTimeout();
-      this.broker.stop();
+      this.clearConnectionTimeout();
+
+      if (this.broker) this.broker.stop();
+
       this.callback({
         status: this.baseCallStates.failed,
         error: errorCode,
@@ -201,23 +297,29 @@ export default class SFUAudioBridge extends BaseAudioBridge {
     });
   }
 
-  dispatchAutoplayHandlingEvent(mediaElement) {
-    const tagFailedEvent = new CustomEvent('audioPlayFailed', {
-      detail: { mediaElement },
-    });
-    window.dispatchEvent(tagFailedEvent);
-    this.callback({ status: this.baseCallStates.autoplayBlocked, bridge: this.bridgeName });
+  handleTermination() {
+    this.clearConnectionTimeout();
+
+    if (!this.reconnecting) {
+      this.callback({ status: this.baseCallStates.ended, bridge: this.bridgeName });
+    }
   }
 
   handleStart() {
+    const SETTINGS = window.meetingClientSettings;
+    const MEDIA = SETTINGS.public.media;
+    const MEDIA_TAG = MEDIA.mediaTag.replace(/#/g, '');
     const stream = this.broker.webRtcPeer.getRemoteStream();
     const mediaElement = document.getElementById(MEDIA_TAG);
 
-    return loadAndPlayMediaStream(stream, mediaElement, false).then(() => this
-      .callback({
+    return loadAndPlayMediaStream(stream, mediaElement, false).then(() => {
+      this.callback({
         status: this.baseCallStates.started,
         bridge: this.bridgeName,
-      })).catch((error) => {
+      });
+      this.clearConnectionTimeout();
+      this.reconnecting = false;
+    }).catch((error) => {
       // NotAllowedError equals autoplay issues, fire autoplay handling event.
       // This will be handled in audio-manager.
       if (error.name === 'NotAllowedError') {
@@ -230,6 +332,11 @@ export default class SFUAudioBridge extends BaseAudioBridge {
           },
         }, 'SFU audio media play failed due to autoplay error');
         this.dispatchAutoplayHandlingEvent(mediaElement);
+        // For connection purposes, this worked - the autoplay thing is a client
+        // side soft issue to be handled at the UI/UX level, not WebRTC/negotiation
+        // So: clear the connection timer
+        this.clearConnectionTimeout();
+        this.reconnecting = false;
       } else {
         const normalizedError = {
           errorCode: 1004,
@@ -247,54 +354,6 @@ export default class SFUAudioBridge extends BaseAudioBridge {
   }
 
   async _startBroker(options) {
-    return new Promise((resolve, reject) => {
-      try {
-        const { isListenOnly, extension, inputStream } = options;
-        this.inEchoTest = !!extension;
-        this.isListenOnly = isListenOnly;
-
-        const brokerOptions = {
-          clientSessionNumber: getAudioSessionNumber(),
-          extension,
-          iceServers: this.iceServers,
-          mediaServer: getMediaServerAdapter(isListenOnly),
-          constraints: getAudioConstraints({ deviceId: this.inputDeviceId }),
-          forceRelay: shouldForceRelay(),
-          stream: (inputStream && inputStream.active) ? inputStream : undefined,
-          offering: isListenOnly ? LISTEN_ONLY_OFFERING : true,
-          signalCandidates: SIGNAL_CANDIDATES,
-          traceLogs: TRACE_LOGS,
-          networkPriority: NETWORK_PRIORITY,
-          mediaStreamFactory: this.mediaStreamFactory,
-          gatheringTimeout: GATHERING_TIMEOUT,
-        };
-
-        this.broker = new AudioBroker(
-          Auth.authenticateURL(SFU_URL),
-          isListenOnly ? RECV_ROLE : SENDRECV_ROLE,
-          brokerOptions,
-        );
-
-        this.broker.onended = this.handleTermination.bind(this);
-        this.broker.onerror = (error) => {
-          this.handleBrokerFailure(error).catch(reject);
-        };
-        this.broker.onstart = () => {
-          this.handleStart().then(resolve).catch(reject);
-        };
-
-        this.broker.joinAudio().catch(reject);
-      } catch (error) {
-        logger.warn({ logCode: 'sfuaudio_bridge_broker_init_fail' },
-          'Problem when initializing SFU broker for fullaudio bridge');
-        reject(error);
-      }
-    });
-  }
-
-  async joinAudio(options, callback) {
-    this.callback = callback;
-
     try {
       this.iceServers = await fetchWebRTCMappedStunTurnServers(this.sessionToken);
     } catch (error) {
@@ -302,6 +361,97 @@ export default class SFUAudioBridge extends BaseAudioBridge {
         'SFU audio bridge failed to fetch STUN/TURN info, using default servers');
       this.iceServers = getMappedFallbackStun();
     }
+
+    return new Promise((resolve, reject) => {
+      const {
+        isListenOnly,
+        extension,
+        inputStream,
+        forceRelay: _forceRelay = false,
+        bypassGUM = false,
+      } = options;
+      const _reconnecting = this.reconnecting;
+
+      const SETTINGS = window.meetingClientSettings;
+      const MEDIA = SETTINGS.public.media;
+      const SIGNAL_CANDIDATES = SETTINGS.public.kurento.signalCandidates;
+      const SFU_URL = SETTINGS.public.kurento.wsUrl;
+      const TRACE_LOGS = SETTINGS.public.kurento.traceLogs;
+      const GATHERING_TIMEOUT = SETTINGS.public.kurento.gatheringTimeout;
+      const { audio: NETWORK_PRIORITY } = MEDIA.networkPriorities || {};
+      const {
+        enabled: RESTART_ICE = false,
+        retries: RESTART_ICE_RETRIES = 1,
+      } = SETTINGS.public.kurento?.restartIce?.audio || {};
+
+      const handleInitError = (_error) => {
+        mapErrorCode(_error);
+        if (!RETRYABLE_ERRORS.includes(_error?.errorCode) || _reconnecting) {
+          reject(_error);
+        }
+      };
+
+      try {
+        this.inEchoTest = !!extension;
+        this.isListenOnly = isListenOnly;
+        this.bypassGUM = bypassGUM;
+        const role = this.getBrokerRole({
+          hasInputStream: !!inputStream,
+        });
+
+        const brokerOptions = {
+          clientSessionNumber: getAudioSessionNumber(),
+          extension,
+          iceServers: this.iceServers,
+          mediaServer: getMediaServerAdapter(isListenOnly),
+          constraints: getAudioConstraints({ deviceId: this.inputDeviceId }),
+          forceRelay: _forceRelay || shouldForceRelay(),
+          stream: (inputStream && inputStream.active) ? inputStream : undefined,
+          offering: SFUAudioBridge.getOfferingRole(this.isListenOnly),
+          signalCandidates: SIGNAL_CANDIDATES,
+          traceLogs: TRACE_LOGS,
+          networkPriority: NETWORK_PRIORITY,
+          mediaStreamFactory: this.mediaStreamFactory,
+          gatheringTimeout: GATHERING_TIMEOUT,
+          transparentListenOnly: isTransparentListenOnlyEnabled(),
+          bypassGUM,
+          // ICE restart only works for publishers right now - recvonly full
+          // reconnection works ok without it.
+          restartIce: RESTART_ICE && !isListenOnly,
+          restartIceMaxRetries: RESTART_ICE_RETRIES,
+        };
+
+        this.broker = new AudioBroker(
+          Auth.authenticateURL(SFU_URL),
+          role,
+          brokerOptions,
+        );
+
+        this.broker.onended = this.handleTermination.bind(this);
+        this.broker.onerror = (error) => {
+          // Broker failures can be successfully handled if they're retryable
+          // and the attempt to reconnect is successful. In that case, this
+          // promise will resolve and the connection will be established
+          // normally
+          this.handleBrokerFailure(error).then(resolve).catch(reject);
+        };
+        this.broker.onstart = () => {
+          this.handleStart().then(resolve).catch(reject);
+        };
+
+        // Set up a connectionTimeout in case the server or network are botching
+        // negotiation or conn checks.
+        this.setConnectionTimeout().then(resolve).catch(reject);
+        this.broker.joinAudio().catch(handleInitError);
+      } catch (error) {
+        handleInitError(error);
+      }
+    });
+  }
+
+  async joinAudio(options, callback) {
+    this.callback = callback;
+    this.reconnecting = false;
 
     return this._startBroker(options);
   }
@@ -349,6 +499,13 @@ export default class SFUAudioBridge extends BaseAudioBridge {
       try {
         fetchWebRTCMappedStunTurnServers(this.sessionToken)
           .then((iceServers) => {
+            const SETTINGS = window.meetingClientSettings;
+            const MEDIA = SETTINGS.public.media;
+            const SFU_URL = SETTINGS.public.kurento.wsUrl;
+            const TRACE_LOGS = SETTINGS.public.kurento.traceLogs;
+            const GATHERING_TIMEOUT = SETTINGS.public.kurento.gatheringTimeout;
+            const LISTEN_ONLY_OFFERING = MEDIA.listenOnlyOffering;
+
             const options = {
               clientSessionNumber: getAudioSessionNumber(),
               iceServers,
@@ -388,9 +545,13 @@ export default class SFUAudioBridge extends BaseAudioBridge {
   }
 
   exitAudio() {
+    const SETTINGS = window.meetingClientSettings;
+    const MEDIA = SETTINGS.public.media;
+    const MEDIA_TAG = MEDIA.mediaTag.replace(/#/g, '');
     const mediaElement = document.getElementById(MEDIA_TAG);
 
-    this.clearReconnectionTimeout();
+    this.clearConnectionTimeout();
+    this.reconnecting = false;
 
     if (this.broker) {
       this.broker.stop();
@@ -405,5 +566,3 @@ export default class SFUAudioBridge extends BaseAudioBridge {
     return Promise.resolve();
   }
 }
-
-module.exports = SFUAudioBridge;

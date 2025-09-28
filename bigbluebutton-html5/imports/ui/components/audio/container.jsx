@@ -1,13 +1,9 @@
-import React, { PureComponent } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { withTracker } from 'meteor/react-meteor-data';
-import { Session } from 'meteor/session';
+import Session from '/imports/ui/services/storage/in-memory';
 import { injectIntl, defineMessages } from 'react-intl';
 import { range } from '/imports/utils/array-utils';
-import Auth from '/imports/ui/services/auth';
-import Breakouts from '/imports/api/breakouts';
-import AppService from '/imports/ui/components/app/service';
-import BreakoutsService from '/imports/ui/components/breakout-room/service';
+import { useMeetingIsBreakout } from '/imports/ui/components/app/service';
 import { notify } from '/imports/ui/services/notification';
 import getFromUserSettings from '/imports/ui/services/users-settings';
 import VideoPreviewContainer from '/imports/ui/components/video-preview/container';
@@ -15,16 +11,23 @@ import lockContextContainer from '/imports/ui/components/lock-viewers/context/co
 import {
   joinMicrophone,
   joinListenOnly,
-  didUserSelectedMicrophone,
-  didUserSelectedListenOnly,
 } from '/imports/ui/components/audio/audio-modal/service';
 
 import Service from './service';
 import AudioModalContainer from './audio-modal/container';
-import Settings from '/imports/ui/services/settings';
-
-const APP_CONFIG = Meteor.settings.public.app;
-const KURENTO_CONFIG = Meteor.settings.public.kurento;
+import useToggleVoice from './audio-graphql/hooks/useToggleVoice';
+import usePreviousValue from '/imports/ui/hooks/usePreviousValue';
+import useCurrentUser from '/imports/ui/core/hooks/useCurrentUser';
+import { toggleMuteMicrophone } from '/imports/ui/components/audio/audio-graphql/audio-controls/input-stream-live-selector/service';
+import useSettings from '../../services/settings/hooks/useSettings';
+import { SETTINGS } from '../../services/settings/enums';
+import { useStorageKey } from '../../services/storage/hooks';
+import useMeeting from '../../core/hooks/useMeeting';
+import useWhoIsUnmuted from '../../core/hooks/useWhoIsUnmuted';
+import AudioService, {
+  CLIENT_DID_USER_SELECT_MICROPHONE_KEY,
+  CLIENT_DID_USER_SELECT_LISTEN_ONLY_KEY,
+} from '/imports/ui/components/audio/service';
 
 const intlMessages = defineMessages({
   joinedAudio: {
@@ -65,93 +68,13 @@ const intlMessages = defineMessages({
   },
   BrowserNotSupported: {
     id: 'app.audioNotification.audioFailedError1003',
-    description: 'browser not supported error messsage',
+    description: 'browser not supported error message',
   },
   reconectingAsListener: {
     id: 'app.audioNotificaion.reconnectingAsListenOnly',
-    description: 'ice negociation error messsage',
+    description: 'ice negotiation error message',
   },
 });
-
-class AudioContainer extends PureComponent {
-  constructor(props) {
-    super(props);
-
-    this.init = props.init.bind(this);
-  }
-
-  componentDidMount() {
-    const { meetingIsBreakout } = this.props;
-
-    this.init().then(() => {
-      if (meetingIsBreakout && !Service.isUsingAudio()) {
-        this.joinAudio();
-      }
-    });
-  }
-
-  componentDidUpdate(prevProps) {
-    if (this.userIsReturningFromBreakoutRoom(prevProps)) {
-      this.joinAudio();
-    }
-  }
-
-  /**
-   * Helper function to determine wheter user is returning from breakout room
-   * to main room.
-   * @param  {Object} prevProps prevProps param from componentDidUpdate
-   * @return {boolean}           True if user is returning from breakout room
-   *                             to main room. False, otherwise.
-   */
-  userIsReturningFromBreakoutRoom(prevProps) {
-    const { hasBreakoutRooms } = this.props;
-    const { hasBreakoutRooms: hadBreakoutRooms } = prevProps;
-    return hadBreakoutRooms && !hasBreakoutRooms;
-  }
-
-  /**
-   * Helper function that join (or not) user in audio. If user previously
-   * selected microphone, it will automatically join mic (without audio modal).
-   * If user previously selected listen only option in audio modal, then it will
-   * automatically join listen only.
-   */
-  joinAudio() {
-    if (Service.isConnected()) return;
-
-    const {
-      userSelectedMicrophone,
-      userSelectedListenOnly,
-    } = this.props;
-
-    if (userSelectedMicrophone) {
-      joinMicrophone(true);
-      return;
-    }
-
-    if (userSelectedListenOnly) joinListenOnly();
-  }
-
-  render() {
-    const { isAudioModalOpen, setAudioModalIsOpen,
-            setVideoPreviewModalIsOpen, isVideoPreviewModalOpen } = this.props;
-    return <>
-      {isAudioModalOpen ? <AudioModalContainer 
-        {...{
-          priority: "low",
-          setIsOpen: setAudioModalIsOpen,
-          isOpen: isAudioModalOpen
-        }}
-      /> : null}
-      {isVideoPreviewModalOpen ? <VideoPreviewContainer 
-        {...{
-          priority: "low",
-          setIsOpen: setVideoPreviewModalIsOpen,
-          isOpen: isVideoPreviewModalOpen
-        }}
-      /> : null}
-    </>;
-  }
-}
 
 let didMountAutoJoin = false;
 
@@ -179,18 +102,59 @@ const messages = {
   },
 };
 
-export default lockContextContainer(injectIntl(withTracker(({ intl, userLocks, isAudioModalOpen, setAudioModalIsOpen,
-                          setVideoPreviewModalIsOpen, isVideoPreviewModalOpen }) => {
-  const { microphoneConstraints } = Settings.application;
+const AudioContainer = (props) => {
+  const {
+    isAudioModalOpen,
+    setAudioModalIsOpen,
+    setVideoPreviewModalIsOpen,
+    isVideoPreviewModalOpen,
+    intl,
+    userLocks,
+  } = props;
+
+  const APP_CONFIG = window.meetingClientSettings.public.app;
+  const KURENTO_CONFIG = window.meetingClientSettings.public.kurento;
+
   const autoJoin = getFromUserSettings('bbb_auto_join_audio', APP_CONFIG.autoJoin);
   const enableVideo = getFromUserSettings('bbb_enable_video', KURENTO_CONFIG.enableVideo);
   const autoShareWebcam = getFromUserSettings('bbb_auto_share_webcam', KURENTO_CONFIG.autoShareWebcam);
-  const { userWebcam, userMic } = userLocks;
+  const { userWebcam } = userLocks;
 
-  const userSelectedMicrophone = didUserSelectedMicrophone();
-  const userSelectedListenOnly = didUserSelectedListenOnly();
-  const meetingIsBreakout = AppService.meetingIsBreakout();
-  const hasBreakoutRooms = AppService.getBreakoutRooms().length > 0;
+  const prevProps = usePreviousValue(props);
+  const toggleVoice = useToggleVoice();
+  const userSelectedMicrophone = !!useStorageKey(CLIENT_DID_USER_SELECT_MICROPHONE_KEY, 'session');
+  const userSelectedListenOnly = !!useStorageKey(CLIENT_DID_USER_SELECT_LISTEN_ONLY_KEY, 'session');
+  const { microphoneConstraints } = useSettings(SETTINGS.APPLICATION);
+
+  const meetingIsBreakout = useMeetingIsBreakout();
+  const { data: meeting } = useMeeting((m) => ({
+    audioBridge: m.audioBridge,
+    voiceSettings: {
+      voiceConf: m?.voiceSettings?.voiceConf,
+      muteOnStart: m?.voiceSettings?.muteOnStart,
+    },
+  }));
+
+  const { data: currentUser } = useCurrentUser((u) => ({
+    userId: u.userId,
+    name: u.name,
+    speechLocale: u.speechLocale,
+    breakoutRoomsSummary: u.breakoutRoomsSummary,
+  }));
+
+  const hasBreakoutRooms = (currentUser?.breakoutRoomsSummary?.totalOfBreakoutRooms ?? 0) > 0;
+
+  // public.media.defaultFullAudioBridge/public.media.defaultListenOnlyBridge
+  // are legacy configs. They will be removed in the future. Use
+  // audioBridge (bbb-web, create) instead.
+  const {
+    defaultFullAudioBridge,
+    defaultListenOnlyBridge,
+  } = window.meetingClientSettings.public.media || {};
+  const bridges = {
+    fullAudioBridge: meeting?.audioBridge ?? defaultFullAudioBridge,
+    listenOnlyBridge: meeting?.audioBridge ?? defaultListenOnlyBridge,
+  };
   const openAudioModal = () => setAudioModalIsOpen(true);
 
   const openVideoPreviewModal = () => {
@@ -198,78 +162,145 @@ export default lockContextContainer(injectIntl(withTracker(({ intl, userLocks, i
     setVideoPreviewModalIsOpen(true);
   };
 
-  if (Service.isConnected() && !Service.isListenOnly()) {
-    Service.updateAudioConstraints(microphoneConstraints);
+  const init = async () => {
+    await Service.init(
+      messages,
+      intl,
+      toggleVoice,
+      currentUser?.speechLocale,
+      meeting?.voiceSettings?.voiceConf,
+      currentUser?.name,
+      bridges,
+    );
 
-    if (userMic && !Service.isMuted()) {
-      Service.toggleMuteMicrophone();
-      notify(intl.formatMessage(intlMessages.reconectingAsListener), 'info', 'volume_level_2');
-    }
-  }
-  const breakoutUserIsIn = BreakoutsService.getBreakoutUserIsIn(Auth.userID);
-  if(!!breakoutUserIsIn && !meetingIsBreakout) {
-    const userBreakout = Breakouts.find({id: breakoutUserIsIn.id})
-    userBreakout.observeChanges({
-      removed() {
-        // if the user joined a breakout room, the main room's audio was
-        // programmatically dropped to avoid interference. On breakout end,
-        // offer to rejoin main room audio only if the user is not in audio already
-        if (Service.isUsingAudio()
-          || userSelectedMicrophone
-          || userSelectedListenOnly) {
-          if (enableVideo && autoShareWebcam) {
-            openVideoPreviewModal();
-          }
-
-          return; 
-        }
-        setTimeout(() => {
-            openAudioModal();
-            if (enableVideo && autoShareWebcam) {
-              openVideoPreviewModal();
-            }
-          }, 0);
-      },
-    });
-  }
-
-  return {
-    hasBreakoutRooms,
-    meetingIsBreakout,
-    userSelectedMicrophone,
-    userSelectedListenOnly,
-    isAudioModalOpen, 
-    setAudioModalIsOpen,
-    init: async () => {
-      await Service.init(messages, intl);
-      const enableVideo = getFromUserSettings('bbb_enable_video', KURENTO_CONFIG.enableVideo);
-      const autoShareWebcam = getFromUserSettings('bbb_auto_share_webcam', KURENTO_CONFIG.autoShareWebcam);
-      if ((!autoJoin || didMountAutoJoin)) {
-        if (enableVideo && autoShareWebcam) {
-          openVideoPreviewModal();
-        }
-        return Promise.resolve(false);
-      }
-      Session.set('audioModalIsOpen', true);
+    if ((!autoJoin || didMountAutoJoin)) {
       if (enableVideo && autoShareWebcam) {
-        openAudioModal()
-        openVideoPreviewModal(); 
-        didMountAutoJoin = true;
-      } else if (!(
-        userSelectedMicrophone
-        && userSelectedListenOnly
-        && meetingIsBreakout)) {
-        openAudioModal();
-        didMountAutoJoin = true;
+        openVideoPreviewModal();
       }
-      return Promise.resolve(true);
-    },
+      return Promise.resolve(false);
+    }
+    Session.setItem('audioModalIsOpen', true);
+    if (enableVideo && autoShareWebcam) {
+      openAudioModal();
+      openVideoPreviewModal();
+      didMountAutoJoin = true;
+    } else if (!(
+      userSelectedMicrophone
+      && userSelectedListenOnly
+      && meetingIsBreakout)) {
+      openAudioModal();
+      didMountAutoJoin = true;
+    }
+    return Promise.resolve(true);
   };
-})(AudioContainer)));
+
+  const { hasBreakoutRooms: hadBreakoutRooms } = prevProps || {};
+  const userIsReturningFromBreakoutRoom = hadBreakoutRooms && !hasBreakoutRooms;
+
+  const { data: unmutedUsers } = useWhoIsUnmuted();
+  const currentUserMuted = currentUser?.userId && !unmutedUsers[currentUser.userId];
+
+  const joinAudio = useCallback(() => {
+    if (Service.isConnected()) return;
+
+    if (userSelectedMicrophone) {
+      joinMicrophone({ skipEchoTest: true, muted: meeting?.voiceSettings?.muteOnStart });
+      return;
+    }
+
+    if (userSelectedListenOnly) joinListenOnly();
+  }, [userSelectedMicrophone, userSelectedListenOnly, meeting?.voiceSettings?.muteOnStart]);
+
+  useEffect(() => {
+    // Data is not loaded yet.
+    // We don't know whether the meeting is a breakout or not.
+    // So, postpone the decision.
+    if (meetingIsBreakout === undefined) return;
+
+    init().then(() => {
+      if (meetingIsBreakout && !Service.isUsingAudio()) {
+        joinAudio();
+      }
+    });
+  }, [meetingIsBreakout]);
+
+  useEffect(() => {
+    if (userIsReturningFromBreakoutRoom) {
+      joinAudio();
+    }
+  }, [userIsReturningFromBreakoutRoom]);
+
+  useEffect(() => {
+    const CONFIRMATION_ON_LEAVE = window.meetingClientSettings.public.app.askForConfirmationOnLeave;
+    if (CONFIRMATION_ON_LEAVE) {
+      window.onbeforeunload = (event) => {
+        if (AudioService.isUsingAudio() && !AudioService.isMuted()) {
+          toggleVoice(currentUser?.userId, true);
+        }
+        event.stopImmediatePropagation();
+        event.preventDefault();
+        // eslint-disable-next-line no-param-reassign
+        event.returnValue = '';
+      };
+    }
+  }, [currentUser?.userId, toggleVoice]);
+
+  useEffect(() => {
+    if (Service.isConnected() && !Service.isListenOnly()) {
+      Service.updateAudioConstraints(microphoneConstraints);
+    }
+  }, [microphoneConstraints]);
+
+  useEffect(() => {
+    if (Service.isConnected() && !Service.isListenOnly()) {
+      if (userLocks.userMic && !currentUserMuted) {
+        toggleMuteMicrophone(
+          !currentUserMuted,
+          toggleVoice,
+        );
+        notify(intl.formatMessage(intlMessages.reconectingAsListener), 'info', 'volume_level_2');
+      }
+    }
+  }, [userLocks.userMic, currentUserMuted]);
+
+  return (
+    <>
+      {isAudioModalOpen && !isVideoPreviewModalOpen ? (
+        <AudioModalContainer
+          {...{
+            priority: 'medium',
+            setIsOpen: setAudioModalIsOpen,
+            isOpen: isAudioModalOpen && !isVideoPreviewModalOpen,
+          }}
+        />
+      ) : null}
+      {isVideoPreviewModalOpen ? (
+        <VideoPreviewContainer
+          {...{
+            callbackToClose: () => {
+              setVideoPreviewModalIsOpen(false);
+            },
+            priority: 'medium',
+            setIsOpen: setVideoPreviewModalIsOpen,
+            isOpen: isVideoPreviewModalOpen,
+          }}
+        />
+      ) : null}
+    </>
+  );
+};
+
+export default lockContextContainer(injectIntl(AudioContainer));
 
 AudioContainer.propTypes = {
-  hasBreakoutRooms: PropTypes.bool.isRequired,
-  meetingIsBreakout: PropTypes.bool.isRequired,
-  userSelectedListenOnly: PropTypes.bool.isRequired,
-  userSelectedMicrophone: PropTypes.bool.isRequired,
+  isAudioModalOpen: PropTypes.bool.isRequired,
+  setAudioModalIsOpen: PropTypes.func.isRequired,
+  setVideoPreviewModalIsOpen: PropTypes.func.isRequired,
+  isVideoPreviewModalOpen: PropTypes.bool.isRequired,
+  intl: PropTypes.shape({
+    formatMessage: PropTypes.func.isRequired,
+  }).isRequired,
+  userLocks: PropTypes.shape({
+    userMic: PropTypes.bool.isRequired,
+  }).isRequired,
 };

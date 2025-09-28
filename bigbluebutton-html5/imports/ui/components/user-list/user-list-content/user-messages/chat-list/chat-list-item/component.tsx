@@ -1,13 +1,14 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+/* eslint-disable jsx-a11y/no-access-key */
 import React, { useEffect } from 'react';
 import { layoutSelect, layoutSelectInput, layoutDispatch } from '/imports/ui/components/layout/context';
 import { ACTIONS, PANELS } from '/imports/ui/components/layout/enums';
 import { defineMessages, useIntl } from 'react-intl';
-import { Meteor } from 'meteor/meteor'
 import Styled from './styles';
 import Icon from '/imports/ui/components/common/icon/component';
 import { Input, Layout } from '/imports/ui/components/layout/layoutTypes';
-import { Chat } from './chatTypes';
-import { UseShortcutHelp, useShortcutHelp } from '/imports/ui/components/shortcut-help/useShortcutHelp'
+import { useShortcut } from '../../../../../../core/hooks/useShortcut';
+import { Chat } from '/imports/ui/Types/chat';
 
 const intlMessages = defineMessages({
   titlePublic: {
@@ -25,15 +26,10 @@ const intlMessages = defineMessages({
 });
 
 interface ChatListItemProps {
-  chat: Chat,
+  chat: Chat;
+  chatNodeRef: React.Ref<HTMLButtonElement>;
+  index: number;
 }
-
-const CHAT_CONFIG = Meteor.settings.public.chat;
-const ROLE_MODERATOR = Meteor.settings.public.user.role_moderator;
-
-const PUBLIC_GROUP_CHAT_ID = CHAT_CONFIG.public_group_id;
-
-const isPublicGroupChat = (chat: Chat) => chat.chatId === PUBLIC_GROUP_CHAT_ID;
 
 const ChatListItem = (props: ChatListItemProps) => {
   const sidebarContent = layoutSelectInput((i: Input) => i.sidebarContent);
@@ -43,18 +39,27 @@ const ChatListItem = (props: ChatListItemProps) => {
   const { sidebarContentPanel } = sidebarContent;
   const sidebarContentIsOpen = sidebarContent.isOpen;
 
-  const TOGGLE_CHAT_PUB_AK: UseShortcutHelp = useShortcutHelp("togglePublicChat");
+  const TOGGLE_CHAT_PUB_AK: string = useShortcut('togglePublicChat');
   const {
     chat,
+    chatNodeRef,
+    index,
   } = props;
 
-  const countUnreadMessages = chat.totalUnread;
+  const countUnreadMessages = chat.totalUnread || 0;
 
   const intl = useIntl();
 
   const chatPanelOpen = sidebarContentIsOpen && sidebarContentPanel === PANELS.CHAT;
 
   const isCurrentChat = chat.chatId === idChatOpen && chatPanelOpen;
+
+  const ROLE_MODERATOR = window.meetingClientSettings.public.user.role_moderator;
+
+  const CHAT_CONFIG = window.meetingClientSettings.public.chat;
+  const PUBLIC_GROUP_CHAT_ID = CHAT_CONFIG.public_group_id;
+
+  const isPublicGroupChat = (chat: Chat) => chat.chatId === PUBLIC_GROUP_CHAT_ID;
 
   useEffect(() => {
     if (chat.chatId !== PUBLIC_GROUP_CHAT_ID && chat.chatId === idChatOpen) {
@@ -83,10 +88,20 @@ const ChatListItem = (props: ChatListItemProps) => {
           value: '',
         });
       } else {
-        layoutContextDispatch({
-          type: ACTIONS.SET_ID_CHAT_OPEN,
-          value: chat.chatId,
-        });
+        setTimeout(() => {
+          layoutContextDispatch({
+            type: ACTIONS.SET_SIDEBAR_CONTENT_IS_OPEN,
+            value: true,
+          });
+          layoutContextDispatch({
+            type: ACTIONS.SET_SIDEBAR_CONTENT_PANEL,
+            value: PANELS.CHAT,
+          });
+          layoutContextDispatch({
+            type: ACTIONS.SET_ID_CHAT_OPEN,
+            value: chat.chatId,
+          });
+        }, 0);
       }
     } else {
       layoutContextDispatch({
@@ -106,12 +121,11 @@ const ChatListItem = (props: ChatListItemProps) => {
 
   const localizedChatName = isPublicGroupChat(chat)
     ? intl.formatMessage(intlMessages.titlePublic)
-    : chat.participant.name;
+    : chat.participant?.name;
 
-  const arialabel = `${localizedChatName} ${
-    countUnreadMessages > 1
-      ? intl.formatMessage(intlMessages.unreadPlural, { 0: countUnreadMessages })
-      : intl.formatMessage(intlMessages.unreadSingular)}`;
+  const arialabel = `${localizedChatName} ${countUnreadMessages > 1
+    ? intl.formatMessage(intlMessages.unreadPlural, { unreadCount: countUnreadMessages })
+    : intl.formatMessage(intlMessages.unreadSingular)}`;
 
   return (
     <Styled.ChatListItem
@@ -119,44 +133,40 @@ const ChatListItem = (props: ChatListItemProps) => {
       role="button"
       aria-expanded={isCurrentChat}
       active={isCurrentChat}
-      tabIndex={0}
-      accessKey={isPublicGroupChat(chat) ? TOGGLE_CHAT_PUB_AK : null}
+      tabIndex={-1}
+      accessKey={isPublicGroupChat(chat) ? TOGGLE_CHAT_PUB_AK : undefined}
       onClick={handleClickToggleChat}
-      id="chat-toggle-button"
-      aria-label={isPublicGroupChat(chat) ? intl.formatMessage(intlMessages.titlePublic) : chat.participant.name}
-      onKeyDown={(e: KeyboardEvent) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          e.stopPropagation();
-        }
-      }}
+      id={`chat-list-${index}`}
+      aria-label={isPublicGroupChat(chat) ? intl.formatMessage(intlMessages.titlePublic)
+        : chat.participant?.name}
+      ref={chatNodeRef}
     >
       <Styled.ChatListItemLink>
         <Styled.ChatIcon>
           {isPublicGroupChat(chat)
             ? (
               <Styled.ChatThumbnail>
-                <Icon iconName={"group_chat"} />
+                <Icon iconName="group_chat" className={undefined} prependIconName={undefined} rotate={undefined} color={undefined} />
               </Styled.ChatThumbnail>
             ) : (
               <Styled.UserAvatar
-                moderator={chat.participant.role === ROLE_MODERATOR}
-                avatar={chat.participant.avatar}
-                color={chat.participant.color}
+                moderator={chat.participant?.role === ROLE_MODERATOR}
+                avatar={chat.participant?.avatar || ''}
+                color={chat.participant?.color || ''}
               >
-                {chat.participant.name.toLowerCase().slice(0, 2)}
+                {chat.participant?.avatar?.length === 0 ? chat.participant?.name?.toLowerCase().slice(0, 2) : ''}
               </Styled.UserAvatar>
             )}
         </Styled.ChatIcon>
         <Styled.ChatName>
-          <Styled.ChatNameMain>
+          <Styled.ChatNameMain active={false}>
             {isPublicGroupChat(chat)
-              ? intl.formatMessage(intlMessages.titlePublic) : chat.participant.name}
+              ? intl.formatMessage(intlMessages.titlePublic) : chat.participant?.name}
           </Styled.ChatNameMain>
         </Styled.ChatName>
         {(countUnreadMessages > 0)
           ? (
-            <Styled.UnreadMessages aria-label={arialabel}>
+            <Styled.UnreadMessages data-test="unreadMessages" aria-label={arialabel}>
               <Styled.UnreadMessagesText aria-hidden="true">
                 {countUnreadMessages}
               </Styled.UnreadMessagesText>

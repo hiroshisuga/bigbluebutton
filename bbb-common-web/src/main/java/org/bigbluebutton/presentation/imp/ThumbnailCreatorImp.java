@@ -21,6 +21,9 @@ package org.bigbluebutton.presentation.imp;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -45,6 +48,8 @@ public class ThumbnailCreatorImp implements ThumbnailCreator {
   private String IMAGEMAGICK_DIR;
 
   private String BLANK_THUMBNAIL;
+
+  private long execTimeout = 10000;
 
   @Override
   public boolean createThumbnail(UploadedPresentation pres, int page, File pageFile) {
@@ -75,20 +80,30 @@ public class ThumbnailCreatorImp implements ThumbnailCreator {
   private boolean generateThumbnail(File thumbsDir, UploadedPresentation pres, int page, File pageFile)
       throws InterruptedException {
     String source = pageFile.getAbsolutePath();
-    String dest;
+    String dest = thumbsDir.getAbsolutePath() + File.separatorChar + "thumb-" + page + ".png";
     String COMMAND = "";
+
+    // Skip processing if the destination file exists, as it was likely restored from the cache
+    if(Files.exists(Paths.get(dest))) {
+      return true;
+    }
 
     if (SupportedFileTypes.isImageFile(pres.getFileType())) {
       dest = thumbsDir.getAbsolutePath() + File.separatorChar + "thumb-" + page + ".png";
       COMMAND = IMAGEMAGICK_DIR + File.separatorChar + "convert -thumbnail 150x150 "  + source + " " + dest;
     } else {
-      dest = thumbsDir.getAbsolutePath() + File.separatorChar + TEMP_THUMB_NAME + "-" + page; // the "-x.png" is appended automagically
-      COMMAND = "pdftocairo -png -scale-to 150 -cropbox " + source + " " + dest;
+      String pdftocairoDest = thumbsDir.getAbsolutePath() + File.separatorChar + TEMP_THUMB_NAME + "-" + page; // the "-x.png" is appended automagically
+      COMMAND = "pdftocairo -png -scale-to 150 " + source + " " + pdftocairoDest;
     }
 
     //System.out.println(COMMAND);
 
-    boolean done = new ExternalProcessExecutor().exec(COMMAND, 10000);
+    long execTimeout = this.execTimeout;
+    if (execTimeout > pres.getMaxPageConversionTime()) {
+      execTimeout = pres.getMaxPageConversionTime();
+    }
+
+    boolean done = new ExternalProcessExecutor().exec(COMMAND, execTimeout);
 
     if (done) {
       return true;
@@ -107,6 +122,21 @@ public class ThumbnailCreatorImp implements ThumbnailCreator {
     }
 
     return false;
+  }
+
+  @Override
+  public void createBlank(UploadedPresentation pres, int page) {
+    File dir = determineThumbnailDirectory(pres.getUploadedFile());
+
+    if (!dir.exists()) {
+      boolean created = dir.mkdir();
+      if (!created) {
+        log.warn("Failed to create thumbnail directory");
+        return;
+      }
+    }
+
+    createBlankThumbnail(dir, page);
   }
 
   private File determineThumbnailDirectory(File presentationFile) {
@@ -162,8 +192,6 @@ public class ThumbnailCreatorImp implements ThumbnailCreator {
   }
 
   private void createBlankThumbnail(File thumbsDir, int page) {
-    File[] thumbs = thumbsDir.listFiles();
-
     File thumb = new File(thumbsDir.getAbsolutePath() + File.separatorChar + "thumb-" + page + ".png");
     if (!thumb.exists()) {
       log.info("Copying blank thumbnail for slide {}", page);
@@ -194,4 +222,7 @@ public class ThumbnailCreatorImp implements ThumbnailCreator {
     BLANK_THUMBNAIL = blankThumbnail;
   }
 
+  public void setExecTimeout(long execTimeout) {
+    this.execTimeout = execTimeout;
+  }
 }

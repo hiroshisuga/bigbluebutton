@@ -22,36 +22,36 @@ import {
   colorOffWhite,
 } from '/imports/ui/stylesheets/styled-components/palette';
 
+import Icon from '/imports/ui/components/common/icon/icon-ts/component';
 
 interface AvatarProps {
-  moderator: string;
-  presenter: string;
-  talking: boolean;
-  muted: boolean;
-  listenOnly: boolean;
-  voice: boolean;
-  noVoice: boolean;
-  color: string;
-  whiteboardAccess: boolean;
-  animations: boolean;
-  emoji: string;
-  avatar: string;
-  isChrome: boolean;
-  isFirefox: boolean;
-  isEdge: boolean;
+    moderator?: boolean;
+    presenter?: boolean;
+    talking?: boolean;
+    muted?: boolean;
+    listenOnly?: boolean;
+    voice?: boolean;
+    noVoice?: boolean;
+    color?: string;
+    whiteboardAccess?: boolean;
+    animations?: boolean;
+    emoji?: boolean;
+    avatar?: string;
+    isChrome?: boolean;
+    isFirefox?: boolean;
+    isEdge?: boolean;
+    isSkeleton?: boolean;
 }
 
 interface UserItemContentsProps {
-  selected: boolean;
-  isActionsOpen: boolean;
+  selected?: boolean;
+  isActionsOpen?: boolean;
 }
 
 const UserItemContents = styled.div<UserItemContentsProps>`
   position: static;
   padding: .45rem;
   width: 100%;
-  margin-left: .5rem;
-
 
   ${({ selected }) => selected && `
     background-color: ${listItemBgHover};
@@ -82,7 +82,7 @@ const UserItemContents = styled.div<UserItemContentsProps>`
     &:first-child {
       margin-top: 0;
     }
-
+    &:focus,
     &:hover {
       outline: transparent;
       outline-style: dotted;
@@ -90,8 +90,7 @@ const UserItemContents = styled.div<UserItemContentsProps>`
       background-color: ${listItemBgHover};
     }
 
-    &:active,
-    &:focus {
+    &:active{
       outline: transparent;
       outline-width: ${borderSize};
       outline-style: solid;
@@ -133,6 +132,7 @@ const Avatar = styled.div<AvatarProps>`
   position: relative;
   height: 2.25rem;
   width: 2.25rem;
+  min-width: 2.25rem;
   border-radius: 50%;
   text-align: center;
   font-size: .85rem;
@@ -190,6 +190,7 @@ const Avatar = styled.div<AvatarProps>`
 
   ${({ moderator }) => moderator && `
     border-radius: 5px;
+    color: ${colorWhite} !important;
   `}
 
   ${({ presenter }) => presenter && `
@@ -284,6 +285,7 @@ const Avatar = styled.div<AvatarProps>`
       opacity: 1;
       width: 1.2rem;
       height: 1.2rem;
+      background-color: ${colorSuccess};
     }
   `}
 
@@ -307,20 +309,25 @@ const Avatar = styled.div<AvatarProps>`
   `}
 
   // ================ talking animation ================
-  ${({ talking, animations, color }) => talking && animations && css`
+  ${({ talking, animations, color }) => talking && animations && color && css`
     animation: ${pulse(color)} 1s infinite ease-in;
+  `}
+
+  ${({ talking, animations }) => talking && !animations && `
+    box-shadow: 0 0 0 4px currentColor;
   `}
   // ================ talking animation ================
   // ================ image ================
-  ${({ avatar, emoji }) => avatar?.length !== 0 && !emoji && css`
+  ${({ avatar, emoji, color }) => avatar?.length !== 0 && !emoji && css`
     background-image: url(${avatar});
     background-repeat: no-repeat;
     background-size: contain;
+    border: 2px solid ${color};
   `}
   // ================ image ================
 
   // ================ content ================
-  color: ${colorWhite};
+  color: ${colorWhite} !important;
   font-size: 110%;
   text-transform: capitalize;
   display: flex;
@@ -336,6 +343,10 @@ const Avatar = styled.div<AvatarProps>`
 
 const Skeleton = styled.div`
  
+`;
+
+const UserAdditionalInformationIcon = styled(Icon)`
+  margin-right: ${smPaddingX};
 `;
 
 const pulse = (color: string) => keyframes`
@@ -358,6 +369,7 @@ const UserNameContainer = styled.div`
   margin: 0 0 0 ${smPaddingX};
   justify-content: center;
   font-size: 90%;
+  max-width: 70%;
 
   [dir="rtl"]  & {
     margin: 0 ${smPaddingX} 0 0;
@@ -400,11 +412,19 @@ const UserNameSub = styled.span`
   }
 `;
 
+// ======================== Icon Right Container ========================
+
+const IconRightContainer = styled.div`
+  margin: .25rem;  
+`;
+
 export default {
   Avatar,
   Skeleton,
   UserItemContents,
   UserNameContainer,
+  UserAdditionalInformationIcon,
   UserNameSub,
   UserName,
-}
+  IconRightContainer,
+};

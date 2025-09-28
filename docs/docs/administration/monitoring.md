@@ -46,7 +46,7 @@ various metrics that are available via the API that BigBlueButton exposes.
 
 Metrics that are exposed:
 * Number of participants by type (listeners, voice, video)
-* Number of participants by client (HTML5, dial-in, flash)
+* Number of participants by client (HTML5, dial-in)
 * Number of recordings (processing, published, unpublished, deleted, unprocessed)
 * Number of participants in rooms by bucket
 
@@ -137,7 +137,7 @@ After a restart of bbb-webrtc-sfu, the metrics can now be queried via
 
 respectively.
 
-#### Meteor / HTML5 Frontend (experimental)
+#### HTML5 Frontend (experimental)
 The HTML5 Frontend servers can be configured to provide Prometheus endpoints by adding
 the following to `/etc/bigbluebutton/bbb-html5.yml`:
 

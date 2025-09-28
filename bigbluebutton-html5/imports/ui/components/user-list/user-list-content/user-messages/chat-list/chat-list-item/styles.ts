@@ -16,17 +16,23 @@ import {
   colorSuccess,
   itemFocusBorder,
   unreadMessagesBg,
+  colorGrayLightest,
 } from '/imports/ui/stylesheets/styled-components/palette';
 
 interface UserAvatarProps {
-  color: string
-  moderator: boolean
-  avatar: string
-  emoji: string
+  color: string;
+  moderator: boolean;
+  avatar: string;
+  emoji?: string;
 }
 
 interface ChatNameMainProps {
-  active: boolean
+  active: boolean;
+}
+
+interface ChatListItemProps {
+  active: boolean;
+  ref: React.Ref<HTMLElement | undefined>;
 }
 
 const ChatListItemLink = styled.div`
@@ -41,7 +47,7 @@ const ChatIcon = styled.div`
   flex: 0 0 2.2rem;
 `;
 
-const UserAvatar = styled.div`
+const UserAvatar = styled.div<UserAvatarProps>`
   flex: 0 0 2.25rem;
   margin: 0px calc(0.5rem) 0px 0px;
   box-flex: 0;
@@ -96,10 +102,11 @@ const UserAvatar = styled.div`
     border-radius: 5px;
   `}
   // ================ image ================
-  ${({ avatar, emoji }: UserAvatarProps) => avatar?.length !== 0 && !emoji && `
+  ${({ avatar, emoji, color }: UserAvatarProps) => avatar?.length !== 0 && !emoji && `
     background-image: url(${avatar});
     background-repeat: no-repeat;
     background-size: contain;
+    border: 2px solid ${color};
   `}
   // ================ image ================
   // ================ content ================
@@ -150,7 +157,7 @@ const ChatNameMain = styled.span`
   `}
 `;
 
-const ChatListItem = styled.div`
+const ChatListItem = styled.button<ChatListItemProps>`
   display: flex;
   flex-flow: row;
   border-top-left-radius: 5px;
@@ -158,6 +165,8 @@ const ChatListItem = styled.div`
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
   cursor: pointer;
+  border-color: transparent;
+  border-width: 0;
 
   [dir="rtl"] & {
     border-top-left-radius: 0;
@@ -177,7 +186,6 @@ const ChatListItem = styled.div`
     background-color: ${listItemBgHover};
   }
 
-  &:active,
   &:focus {
     outline: transparent;
     outline-width: ${borderSize};
@@ -206,6 +214,12 @@ const ChatListItem = styled.div`
     margin-left: 0;
     margin-right: ${borderSize};
   }
+  ${({ active }: ChatListItemProps) => active && `
+    outline: transparent;
+    outline-style: dotted;
+    outline-width: ${borderSize};
+    background-color: ${colorGrayLightest};
+  `}
 `;
 
 const ChatThumbnail = styled.div`

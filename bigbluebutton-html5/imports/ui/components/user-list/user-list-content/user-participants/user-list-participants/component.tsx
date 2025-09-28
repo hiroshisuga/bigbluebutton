@@ -1,170 +1,144 @@
-import React, { useEffect } from 'react';
-import { useSubscription } from '@apollo/client';
-import {
-  AutoSizer,
-  CellMeasurer,
-  CellMeasurerCache,
-  List,
-  InfiniteLoader
-} from 'react-virtualized';
-import Styled from './styles';
-import ListItem from './list-item/component';
-import Skeleton from './list-item/skeleton/component';
-import UserActions from './user-actions/component';
-import UsersTitle from './users-title/component';
-import Auth from '/imports/ui/services/auth';
-import {
-  USERS_SUBSCRIPTION,
-  MEETING_PERMISSIONS_SUBSCRIPTION,
-  CURRENT_USER_SUBSCRIPTION,
-  USER_AGGREGATE_COUNT_SUBSCRIPTION,
-} from './queries';
+import React, { useEffect, useMemo } from 'react';
+
+import { UI_DATA_LISTENER_SUBSCRIBED } from 'bigbluebutton-html-plugin-sdk/dist/cjs/ui-data/hooks/consts';
+import { UserListUiDataPayloads } from 'bigbluebutton-html-plugin-sdk/dist/cjs/ui-data/domain/user-list/types';
+import * as PluginSdk from 'bigbluebutton-html-plugin-sdk';
 import { User } from '/imports/ui/Types/user';
-import { Meeting } from '/imports/ui/Types/meeting';
-import  { debounce } from 'radash';
-
-import { ListProps } from 'react-virtualized/dist/es/List';
-import { useCurrentUser } from '../../../../../core/hooks/useCurrentUser';
-
-const cache = new CellMeasurerCache({
-  keyMapper: () => 1,
-});
-
-const SKELETON_COUNT = 10;
+import Styled from './styles';
+import {
+  USER_AGGREGATE_COUNT_SUBSCRIPTION,
+  UsersCountSubscriptionResponse,
+} from './queries';
+import useDeduplicatedSubscription from '/imports/ui/core/hooks/useDeduplicatedSubscription';
+import UserListParticipantsPageContainer from './page/component';
+import IntersectionWatcher from './intersection-watcher/intersectionWatcher';
+import { setLocalUserList } from '/imports/ui/core/hooks/useLoadedUserList';
+import roveBuilder from '/imports/ui/core/utils/keyboardRove';
 
 interface UserListParticipantsProps {
-  users: Array<User>;
-  offset: number;
-  setOffset: (offset: number) => void;
-  setLimit: (limit: number) => void,
-  meeting: Meeting;
-  currentUser: Partial<User>;
   count: number;
 }
-interface RowRendererProps extends ListProps {
-  users: Array<User>;
-  currentUser: Partial<User>;
-  meeting: Meeting;
-  offset: number;
-}
-
-const rowRenderer: React.FC<RowRendererProps>  = (users, currentUser, offset, meeting, { index, key, parent, style }) => {
-  const user = users && users[index - offset];
-  return <div
-    key={key}
-    index={index}
-    style={style}
-  >
-    {
-      (user && currentUser && meeting)
-        ? (
-          <UserActions
-            user={user}
-            currentUser={currentUser}
-            lockSettings={meeting.lockSettings}
-            usersPolicies={meeting.usersPolicies}
-            isBreakout={meeting.isBreakout}
-          >
-            <ListItem user={user} lockSettings={meeting.lockSettings} />
-          </UserActions>
-        )
-        :
-        <Skeleton />
-    }
-  </div>
-};
 
 const UserListParticipants: React.FC<UserListParticipantsProps> = ({
-  users,
-  setOffset,
-  setLimit,
-  offset,
-  currentUser,
-  meeting,
   count,
 }) => {
-  const [previousUsersData, setPreviousUsersData] = React.useState(users);
+  const [visibleUsers, setVisibleUsers] = React.useState<{
+    [key: number]: User[];
+  }>({});
+  const userListRef = React.useRef<HTMLUListElement | null>(null);
+  const selectedUserRef = React.useRef<HTMLElement | null>(null);
+
   useEffect(() => {
-    if (users?.length){
-      setPreviousUsersData(users);
+    const keys = Object.keys(visibleUsers);
+    if (keys.length > 0) {
+      // eslint-disable-next-line
+      const visibleUserArr = keys.sort().reduce((acc, key) => {
+        return [
+          ...acc,
+          // @ts-ignore
+          ...visibleUsers[key],
+        ];
+      }, [] as User[]);
+      // eslint-disable-next-line
+      setLocalUserList(visibleUserArr);
     }
-  }, [users]);
+  }, [visibleUsers]);
+
+  const rove = useMemo(() => roveBuilder(selectedUserRef, 'user-index'), []);
+
+  // --- Plugin related code ---
+  useEffect(() => {
+    const updateUiDataHookUserListForPlugin = () => {
+      window.dispatchEvent(new CustomEvent(PluginSdk.UserListUiDataNames.USER_LIST_IS_OPEN, {
+        detail: {
+          value: true,
+        } as UserListUiDataPayloads[PluginSdk.UserListUiDataNames.USER_LIST_IS_OPEN],
+      }));
+    };
+
+    window.dispatchEvent(new CustomEvent(PluginSdk.UserListUiDataNames.USER_LIST_IS_OPEN, {
+      detail: {
+        value: true,
+      } as UserListUiDataPayloads[PluginSdk.UserListUiDataNames.USER_LIST_IS_OPEN],
+    }));
+    window.addEventListener(
+      `${UI_DATA_LISTENER_SUBSCRIBED}-${PluginSdk.UserListUiDataNames.USER_LIST_IS_OPEN}`,
+      updateUiDataHookUserListForPlugin,
+    );
+    return () => {
+      window.removeEventListener(
+        `${UI_DATA_LISTENER_SUBSCRIBED}-${PluginSdk.UserListUiDataNames.USER_LIST_IS_OPEN}`,
+        updateUiDataHookUserListForPlugin,
+      );
+      window.dispatchEvent(new CustomEvent(PluginSdk.UserListUiDataNames.USER_LIST_IS_OPEN, {
+        detail: {
+          value: false,
+        } as UserListUiDataPayloads[PluginSdk.UserListUiDataNames.USER_LIST_IS_OPEN],
+      }));
+    };
+  }, []);
+  // --- End of plugin related code ---
+
+  const amountOfPages = Math.ceil(count / 50);
   return (
-    <Styled.UserListColumn>
-      {
-        <AutoSizer>
-          {({ width, height }) => {
-                return (
-                  <Styled.VirtualizedList
-                  rowRenderer={rowRenderer.bind(null, (users || previousUsersData), currentUser, offset, meeting)}
-                  noRowRenderer={() => <div>no users</div>}
-                  rowCount={count}
-                  height={height - 1}
-                  width={width - 1}
-                  onRowsRendered={debounce({delay: 500}, ({ startIndex, stopIndex, overscanStartIndex, overscanStopIndex }) => {
-                    setOffset(overscanStartIndex);
-                    const limit = (overscanStopIndex - overscanStartIndex) + 1;
-                    setLimit(limit < 50 ? 50 : limit);
-                  })}
-                  overscanRowCount={10}
-                  rowHeight={50}
-                  tabIndex={0}
+    (
+      <Styled.UserListColumn
+        onKeyDown={rove}
+        tabIndex={0}
+        role="list"
+      >
+        <Styled.VirtualizedList as="ul" ref={userListRef}>
+          {
+            Array.from({ length: amountOfPages }).map((_, i) => {
+              const isLastItem = amountOfPages === (i + 1);
+              const restOfUsers = count % 50;
+              const key = i;
+              return i === 0
+                ? (
+                  <UserListParticipantsPageContainer
+                    key={key}
+                    index={i}
+                    isLastItem={isLastItem}
+                    restOfUsers={isLastItem ? restOfUsers : 50}
+                    setVisibleUsers={setVisibleUsers}
                   />
+                )
+                : (
+                  <IntersectionWatcher
+                    // eslint-disable-next-line react/no-array-index-key
+                    key={i}
+                    ParentRef={userListRef}
+                    isLastItem={isLastItem}
+                    restOfUsers={isLastItem ? restOfUsers : 50}
+                  >
+                    <UserListParticipantsPageContainer
+                      key={key}
+                      index={i}
+                      isLastItem={isLastItem}
+                      restOfUsers={isLastItem ? restOfUsers : 50}
+                      setVisibleUsers={setVisibleUsers}
+                    />
+                  </IntersectionWatcher>
                 );
-              }}
-        </AutoSizer>
-      }
-    </Styled.UserListColumn>
+            })
+          }
+        </Styled.VirtualizedList>
+      </Styled.UserListColumn>
+    )
   );
 };
 
 const UserListParticipantsContainer: React.FC = () => {
-  const [offset, setOffset] = React.useState(0);
-  const [limit, setLimit] = React.useState(0);
-
-  const { loading: usersLoading, error: usersError, data: usersData } = useSubscription(USERS_SUBSCRIPTION, {
-    variables:{
-      offset,
-      limit,
-    },
-  });
-  const { user: users } = (usersData || {});
-
   const {
-    loading: meetingLoading,
-    error: meetingError,
-    data: meetingData,
-  } = useSubscription(MEETING_PERMISSIONS_SUBSCRIPTION)
-  const { meeting: meetingArray } = (meetingData || {});
-  const meeting = meetingArray && meetingArray[0];
-
-  const {
-    loading: countLoading,
-    error: countError,
     data: countData,
-  } = useSubscription(USER_AGGREGATE_COUNT_SUBSCRIPTION)
+  } = useDeduplicatedSubscription<UsersCountSubscriptionResponse>(USER_AGGREGATE_COUNT_SUBSCRIPTION);
   const count = countData?.user_aggregate?.aggregate?.count || 0;
 
-  const currentUser = useCurrentUser((currentUser: Partial<User>)=>{
-    return {
-      isModerator: currentUser.isModerator,
-      userId: currentUser.userId,
-      presenter: currentUser.presenter,
-    } as Partial<User>;
-  });
-
-  return <>
-    <UsersTitle count={count} />
+  return (
     <UserListParticipants
-    users={users}
-    offset={offset}
-    setOffset={setOffset}
-    setLimit={setLimit}
-    meeting={meeting}
-    currentUser={currentUser}
-    count={count}
+      count={count ?? 0}
     />
-  </>
+  );
 };
 
 export default UserListParticipantsContainer;

@@ -1,80 +1,69 @@
 import styled, { css, keyframes } from 'styled-components';
 import Icon from '/imports/ui/components/common/icon/component';
-import { headingsFontWeight } from '/imports/ui/stylesheets/styled-components/typography';
 import {
   colorDanger,
   colorGray,
-  colorGrayDark,
   colorSuccess,
   colorGrayLightest,
-  colorWhite,
+  colorOffWhite,
 } from '/imports/ui/stylesheets/styled-components/palette';
 import {
-  borderSizeLarge,
-  lgPaddingX,
   statusIconSize,
   borderSize,
   statusInfoHeight,
-  presentationMenuHeight,
 } from '/imports/ui/stylesheets/styled-components/general';
+import ToastStyles from '/imports/ui/components/common/toast/styles';
 
 const DropdownButton = styled.button`
-  background-color: #FFF;
+  background-color: ${colorOffWhite};
   border: none;
-  border-radius: 7px;
-  color: ${colorGrayDark};
+  border-radius: 13px;
+  box-shadow: 0px 0px 2px rgba(0, 0, 0, 0.16),
+    0px 2px 3px rgba(0, 0, 0, 0.24),
+    0px 2px 6px rgba(0, 0, 0, 0.1);
+  color: #2d2d2d;
   cursor: pointer;
   padding: .3rem .5rem;
-  padding-bottom: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   tab-index: 0;
 
   &:hover {
-    background-color: #ececec;
+    background-color: ${colorGrayLightest};
   }
 `;
 
 const Right = styled.div`
   cursor: pointer;
   position: absolute;
-  left: auto;
-  right: 0px;
+  right: 3px;
+  top: 2px;
   z-index: 999;
-  box-shadow: 0 4px 2px -2px rgba(0, 0, 0, 0.05);
-  border-bottom: 1px solid ${colorWhite};
-  height: 44px;
 
   > div {
-    padding: 2px 4px 2px 4px;
-    background-color: ${colorWhite};
-    width: 50px;
-    height: 100%;
+    width: 35px;
+    height: 35px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   button {
     height: 100%;
     width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   [dir="rtl"] & {
+    left: 3px;
     right: auto;
-    left : ${borderSize};
   }
 `;
 
-const ToastText = styled.span`
-  overflow: hidden;
-  text-overflow: ellipsis;
-  text-align: left;
-  white-space: nowrap;
-  position: relative;
-  top: ${borderSizeLarge};
-  width: auto;
-  font-weight: ${headingsFontWeight};
-
-  [dir="rtl"] & {
-    text-align: right;
-  }
-`;
+const ToastText = styled(ToastStyles.ToastMessage)``;
 
 const StatusIcon = styled.span`
   margin-left: auto;
@@ -131,7 +120,7 @@ const Line = styled.div`
   display: flex;
   width: 100%;
   flex-wrap: nowrap;
-  padding: ${lgPaddingX} 0;
+  padding: 0;
 `;
 
 const ButtonIcon = styled(Icon)`

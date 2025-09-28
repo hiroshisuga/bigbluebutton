@@ -2,8 +2,17 @@ package org.bigbluebutton.core.db
 
 import org.bigbluebutton.common2.domain.DefaultProps
 import PostgresProfile.api._
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.util.{ Failure, Success }
+import org.bigbluebutton.core.apps.groupchats.GroupChatApp
+import org.bigbluebutton.core.models.PluginModel
+
+case class MeetingSystemColumnsDbModel(
+      loginUrl:                              Option[String],
+      logoutUrl:                             Option[String],
+      customLogoUrl:                         Option[String],
+      customDarkLogoUrl:                     Option[String],
+      bannerText:                            Option[String],
+      bannerColor:                           Option[String],
+)
 
 case class MeetingDbModel(
     meetingId:                             String,
@@ -13,12 +22,21 @@ case class MeetingDbModel(
     disabledFeatures:                      List[String],
     meetingCameraCap:                      Int,
     maxPinnedCameras:                      Int,
+    cameraBridge:                          String,
+    screenShareBridge:                     String,
+    audioBridge:                           String,
     notifyRecordingIsOn:                   Boolean,
     presentationUploadExternalDescription: String,
     presentationUploadExternalUrl:         String,
     learningDashboardAccessToken:          String,
+    systemColumns:                         MeetingSystemColumnsDbModel,
     createdTime:                           Long,
-    duration:                              Int
+    durationInSeconds:                     Int,
+    endWhenNoModerator:                    Boolean,
+    endWhenNoModeratorDelayInMinutes:      Int,
+    endedAt:                               Option[java.sql.Timestamp],
+    endedReasonCode:                       Option[String],
+    endedBy:                               Option[String],
 )
 
 class MeetingDbTableDef(tag: Tag) extends Table[MeetingDbModel](tag, None, "meeting") {
@@ -30,12 +48,21 @@ class MeetingDbTableDef(tag: Tag) extends Table[MeetingDbModel](tag, None, "meet
     disabledFeatures,
     meetingCameraCap,
     maxPinnedCameras,
+    cameraBridge,
+    screenShareBridge,
+    audioBridge,
     notifyRecordingIsOn,
     presentationUploadExternalDescription,
     presentationUploadExternalUrl,
     learningDashboardAccessToken,
+    systemColumns,
     createdTime,
-    duration
+    durationInSeconds,
+    endWhenNoModerator,
+    endWhenNoModeratorDelayInMinutes,
+    endedAt,
+    endedReasonCode,
+    endedBy
   ) <> (MeetingDbModel.tupled, MeetingDbModel.unapply)
   val meetingId = column[String]("meetingId", O.PrimaryKey)
   val extId = column[String]("extId")
@@ -44,17 +71,32 @@ class MeetingDbTableDef(tag: Tag) extends Table[MeetingDbModel](tag, None, "meet
   val disabledFeatures = column[List[String]]("disabledFeatures")
   val meetingCameraCap = column[Int]("meetingCameraCap")
   val maxPinnedCameras = column[Int]("maxPinnedCameras")
+  val cameraBridge = column[String]("cameraBridge")
+  val screenShareBridge = column[String]("screenShareBridge")
+  val audioBridge = column[String]("audioBridge")
   val notifyRecordingIsOn = column[Boolean]("notifyRecordingIsOn")
   val presentationUploadExternalDescription = column[String]("presentationUploadExternalDescription")
   val presentationUploadExternalUrl = column[String]("presentationUploadExternalUrl")
   val learningDashboardAccessToken = column[String]("learningDashboardAccessToken")
+  val loginUrl = column[Option[String]]("loginUrl")
+  val logoutUrl = column[Option[String]]("logoutUrl")
+  val customLogoUrl = column[Option[String]]("customLogoUrl")
+  val customDarkLogoUrl = column[Option[String]]("customDarkLogoUrl")
+  val bannerText = column[Option[String]]("bannerText")
+  val bannerColor = column[Option[String]]("bannerColor")
+  val systemColumns = (loginUrl, logoutUrl, customLogoUrl, customDarkLogoUrl, bannerText, bannerColor) <> (MeetingSystemColumnsDbModel.tupled, MeetingSystemColumnsDbModel.unapply)
   val createdTime = column[Long]("createdTime")
-  val duration = column[Int]("duration")
+  val durationInSeconds = column[Int]("durationInSeconds")
+  val endWhenNoModerator = column[Boolean]("endWhenNoModerator")
+  val endWhenNoModeratorDelayInMinutes = column[Int]("endWhenNoModeratorDelayInMinutes")
+  val endedAt = column[Option[java.sql.Timestamp]]("endedAt")
+  val endedReasonCode = column[Option[String]]("endedReasonCode")
+  val endedBy = column[Option[String]]("endedBy")
 }
 
 object MeetingDAO {
-  def insert(meetingProps: DefaultProps) = {
-    DatabaseConnection.db.run(
+  def insert(meetingProps: DefaultProps, clientSettings: Map[String, Object], pluginProps: PluginModel) = {
+    DatabaseConnection.enqueue(
       TableQuery[MeetingDbTableDef].forceInsert(
         MeetingDbModel(
           meetingId = meetingProps.meetingProp.intId,
@@ -64,40 +106,134 @@ object MeetingDAO {
           disabledFeatures = meetingProps.meetingProp.disabledFeatures.toList,
           meetingCameraCap = meetingProps.meetingProp.meetingCameraCap,
           maxPinnedCameras = meetingProps.meetingProp.maxPinnedCameras,
+          cameraBridge = meetingProps.meetingProp.cameraBridge,
+          screenShareBridge = meetingProps.meetingProp.screenShareBridge,
+          audioBridge = meetingProps.meetingProp.audioBridge,
           notifyRecordingIsOn = meetingProps.meetingProp.notifyRecordingIsOn,
           presentationUploadExternalDescription = meetingProps.meetingProp.presentationUploadExternalDescription,
           presentationUploadExternalUrl = meetingProps.meetingProp.presentationUploadExternalUrl,
           learningDashboardAccessToken = meetingProps.password.learningDashboardAccessToken,
+          systemColumns = MeetingSystemColumnsDbModel(
+            loginUrl = meetingProps.systemProps.loginUrl match {
+              case "" => None
+              case loginUrl => Some(loginUrl)
+            },
+            logoutUrl = meetingProps.systemProps.logoutUrl match {
+              case "" => None
+              case logoutUrl => Some(logoutUrl)
+            },
+            customLogoUrl = meetingProps.systemProps.customLogoURL match {
+              case "" => None
+              case logoUrl => Some(logoUrl)
+            },
+            customDarkLogoUrl = meetingProps.systemProps.customDarkLogoURL match {
+              case "" => None
+              case darkLogoUrl => Some(darkLogoUrl)
+            },
+            bannerText = meetingProps.systemProps.bannerText match {
+              case "" => None
+              case bannerText => Some(bannerText)
+            },
+            bannerColor = meetingProps.systemProps.bannerColor match {
+              case "" => None
+              case bannerColor => Some(bannerColor)
+            },
+          ),
           createdTime = meetingProps.durationProps.createdTime,
-          duration = meetingProps.durationProps.duration
+          durationInSeconds = meetingProps.durationProps.duration * 60,
+          endWhenNoModerator = meetingProps.durationProps.endWhenNoModerator,
+          endWhenNoModeratorDelayInMinutes = meetingProps.durationProps.endWhenNoModeratorDelayInMinutes,
+          endedAt = None,
+          endedReasonCode = None,
+          endedBy = None
         )
       )
-    ).onComplete {
-        case Success(rowsAffected) => {
-          DatabaseConnection.logger.debug(s"$rowsAffected row(s) inserted in Meeting table!")
-          MeetingUsersPoliciesDAO.insert(meetingProps.meetingProp.intId, meetingProps.usersProp)
-          MeetingLockSettingsDAO.insert(meetingProps.meetingProp.intId, meetingProps.lockSettingsProps)
-          MeetingMetadataDAO.insert(meetingProps.meetingProp.intId, meetingProps.metadataProp)
-          MeetingRecordingDAO.insert(meetingProps.meetingProp.intId, meetingProps.recordProp)
-          MeetingVoiceDAO.insert(meetingProps.meetingProp.intId, meetingProps.voiceProp)
-          MeetingWelcomeDAO.insert(meetingProps.meetingProp.intId, meetingProps.welcomeProp)
-          MeetingGroupDAO.insert(meetingProps.meetingProp.intId, meetingProps.groups)
-          MeetingBreakoutDAO.insert(meetingProps.meetingProp.intId, meetingProps.breakoutProps)
-          TimerDAO.insert(meetingProps.meetingProp.intId)
-        }
-        case Failure(e) => DatabaseConnection.logger.error(s"Error inserting Meeting: $e")
-      }
+    )
+
+    ChatDAO.insert(meetingProps.meetingProp.intId, GroupChatApp.createDefaultPublicGroupChat())
+    MeetingUsersPoliciesDAO.insert(meetingProps.meetingProp.intId, meetingProps.usersProp)
+    MeetingLockSettingsDAO.insert(meetingProps.meetingProp.intId, meetingProps.lockSettingsProps)
+    MeetingRecordingPoliciesDAO.insert(meetingProps.meetingProp.intId, meetingProps.recordProp)
+    MeetingVoiceDAO.insert(meetingProps.meetingProp.intId, meetingProps.voiceProp)
+    MeetingWelcomeDAO.insert(meetingProps.meetingProp.intId, meetingProps.welcomeProp)
+    MeetingGroupDAO.insert(meetingProps.meetingProp.intId, meetingProps.groups)
+    MeetingBreakoutDAO.insert(meetingProps.meetingProp.intId, meetingProps.breakoutProps)
+    LayoutDAO.insert(meetingProps.meetingProp.intId, meetingProps.usersProp.meetingLayout)
+    PluginModel.persistPluginsForClient(meetingProps.meetingProp.intId, pluginProps)
+    MeetingClientSettingsDAO.insert(meetingProps.meetingProp.intId, JsonUtils.mapToJson(clientSettings))
+  }
+
+  def updateMeetingDurationByParentMeeting(parentMeetingId: String, newDurationInSeconds: Int) = {
+    val subqueryBreakoutRooms = TableQuery[BreakoutRoomDbTableDef]
+      .filter(_.parentMeetingId === parentMeetingId)
+      .filter(_.endedAt.isEmpty)
+      .map(_.externalId)
+
+    DatabaseConnection.enqueue(
+      TableQuery[MeetingDbTableDef]
+        .filter(_.extId in subqueryBreakoutRooms)
+        .map(u => u.durationInSeconds)
+        .update(newDurationInSeconds)
+    )
   }
 
   def delete(meetingId: String) = {
-    DatabaseConnection.db.run(
+    DatabaseConnection.enqueue(
       TableQuery[MeetingDbTableDef]
         .filter(_.meetingId === meetingId)
         .delete
-    ).onComplete {
-        case Success(rowsAffected) => DatabaseConnection.logger.debug(s"Meeting ${meetingId} deleted")
-        case Failure(e)            => DatabaseConnection.logger.debug(s"Error deleting meeting ${meetingId}: $e")
-      }
+    )
   }
+
+  def deleteOldMeetings() = {
+    val oneHourAgo = java.sql.Timestamp.from(java.time.Instant.now().minusSeconds(3600))
+
+    DatabaseConnection.enqueue(
+      TableQuery[MeetingDbTableDef]
+        .filter(_.endedAt < oneHourAgo)
+        .delete
+    )
+  }
+
+
+  def setMeetingEnded(meetingId: String, endedReasonCode: String, endedBy: String) = {
+
+    UserDAO.softDeleteAllFromMeeting(meetingId)
+
+    DatabaseConnection.enqueue(
+      TableQuery[MeetingDbTableDef]
+        .filter(_.meetingId === meetingId)
+        .map(a => (a.endedAt, a.endedReasonCode, a.endedBy))
+        .update(
+              (
+              Some(new java.sql.Timestamp(System.currentTimeMillis())),
+              Some(endedReasonCode),
+                endedBy match {
+                  case "" => None
+                  case c => Some(c)
+                }
+              )
+        )
+    )
+  }
+
+  def setAllMeetingsEnded(endedReasonCode: String, endedBy: String) = {
+    DatabaseConnection.enqueue(
+      TableQuery[MeetingDbTableDef]
+        .filter(_.endedAt.isEmpty)
+        .map(a => (a.endedAt, a.endedReasonCode, a.endedBy))
+        .update(
+          (
+            Some(new java.sql.Timestamp(System.currentTimeMillis())),
+            Some(endedReasonCode),
+            endedBy match {
+              case "" => None
+              case c => Some(c)
+            }
+          )
+        )
+    )
+  }
+
 
 }

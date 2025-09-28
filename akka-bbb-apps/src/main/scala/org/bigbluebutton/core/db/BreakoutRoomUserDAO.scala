@@ -1,97 +1,125 @@
 package org.bigbluebutton.core.db
 
-import org.bigbluebutton.core.apps.BreakoutModel
 import org.bigbluebutton.core.apps.breakout.BreakoutHdlrHelpers
-import org.bigbluebutton.core.db.BreakoutRoomDAO.prepareInsertOrUpdate
-import org.bigbluebutton.core.models.{RegisteredUsers, Roles}
-import org.bigbluebutton.core.models.Users2x.findAll
+import org.bigbluebutton.core.domain.BreakoutRoom2x
 import org.bigbluebutton.core.running.LiveMeeting
 import slick.jdbc.PostgresProfile.api._
 
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.util.{Failure, Success}
-
 case class BreakoutRoomUserDbModel(
       breakoutRoomId:     String,
+      meetingId:          String,
       userId:             String,
+      joinURL:            String,
       assignedAt:         Option[java.sql.Timestamp],
+      inviteDismissedAt: Option[java.sql.Timestamp],
 )
 
 class BreakoutRoomUserDbTableDef(tag: Tag) extends Table[BreakoutRoomUserDbModel](tag, None, "breakoutRoom_user") {
   val breakoutRoomId = column[String]("breakoutRoomId", O.PrimaryKey)
+  val meetingId = column[String]("meetingId", O.PrimaryKey)
   val userId = column[String]("userId", O.PrimaryKey)
+  val joinURL = column[String]("joinURL")
   val assignedAt = column[Option[java.sql.Timestamp]]("assignedAt")
-  override def * = (breakoutRoomId, userId, assignedAt) <> (BreakoutRoomUserDbModel.tupled, BreakoutRoomUserDbModel.unapply)
+  val inviteDismissedAt = column[Option[java.sql.Timestamp]]("inviteDismissedAt")
+  override def * = (breakoutRoomId, meetingId, userId, joinURL, assignedAt, inviteDismissedAt) <> (BreakoutRoomUserDbModel.tupled, BreakoutRoomUserDbModel.unapply)
 }
 
 object BreakoutRoomUserDAO {
-
-  def prepareInsert(breakoutRoomId: String, userId: String) = {
+  def prepareInsert(breakoutRoomId: String, meetingId: String, userId: String, joinURL: String, wasAssignedByMod: Boolean) = {
     TableQuery[BreakoutRoomUserDbTableDef].insertOrUpdate(
       BreakoutRoomUserDbModel(
         breakoutRoomId = breakoutRoomId,
+        meetingId = meetingId,
         userId = userId,
-        assignedAt = Some(new java.sql.Timestamp(System.currentTimeMillis())),
+        joinURL = joinURL,
+        assignedAt = wasAssignedByMod match {
+          case true => Some(new java.sql.Timestamp(System.currentTimeMillis()))
+          case false => None
+        },
+        inviteDismissedAt = None,
       )
     )
   }
 
-  def prepareDelete(breakoutRoomId: String, userId: String) = {
-    TableQuery[BreakoutRoomUserDbTableDef]
-      .filter(_.breakoutRoomId === breakoutRoomId)
-      .filter(_.userId === userId)
-      .delete
+  def updateUserMovedToRoom(meetingId: String, userId: String, toBreakoutRoomId: String, joinUrl: String) = {
+    DatabaseConnection.enqueue(
+      DBIO.seq(
+        BreakoutRoomUserDAO.prepareInsert(toBreakoutRoomId, meetingId, userId, joinUrl, wasAssignedByMod = true)
+      )
+    )
+
+    //it will remove previous rooms if necessary
+    this.refreshBreakoutRoomsVisibleForUsers(meetingId, userId)
   }
 
-  def updateRoomChanged(userId: String, fromBreakoutRoomId: String, toBreakoutRoomId: String) = {
-    DatabaseConnection.db.run(DBIO.seq(
-      BreakoutRoomUserDAO.prepareDelete(fromBreakoutRoomId, userId),
-      BreakoutRoomUserDAO.prepareInsert(toBreakoutRoomId, userId)
-    ).transactionally)
-      .onComplete {
-        case Success(rowsAffected) => DatabaseConnection.logger.debug(s"$rowsAffected row(s) changed on breakoutRoom_user table!")
-        case Failure(e) => DatabaseConnection.logger.debug(s"Error changing breakoutRoom_user: $e")
+  def updateUserJoined(meetingId: String, usersInRoom: Vector[String], breakoutRoom: BreakoutRoom2x) = {
+    for {
+      userInRoom <- usersInRoom
+    } yield {
+      DatabaseConnection.enqueue(
+        sqlu"""UPDATE "breakoutRoom_user" SET
+                "joinedAt" = current_timestamp
+                WHERE "meetingId" = ${meetingId}
+                AND "userId" = ${userInRoom}
+                AND "breakoutRoomId" = ${breakoutRoom.id}"""
+      )
+    }
+  }
+
+  def insertBreakoutRoom(userId: String, room: BreakoutRoom2x, liveMeeting: LiveMeeting) = {
+      for {
+        (redirectToHtml5JoinURL, redirectJoinURL) <- BreakoutHdlrHelpers.getRedirectUrls(liveMeeting, userId, room.externalId, room.sequence.toString)
+      } yield {
+        DatabaseConnection.enqueue(BreakoutRoomUserDAO.prepareInsert(room.id, liveMeeting.props.meetingProp.intId, userId, redirectToHtml5JoinURL, wasAssignedByMod = false))
       }
   }
 
-  def updateUserEjected(userId: String, breakoutRoomId: String) = {
-    DatabaseConnection.db.run(DBIO.seq(
-      BreakoutRoomUserDAO.prepareDelete(userId, breakoutRoomId),
-    ).transactionally)
-      .onComplete {
-        case Success(rowsAffected) => DatabaseConnection.logger.debug(s"$rowsAffected row(s) deleted on breakoutRoom_user table!")
-        case Failure(e) => DatabaseConnection.logger.debug(s"Error deleting breakoutRoom_user: $e")
-      }
+  def updateInviteDismissedAt(meetingId: String, userId: String) = {
+    DatabaseConnection.enqueue(
+      TableQuery[BreakoutRoomUserDbTableDef]
+        .filter(_.meetingId === meetingId)
+        .filter(_.userId === userId)
+        .map(u => (u.inviteDismissedAt))
+        .update(Some(new java.sql.Timestamp(System.currentTimeMillis())))
+    )
   }
 
-//  def insertBreakoutRooms(userId: String, breakout: BreakoutModel, liveMeeting: LiveMeeting) = {
-//    //Insert users
-//    DatabaseConnection.db.run(DBIO.sequence(
-//      for {
-//        (_, room) <- breakout.rooms
-//        ru <- RegisteredUsers.findWithUserId(userId, liveMeeting.registeredUsers)
-//        if room.freeJoin || ru.role == Roles.MODERATOR_ROLE || room.assignedUsers.contains(ru.id)
-//      } yield {
-//        BreakoutRoomUserDAO.prepareInsert(room.id, ru.id)
-//      }
-//    ).transactionally)
-//      .onComplete {
-//        case Success(rowsAffected) => DatabaseConnection.logger.debug(s"$rowsAffected row(s) inserted on breakoutRoom_user table!")
-//        case Failure(e) => DatabaseConnection.logger.debug(s"Error inserting breakoutRoom_user: $e")
-//      }
-//  }
+  def refreshBreakoutRoomsVisibleForUsers(meetingId: String, userId: String = "") = {
+    val userCriteria: String = {
+      if (userId.nonEmpty) {
+        s"""AND u."userId" = '${userId}'"""
+      } else {
+        ""
+      }
+    }
 
-//  def updateUserJoined(userId: String, breakoutRoomId: String) = {
-//    DatabaseConnection.db.run(
-//      TableQuery[BreakoutRoomUserDbTableDef]
-//        .filter(_.breakoutRoomId === breakoutRoomId)
-//        .filter(_.userId === userId)
-//        .map(u => u.joinedAt)
-//        .update(Some(new java.sql.Timestamp(System.currentTimeMillis())))
-//    ).onComplete {
-//      case Success(rowsAffected) => DatabaseConnection.logger.debug(s"$rowsAffected row(s) updated joinedAt on breakoutRoom_user table!")
-//      case Failure(e) => DatabaseConnection.logger.error(s"Error updating joinedAt breakoutRoom_user: $e")
-//    }
-//  }
+    //Insert all rooms visible to the user into "breakoutRoom_user", as it will improve performance
+    //Also remove all rooms that is visible to the user but should no longer be visible
+    DatabaseConnection.enqueue(
+      sqlu"""
+        INSERT INTO "breakoutRoom_user" ("breakoutRoomId", "meetingId", "userId")
+        SELECT b."breakoutRoomId", u."meetingId", u."userId"
+        FROM "user" u
+        JOIN "breakoutRoom" b ON b."parentMeetingId" = u."meetingId"
+        WHERE u."meetingId" = ${meetingId} #${userCriteria}
+        AND ( b."freeJoin" IS TRUE OR u."role" = 'MODERATOR')
+        AND b."endedAt" IS NULL
+        ON CONFLICT ("breakoutRoomId", "meetingId", "userId") DO NOTHING;
 
+        DELETE FROM "breakoutRoom_user"
+            WHERE ("breakoutRoomId", "meetingId", "userId")
+            IN (
+                select bu."breakoutRoomId", bu."meetingId", bu."userId"
+                from "breakoutRoom_user" bu
+                join "breakoutRoom" b using("breakoutRoomId")
+                join "user" u using("userId")
+                where u."meetingId" = ${meetingId} #${userCriteria}
+                and bu."isLastAssignedRoom" is false
+                and b."freeJoin" is not true
+                and u."isModerator" is not true
+            )
+        """
+    )
+
+    }
 }

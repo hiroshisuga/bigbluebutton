@@ -41,6 +41,7 @@ public class SlidesGenerationProgressNotifier {
 
   public void sendUploadFileTooLargeMessage(PresentationUploadToken pres, int uploadedFileSize, int maxUploadFileSize) {
     UploadFileTooLargeMessage progress = new UploadFileTooLargeMessage(
+            pres.presentationId,
             pres.podId,
             pres.meetingId,
             pres.filename,
@@ -75,7 +76,32 @@ public class SlidesGenerationProgressNotifier {
     messagingService.sendDocConversionMsg(errorMessage);
   }
 
+  public void sendUploadFileVirus(UploadedPresentation pres) {
+    UploadFileVirusMessage message = new UploadFileVirusMessage(
+            pres.getPodId(),
+            pres.getMeetingId(),
+            pres.getName(),
+            ConversionMessageConstants.FILE_VIRUS_KEY,
+            pres.getTemporaryPresentationId(),
+            pres.getId()
+    );
+    messagingService.sendDocConversionMsg(message);
+  }
+
+  public void sendUploadFileScanFailed(UploadedPresentation pres) {
+    UploadFileScanFailedMessage message = new UploadFileScanFailedMessage(
+            pres.getPodId(),
+            pres.getMeetingId(),
+            pres.getName(),
+            ConversionMessageConstants.SCAN_FAILED_KEY,
+            pres.getTemporaryPresentationId(),
+            pres.getId()
+    );
+    messagingService.sendDocConversionMsg(message);
+  }
+
   public void sendConversionUpdateMessage(int slidesCompleted, UploadedPresentation pres, int pageGenerated) {
+    log.info("Sending conversion update message for page {} of presentation [{}] in meeting [{}]", pageGenerated, pres.getId(), pres.getMeetingId());
     DocPageGeneratedProgress progress = new DocPageGeneratedProgress(pres.getPodId(),
             pres.getMeetingId(),
             pres.getId(),
@@ -104,18 +130,16 @@ public class SlidesGenerationProgressNotifier {
   }
 
   public void sendConversionCompletedMessage(UploadedPresentation pres) {
+    log.info("Sending conversion completed message for presentation [{}] in meeting [{}]", pres.getId(), pres.getMeetingId());
     if (generatedSlidesInfoHelper == null) {
       log.error("GeneratedSlidesInfoHelper was not set. Could not notify interested listeners.");
       return;
     }
-    // Completed conversion -> delete original file
-    pres.deleteOriginalFile();
-
     DocPageCompletedProgress progress = new DocPageCompletedProgress(pres.getPodId(), pres.getMeetingId(),
       pres.getId(), pres.getTemporaryPresentationId(), pres.getId(),
       pres.getName(), "notUsedYet", "notUsedYet",
       pres.isDownloadable(), pres.isRemovable(), ConversionMessageConstants.CONVERSION_COMPLETED_KEY,
-      pres.getNumberOfPages(), generateBasePresUrl(pres), pres.isCurrent(), pres.getIsInitialPresentation(), pres.getFilenameConverted());
+      pres.getNumberOfPages(), generateBasePresUrl(pres), pres.isCurrent(), pres.isDefaultPresentation(), pres.getFilenameConverted());
     messagingService.sendDocConversionMsg(progress);
   }
 

@@ -8,21 +8,20 @@ const propTypes = {
   iconName: PropTypes.string.isRequired,
   prependIconName: PropTypes.string,
   rotate: PropTypes.bool,
-};
-
-const defaultProps = {
-  prependIconName: 'icon-bbb-',
-  rotate: false,
+  className: PropTypes.string,
+  color: PropTypes.string,
 };
 
 const Icon = ({
-  className,
-  prependIconName,
+  className = '',
+  prependIconName = 'icon-bbb-',
   iconName,
-  rotate,
+  rotate = false,
+  color = undefined,
   ...props
 }) => (
   <Styled.Icon
+    color={color}
     className={cx(className, [prependIconName, iconName].join(''))}
     // ToastContainer from react-toastify passes a useless closeToast prop here
     {...omit(props, ['closeToast', 'animations', 'loading'])}
@@ -33,4 +32,3 @@ const Icon = ({
 export default memo(Icon);
 
 Icon.propTypes = propTypes;
-Icon.defaultProps = defaultProps;

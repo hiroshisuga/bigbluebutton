@@ -5,7 +5,7 @@ import org.bigbluebutton.core.api.EjectUserFromBreakoutInternalMsg
 import org.bigbluebutton.core.apps.breakout.BreakoutHdlrHelpers.getRedirectUrls
 import org.bigbluebutton.core.apps.{PermissionCheck, RightsManagementTrait}
 import org.bigbluebutton.core.bus.BigBlueButtonEvent
-import org.bigbluebutton.core.db.BreakoutRoomUserDAO
+import org.bigbluebutton.core.db.{BreakoutRoomUserDAO, NotificationDAO}
 import org.bigbluebutton.core.domain.MeetingState2x
 import org.bigbluebutton.core.models.EjectReasonCode
 import org.bigbluebutton.core.running.{MeetingActor, OutMsgRouter}
@@ -29,7 +29,6 @@ trait ChangeUserBreakoutReqMsgHdlr extends RightsManagementTrait {
       for {
         breakoutModel <- state.breakout
       } yield {
-
         //Eject user from room From
         for {
           roomFrom <- breakoutModel.rooms.get(msg.body.fromBreakoutId)
@@ -43,10 +42,9 @@ trait ChangeUserBreakoutReqMsgHdlr extends RightsManagementTrait {
         val redirectToHtml5JoinURL = (
             for {
               roomTo <- breakoutModel.rooms.get(msg.body.toBreakoutId)
-              (redirectToHtml5JoinURL, redirectJoinURL) <- getRedirectUrls(liveMeeting, msg.body.userId, roomTo.externalId, roomTo.sequence.toString())
+              (redirectToHtml5JoinURL, redirectJoinURL) <- getRedirectUrls(liveMeeting, msg.body.userId, roomTo.externalId, roomTo.sequence.toString)
             } yield redirectToHtml5JoinURL
           ).getOrElse("")
-
 
         BreakoutHdlrHelpers.sendChangeUserBreakoutMsg(
           outGW,
@@ -58,8 +56,11 @@ trait ChangeUserBreakoutReqMsgHdlr extends RightsManagementTrait {
         )
 
         //Update database
-        BreakoutRoomUserDAO.updateRoomChanged(msg.body.userId, msg.body.fromBreakoutId, msg.body.toBreakoutId)
-
+        BreakoutRoomUserDAO.updateUserMovedToRoom(
+          meetingId,
+          msg.body.userId,
+          msg.body.toBreakoutId,
+          redirectToHtml5JoinURL)
 
         //Send notification to moved User
         for {
@@ -73,9 +74,10 @@ trait ChangeUserBreakoutReqMsgHdlr extends RightsManagementTrait {
             "promote",
             "app.updateBreakoutRoom.userChangeRoomNotification",
             "Notification to warn user was moved to another room",
-            Vector(roomTo.shortName)
+            Map("roomName" -> roomTo.shortName)
           )
           outGW.send(notifyUserEvent)
+          NotificationDAO.insert(notifyUserEvent)
         }
       }
 

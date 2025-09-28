@@ -24,6 +24,8 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Writer;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -38,6 +40,8 @@ import com.google.gson.Gson;
 public class TextFileCreatorImp implements TextFileCreator {
   private static Logger log = LoggerFactory.getLogger(TextFileCreatorImp.class);
 
+  private long execTimeout = 60000;
+
   @Override
   public boolean createTextFile(UploadedPresentation pres, int page) {
     boolean success = false;
@@ -49,23 +53,43 @@ public class TextFileCreatorImp implements TextFileCreator {
     try {
       success = generateTextFile(textfilesDir, pres, page);
     } catch (InterruptedException e) {
-      log.error("Interrupted Exception while generating thumbnails {}", pres.getName(), e);
+      log.error("Interrupted Exception while generating text files {}", pres.getName(), e);
       success = false;
     }
 
-    // TODO: in case that it doesn't generated the textfile, we should create a
-    // textfile with some message
-    // createUnavailableTextFile
+    if (!success) {
+      createBlankTextFile(textfilesDir, page);
+    }
 
     return success;
+  }
+
+  @Override
+  public void createBlank(UploadedPresentation pres, int page) {
+    File dir =  determineTextfilesDirectory(pres.getUploadedFile());
+
+    if (!dir.exists()) {
+      boolean created = dir.mkdir();
+      if (!created) {
+        log.warn("Failed to create text file directory");
+        return;
+      }
+    }
+
+    createBlankTextFile(dir, page);
   }
 
   private boolean generateTextFile(File textfilesDir,
       UploadedPresentation pres, int page) throws InterruptedException {
     boolean success = true;
     String source = pres.getUploadedFile().getAbsolutePath();
-    String dest;
+    String dest = textfilesDir.getAbsolutePath() + File.separatorChar + "slide-" + page + ".txt";
     String COMMAND = "";
+
+    // Skip processing if the destination file exists, as it was likely restored from the cache
+    if(Files.exists(Paths.get(dest))) {
+      return true;
+    }
 
     if (SupportedFileTypes.isImageFile(pres.getFileType())) {
       dest = textfilesDir.getAbsolutePath() + File.separatorChar + "slide-1.txt";
@@ -89,15 +113,18 @@ public class TextFileCreatorImp implements TextFileCreator {
       }
 
     } else {
-      dest = textfilesDir.getAbsolutePath() + File.separatorChar + "slide-" + page + ".txt";
       // sudo apt-get install xpdf-utils
-
-        COMMAND = "pdftotext -raw -nopgbrk -enc UTF-8 -f " + page + " -l " + page
+        COMMAND = "pdftotext -layout -nopgbrk -enc UTF-8 -f " + page + " -l " + page
             + " " + source + " " + dest;
 
         //System.out.println(COMMAND);
 
-        boolean done = new ExternalProcessExecutor().exec(COMMAND, 60000);
+      long execTimeout = this.execTimeout;
+      if (execTimeout > pres.getMaxPageConversionTime()) {
+        execTimeout = pres.getMaxPageConversionTime();
+      }
+
+        boolean done = new ExternalProcessExecutor().exec(COMMAND, execTimeout);
         if (!done) {
           success = false;
 
@@ -123,6 +150,20 @@ public class TextFileCreatorImp implements TextFileCreator {
         presentationFile.getParent() + File.separatorChar + "textfiles");
   }
 
+  private void createBlankTextFile(File textFilesDir, int page) {
+    File textFile = new File(textFilesDir.getAbsolutePath() + File.separatorChar + "slide-" + page + ".txt");
+    try {
+      boolean created = textFile.createNewFile();
+      if (created) {
+        String text = "No text could be retrieved for the slide";
+        Writer writer = new BufferedWriter(new FileWriter(textFile));
+        writer.write(text);
+      }
+    } catch (Exception e) {
+      log.warn("Failed to create blank text file:", e);
+    }
+  }
+
   private void cleanDirectory(File directory) {
     File[] files = directory.listFiles();
     for (File file : files) {
@@ -130,4 +171,7 @@ public class TextFileCreatorImp implements TextFileCreator {
     }
   }
 
+  public void setExecTimeout(long execTimeout) {
+    this.execTimeout = execTimeout;
+  }
 }

@@ -11,7 +11,7 @@ trait DeleteWhiteboardAnnotationsPubMsgHdlr extends RightsManagementTrait {
   def handle(msg: DeleteWhiteboardAnnotationsPubMsg, liveMeeting: LiveMeeting, bus: MessageBus): Unit = {
 
     def broadcastEvent(msg: DeleteWhiteboardAnnotationsPubMsg, removedAnnotationsIds: Array[String]): Unit = {
-      val routing = Routing.addMsgToHtml5InstanceIdRouting(liveMeeting.props.meetingProp.intId, liveMeeting.props.systemProps.html5InstanceId.toString)
+      val routing = Routing.addMsgToClientRouting(MessageTypes.BROADCAST_TO_MEETING, liveMeeting.props.meetingProp.intId, msg.header.userId)
       val envelope = BbbCoreEnvelope(DeleteWhiteboardAnnotationsEvtMsg.NAME, routing)
       val header = BbbClientMsgHeader(DeleteWhiteboardAnnotationsEvtMsg.NAME, liveMeeting.props.meetingProp.intId, msg.header.userId)
 
@@ -38,7 +38,16 @@ trait DeleteWhiteboardAnnotationsPubMsgHdlr extends RightsManagementTrait {
         PermissionCheck.ejectUserForFailedPermission(meetingId, msg.header.userId, reason, bus.outGW, liveMeeting)
       }
     } else {
-      val deletedAnnotations = deleteWhiteboardAnnotations(msg.body.whiteboardId, msg.header.userId, msg.body.annotationsIds, liveMeeting, isUserAmongPresenters, isUserModerator)
+
+      val annotationsIds = {
+        if (msg.body.annotationsIds.size > 0) {
+          msg.body.annotationsIds
+        } else {
+          getWhiteboardAnnotations(msg.body.whiteboardId, liveMeeting).map(a => a.id)
+        }
+      }
+
+      val deletedAnnotations = deleteWhiteboardAnnotations(msg.body.whiteboardId, msg.header.userId, annotationsIds, liveMeeting, isUserAmongPresenters, isUserModerator)
       if (!deletedAnnotations.isEmpty) {
         broadcastEvent(msg, deletedAnnotations)
       }

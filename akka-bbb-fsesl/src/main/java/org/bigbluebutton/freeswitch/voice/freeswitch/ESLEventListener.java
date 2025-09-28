@@ -26,6 +26,9 @@ public class ESLEventListener implements IEslEventListener {
     private static final String CONFERENCE_CREATED_EVENT = "conference-create";
     private static final String CONFERENCE_DESTROYED_EVENT = "conference-destroy";
     private static final String FLOOR_CHANGE_EVENT = "video-floor-change";
+    private static final String CHANNEL_CALLSTATE_EVENT = "CHANNEL_CALLSTATE";
+    private static final String CHANNEL_CALLSTATE_HELD = "HELD";
+    private static final String CHANNEL_CALLSTATE_ACTIVE = "ACTIVE";
 
     private final ConferenceEventListener conferenceEventListener;
     
@@ -59,12 +62,14 @@ public class ESLEventListener implements IEslEventListener {
     @Override
     public void conferenceEventJoin(String uniqueId, String confName, int confSize, EslEvent event) {
 
-        Integer memberId = this.getMemberIdFromEvent(event);
+        Integer memberId = this.getMemberId(event);
         Map<String, String> headers = event.getEventHeaders();
-        String callerId = this.getCallerIdFromEvent(event);
+        String callerId = this.getCallerId(event);
         String callerIdName = this.getCallerIdNameFromEvent(event);
+        String channelCallState = this.getChannelCallState(headers);
         boolean muted = headers.get("Speak").equals("true") ? false : true; //Was inverted which was causing a State issue
         boolean speaking = headers.get("Talking").equals("true") ? true : false;
+        boolean hold = channelCallState.equals(CHANNEL_CALLSTATE_HELD);
 
         String voiceUserId = callerIdName;
 
@@ -79,6 +84,7 @@ public class ESLEventListener implements IEslEventListener {
         String origCallerIdName = headers.get("Caller-Caller-ID-Name");
         String origCallerDestNumber = headers.get("Caller-Destination-Number");
         String clientSession = "0";
+        String memberIdStr = memberId != null ? memberId.toString() : "";
 
         Matcher matcher = CALLERNAME_PATTERN.matcher(callerIdName);
         Matcher callWithSess = CALLERNAME_WITH_SESS_INFO_PATTERN.matcher(callerIdName);
@@ -101,6 +107,7 @@ public class ESLEventListener implements IEslEventListener {
                 coreuuid,
                 clientSession,
                 voiceUserId,
+                memberIdStr,
                 callerIdName,
                 callState,
                 origCallerIdName,
@@ -124,14 +131,16 @@ public class ESLEventListener implements IEslEventListener {
                 callerIdName,
                 muted,
                 speaking,
-                "none");
+                "none",
+                hold,
+                callerUUID);
         conferenceEventListener.handleConferenceEvent(pj);
     }
 
     @Override
     public void conferenceEventLeave(String uniqueId, String confName, int confSize, EslEvent event) {      
-        Integer memberId = this.getMemberIdFromEvent(event);
-        String callerId = this.getCallerIdFromEvent(event);
+        Integer memberId = this.getMemberId(event);
+        String callerId = this.getCallerId(event);
         String callerIdName = this.getCallerIdNameFromEvent(event);
 
         String callerUUID = this.getMemberUUIDFromEvent(event);
@@ -146,14 +155,14 @@ public class ESLEventListener implements IEslEventListener {
 
     @Override
     public void conferenceEventMute(String uniqueId, String confName, int confSize, EslEvent event) {
-        Integer memberId = this.getMemberIdFromEvent(event);
+        Integer memberId = this.getMemberId(event);
         VoiceUserMutedEvent pm = new VoiceUserMutedEvent(memberId.toString(), confName, true);
         conferenceEventListener.handleConferenceEvent(pm);
     }
 
     @Override
     public void conferenceEventUnMute(String uniqueId, String confName, int confSize, EslEvent event) {
-        Integer memberId = this.getMemberIdFromEvent(event);
+        Integer memberId = this.getMemberId(event);
         VoiceUserMutedEvent pm = new VoiceUserMutedEvent(memberId.toString(), confName, false);
         conferenceEventListener.handleConferenceEvent(pm);
     }
@@ -165,11 +174,11 @@ public class ESLEventListener implements IEslEventListener {
         }
 
         if (action.equals(START_TALKING_EVENT)) {
-            Integer memberId = this.getMemberIdFromEvent(event);
+            Integer memberId = this.getMemberId(event);
             VoiceUserTalkingEvent pt = new VoiceUserTalkingEvent(memberId.toString(), confName, true);
             conferenceEventListener.handleConferenceEvent(pt);          
         } else if (action.equals(STOP_TALKING_EVENT)) {
-            Integer memberId = this.getMemberIdFromEvent(event);
+            Integer memberId = this.getMemberId(event);
             VoiceUserTalkingEvent pt = new VoiceUserTalkingEvent(memberId.toString(), confName, false);
             conferenceEventListener.handleConferenceEvent(pt);          
         } else if (action.equals(CONFERENCE_CREATED_EVENT)) {
@@ -274,6 +283,7 @@ public class ESLEventListener implements IEslEventListener {
             String varvBridge = (eventHeaders.get("variable_vbridge") == null) ? "" : eventHeaders.get("variable_vbridge");
 
             if ("echo".equalsIgnoreCase(application) && !varvBridge.isEmpty()) {
+                Integer memberId = this.getMemberId(eventHeaders);
                 String origCallerIdName = eventHeaders.get("Caller-Caller-ID-Name");
                 String origCallerDestNumber = eventHeaders.get("Caller-Destination-Number");
                 String coreuuid = eventHeaders.get("Core-UUID");
@@ -284,6 +294,7 @@ public class ESLEventListener implements IEslEventListener {
                 String callerName = origCallerIdName;
                 String clientSession = "0";
                 String callState = "IN_ECHO_TEST";
+                String memberIdStr = memberId != null ? memberId.toString() : "";
 
                 Matcher callerListenOnly = CALLERNAME_LISTENONLY_PATTERN.matcher(origCallerIdName);
                 Matcher callWithSess = CALLERNAME_WITH_SESS_INFO_PATTERN.matcher(origCallerIdName);
@@ -307,6 +318,7 @@ public class ESLEventListener implements IEslEventListener {
                         coreuuid,
                         clientSession,
                         voiceUserId,
+                        memberIdStr,
                         callerName,
                         callState,
                         origCallerIdName,
@@ -314,6 +326,7 @@ public class ESLEventListener implements IEslEventListener {
                 conferenceEventListener.handleConferenceEvent(csEvent);
 
             } else if ("RINGING".equalsIgnoreCase(channelCallState) && !varvBridge.isEmpty()) {
+                Integer memberId = this.getMemberId(eventHeaders);
                 String origCallerIdName = eventHeaders.get("Caller-Caller-ID-Name");
                 String origCallerDestNumber = eventHeaders.get("Caller-Destination-Number");
                 String coreuuid = eventHeaders.get("Core-UUID");
@@ -323,6 +336,7 @@ public class ESLEventListener implements IEslEventListener {
                 String callerName = origCallerIdName;
                 String clientSession = "0";
                 String callState = "CALL_STARTED";
+                String memberIdStr = memberId != null ? memberId.toString() : "";
 
                 Matcher callerListenOnly = CALLERNAME_LISTENONLY_PATTERN.matcher(origCallerIdName);
                 Matcher callWithSess = CALLERNAME_WITH_SESS_INFO_PATTERN.matcher(origCallerIdName);
@@ -346,6 +360,7 @@ public class ESLEventListener implements IEslEventListener {
                         coreuuid,
                         clientSession,
                         voiceUserId,
+                        memberIdStr,
                         callerName,
                         callState,
                         origCallerIdName,
@@ -358,6 +373,7 @@ public class ESLEventListener implements IEslEventListener {
             String channelState = (eventHeaders.get("Channel-State") == null) ? "" : eventHeaders.get("Channel-State");
 
             if ("HANGUP".equalsIgnoreCase(channelCallState) && "CS_DESTROY".equalsIgnoreCase(channelState)) {
+                Integer memberId = this.getMemberId(eventHeaders);
                 String origCallerIdName = eventHeaders.get("Caller-Caller-ID-Name");
                 String origCallerDestNumber = eventHeaders.get("Caller-Destination-Number");
                 String coreuuid = eventHeaders.get("Core-UUID");
@@ -367,6 +383,7 @@ public class ESLEventListener implements IEslEventListener {
                 String callerName = origCallerIdName;
                 String clientSession = "0";
                 String callState = "CALL_ENDED";
+                String memberIdStr = memberId != null ? memberId.toString() : "";
 
                 Matcher callerListenOnly = CALLERNAME_LISTENONLY_PATTERN.matcher(origCallerIdName);
                 Matcher callWithSess = CALLERNAME_WITH_SESS_INFO_PATTERN.matcher(origCallerIdName);
@@ -390,6 +407,7 @@ public class ESLEventListener implements IEslEventListener {
                         coreuuid,
                         clientSession,
                         voiceUserId,
+                        memberIdStr,
                         callerName,
                         callState,
                         origCallerIdName,
@@ -398,6 +416,7 @@ public class ESLEventListener implements IEslEventListener {
                 conferenceEventListener.handleConferenceEvent(csEvent);
 
             } else if ("RINGING".equalsIgnoreCase(channelCallState) && "CS_EXECUTE".equalsIgnoreCase(channelState)) {
+                Integer memberId = this.getMemberId(eventHeaders);
                 String origCallerIdName = eventHeaders.get("Caller-Caller-ID-Name");
                 String origCallerDestNumber = eventHeaders.get("Caller-Destination-Number");
                 String coreuuid = eventHeaders.get("Core-UUID");
@@ -407,6 +426,7 @@ public class ESLEventListener implements IEslEventListener {
                 String callerName = origCallerIdName;
                 String clientSession = "0";
                 String callState = "CALL_STARTED";
+                String memberIdStr = memberId != null ? memberId.toString() : "";
 
                 Matcher callerListenOnly = CALLERNAME_LISTENONLY_PATTERN.matcher(origCallerIdName);
                 Matcher callWithSess = CALLERNAME_WITH_SESS_INFO_PATTERN.matcher(origCallerIdName);
@@ -430,6 +450,7 @@ public class ESLEventListener implements IEslEventListener {
                         coreuuid,
                         clientSession,
                         voiceUserId,
+                        memberIdStr,
                         callerName,
                         callState,
                         origCallerIdName,
@@ -437,16 +458,92 @@ public class ESLEventListener implements IEslEventListener {
                         );
                 conferenceEventListener.handleConferenceEvent(csEvent);
             }
+        } else if (event.getEventName().equals(CHANNEL_CALLSTATE_EVENT)) {
+            Map<String, String> eventHeaders = event.getEventHeaders();
+            String channelCallState = this.getChannelCallState(eventHeaders);
+            String originalChannelCallState = eventHeaders.get("Original-Channel-Call-State");
+            if (channelCallState == null
+                    || originalChannelCallState == null
+                    || channelCallState.equals(originalChannelCallState)
+                    || !(channelCallState.equals(CHANNEL_CALLSTATE_HELD) || channelCallState.equals(CHANNEL_CALLSTATE_ACTIVE))) {
+                // No call state info, or no change in call state, or not a call state we care about
+                return;
+            }
 
+            String intId = this.getIntId(event);
+
+            if (intId == null) {
+                return;
+            }
+
+            Boolean hold = channelCallState.equals(CHANNEL_CALLSTATE_HELD);
+            String uuid = this.getMemberUUIDFromEvent(event);
+            String conference = eventHeaders.get("Caller-Destination-Number");
+            Matcher callerDestNumberMatcher = ECHO_TEST_DEST_PATTERN.matcher(conference);
+
+            if (callerDestNumberMatcher.matches()) {
+                    conference = callerDestNumberMatcher.group(1).trim();
+            }
+
+            ChannelHoldChangedEvent csEvent = new ChannelHoldChangedEvent(
+                    conference,
+                    intId,
+                    uuid,
+                    hold
+            );
+            conferenceEventListener.handleConferenceEvent(csEvent);
+        }
+
+    }
+
+    private String getIntId(EslEvent event) {
+        return this.getIntId(event.getEventHeaders());
+    }
+
+    private String getIntId(Map<String, String> eventHeaders) {
+        String origCallerIdName = this.getCallerId(eventHeaders);
+        Integer memberId = this.getMemberId(eventHeaders);
+        Matcher callerListenOnly = CALLERNAME_LISTENONLY_PATTERN.matcher(origCallerIdName);
+        Matcher callWithSess = CALLERNAME_WITH_SESS_INFO_PATTERN.matcher(origCallerIdName);
+        if (callWithSess.matches()) {
+            return callWithSess.group(1).trim();
+        } else if (callerListenOnly.matches()) {
+            return callerListenOnly.group(1).trim();
+        } else if (memberId != null) {
+            return "v_" + memberId.toString();
+        } else {
+            return null;
         }
     }
 
-    private Integer getMemberIdFromEvent(EslEvent e) {
-        return new Integer(e.getEventHeaders().get("Member-ID"));
+    private Integer getMemberId(EslEvent event) {
+        return this.getMemberId(event.getEventHeaders());
     }
 
-    private String getCallerIdFromEvent(EslEvent e) {
-        return e.getEventHeaders().get("Caller-Caller-ID-Number");
+    private Integer getMemberId(Map<String, String> eventHeaders) {
+        String memberId = eventHeaders.get("Member-ID");
+
+        if (memberId == null) {
+            return null;
+        }
+
+        return Integer.valueOf(memberId);
+    }
+
+    private String getCallerId(EslEvent event) {
+        return this.getCallerId(event.getEventHeaders());
+    }
+
+    private String getCallerId(Map<String, String> eventHeaders) {
+        return eventHeaders.get("Caller-Caller-ID-Number");
+    }
+
+    private String getChannelCallState(EslEvent event) {
+        return this.getChannelCallState(event.getEventHeaders());
+    }
+
+    private String getChannelCallState(Map<String, String> eventHeaders) {
+        return eventHeaders.get("Channel-Call-State");
     }
 
     private String getMemberUUIDFromEvent(EslEvent e) {

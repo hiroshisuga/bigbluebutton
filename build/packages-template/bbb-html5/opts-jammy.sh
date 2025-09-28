@@ -1,3 +1,5 @@
+#!/bin/bash
+
 . ./opts-global.sh
 
-OPTS="$OPTS -d bc,bbb-pads,bbb-webrtc-sfu,bbb-export-annotations,bbb-web,bbb-html5-nodejs,bbb-graphql-server,yq,mongodb-org -t deb"
+OPTS="$OPTS -d bc,bbb-pads,bbb-webrtc-sfu,bbb-export-annotations,bbb-web,bbb-graphql-middleware,bbb-graphql-actions,yq,nginx,unzip -t deb"
