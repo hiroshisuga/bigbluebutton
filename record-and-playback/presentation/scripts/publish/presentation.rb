@@ -822,6 +822,7 @@ def events_parse_clear(shapes, event, current_presentation, current_slide, times
   end
 end
 
+# Changes must be directly applied to /usr/local/bigbluebutton/core/scripts/publish/presentation.rb
 def events_get_image_info(slide, tldraw)
   slide_deskshare = slide[:deskshare]
   slide_external_videos = slide[:external_videos]
