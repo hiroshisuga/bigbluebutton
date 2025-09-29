@@ -957,7 +957,7 @@ module BigBlueButton
       BigBlueButton.logger.info ("Matching external video events")
       matched_external_video_events = []
       external_video_events.each do |evt|
-        if evt[:status]
+        if evt[:status] # Update
           matched_external_video_events[-1][:updates] << {
             :timestamp => evt[:timestamp],
             :rate => evt[:rate],
@@ -965,15 +965,15 @@ module BigBlueButton
             :status => evt[:status],
             :time => evt[:time]
           }
-        elsif evt[:external_video_url]
+        elsif evt[:external_video_url] # Start
           matched_external_video_events << {
             :start_timestamp => evt[:timestamp],
             :external_video_url => evt[:external_video_url],
             :updates => []
           }
-        else
+        else # Stop (sometimes it occurrs without Start
           e = matched_external_video_events[-1]
-          e[:stop_timestamp] = evt[:timestamp]
+          e[:stop_timestamp] = evt[:timestamp] if = e
         end
       end
       #BigBlueButton.logger.info (match_all_external_video_events: "#{matched_external_video_events}")
