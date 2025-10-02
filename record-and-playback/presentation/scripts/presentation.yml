@@ -12,6 +12,7 @@ audio_offset: 0
 include_deskshare: true
 # you need to directly modify /usr/local/bigbluebutton/core/scripts/presentation.yml,
 #  or overwrite it by /etc/bigbluebutton/recording/presentation.yml
+# without this parameter, the external_videos.png file won't be generated and the thumbnail disappears in the player.
 include_external_videos: true
 
 # For PRODUCTION
