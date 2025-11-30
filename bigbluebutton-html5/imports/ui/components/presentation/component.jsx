@@ -1008,6 +1008,10 @@ class Presentation extends PureComponent {
       fitToWidth,
       isPresentationDetached,
       popupWindow,
+      annotationStreamData,
+      initialPageAnnotations,
+      refetchInitialPageAnnotations,
+      restoreOnUpdate,
     } = this.props;
 
     const {
@@ -1188,6 +1192,10 @@ class Presentation extends PureComponent {
                     isViewersAnnotationsLocked={isViewersAnnotationsLocked}
                     isPresentationDetached={isPresentationDetached}
                     popupWindow={popupWindow}
+                    annotationStreamData={annotationStreamData}
+                    initialPageAnnotations={initialPageAnnotations}
+                    refetchInitialPageAnnotations={refetchInitialPageAnnotations}
+                    restoreOnUpdate={restoreOnUpdate}
                   />
                 </LocatedErrorBoundary>
                 {isFullscreen && <PollingContainer />}
