@@ -1294,8 +1294,8 @@ def process_external_video_events(_events, package_dir)
       re_stop_timestamp = re[:stop_timestamp]
       next unless ((start_timestamp >= re_start_timestamp) && (start_timestamp < re_stop_timestamp)) ||
                   ((stop_timestamp > re_start_timestamp) && (stop_timestamp <= re_stop_timestamp)) ||
-                  ((start_timestamp <= re_start_timestamp) && (stop_timestamp >= re_stop_timestamp)
-                      && (re_stop_timestamp > re_start_timestamp))
+                  ((start_timestamp <= re_start_timestamp) && (stop_timestamp >= re_stop_timestamp) &&
+                      (re_stop_timestamp > re_start_timestamp))
 
       external_videos << {
         timestamp: timestamp,
@@ -1323,7 +1323,8 @@ def process_external_video_events(_events, package_dir)
       #            ((start_timestamp < re_start_timestamp || stop_timestamp > re_stop_timestamp) && (re_stop_timestamp >= re_start_timestamp))
       next unless ((start_timestamp >= re_start_timestamp) && (start_timestamp < re_stop_timestamp)) ||
                   ((stop_timestamp > re_start_timestamp) && (stop_timestamp <= re_stop_timestamp)) ||
-                  ((start_timestamp <= re_start_timestamp) && (stop_timestamp >= re_stop_timestamp) && (re_stop_timestamp > re_start_timestamp))
+                  ((start_timestamp <= re_start_timestamp) && (stop_timestamp >= re_stop_timestamp) &&
+                      (re_stop_timestamp > re_start_timestamp))
 
       updates = []
       event[:updates].each do |update|
