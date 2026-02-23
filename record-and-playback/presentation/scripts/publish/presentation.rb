@@ -838,12 +838,16 @@ def events_parse_clear(shapes, event, current_presentation, current_slide, times
   end
 end
 
+# Changes must be directly applied to /usr/local/bigbluebutton/core/scripts/publish/presentation.rb
 def events_get_image_info(slide, tldraw)
   slide_deskshare = slide[:deskshare]
+  slide_external_videos = slide[:external_videos]
   slide_presentation = slide[:presentation]
 
   if slide_deskshare
     slide[:src] = 'presentation/deskshare.png'
+  elsif slide_external_videos
+    slide[:src] = 'presentation/externalVideos.png'
   elsif slide_presentation == ''
     slide[:src] = 'presentation/logo.png'
   else
@@ -862,7 +866,7 @@ def events_get_image_info(slide, tldraw)
       File.write(image_path, '<svg version="1.1" width="1600" height="1600" xmlns="http://www.w3.org/2000/svg"></svg>')
     else
       command = \
-        if slide_deskshare
+        if slide_deskshare || slide_external_videos
           ['convert', '-size',
            "#{@presentation_props['deskshare_output_width']}x#{@presentation_props['deskshare_output_height']}", 'xc:transparent', '-background', 'transparent', image_path,]
         else
@@ -957,6 +961,15 @@ def process_presentation(package_dir)
         slide_changed = true
       end
 
+    when 'StartExternalVideoRecordEvent'
+      external_videos = slide_changed = true if @presentation_props['include_external_videos']
+
+    when 'StopExternalVideoRecordEvent'
+      if @presentation_props['include_external_videos']
+        external_videos = false
+        slide_changed = true
+      end
+
     when 'AddShapeEvent', 'ModifyTextEvent'
       events_parse_shape(shapes, event, current_presentation, current_slide, timestamp)
 
@@ -997,7 +1010,8 @@ def process_presentation(package_dir)
       if slide &&
          (slide[:presentation] == current_presentation) &&
          (slide[:slide] == current_slide) &&
-         (slide[:deskshare] == deskshare)
+         (slide[:deskshare] == deskshare) &&
+         (slide[:external_videos] == external_videos)
         BigBlueButton.logger.info('Presentation/Slide: skipping, no changes')
       else
         if slide
@@ -1011,6 +1025,7 @@ def process_presentation(package_dir)
           slide: current_slide,
           in: timestamp,
           deskshare: deskshare,
+          external_videos: external_videos,
         }
         events_get_image_info(slide, tldraw)
         slides << slide
@@ -1261,7 +1276,7 @@ def process_external_video_events(_events, package_dir)
   BigBlueButton.logger.info('Processing external video events')
 
   # Retrieve external video events
-  external_video_events = BigBlueButton::Events.match_start_and_stop_external_video_events(
+  external_video_events = BigBlueButton::Events.match_all_external_video_events(
     BigBlueButton::Events.get_start_and_stop_external_video_events(@doc)
   )
 
@@ -1270,14 +1285,17 @@ def process_external_video_events(_events, package_dir)
     external_video_events.each do |event|
       BigBlueButton.logger.info("Processing rec event #{re} and external video event #{event}")
       start_timestamp = event[:start_timestamp]
+      stop_timestamp = event[:stop_timestamp]
       timestamp = (translate_timestamp(start_timestamp) / 1000).to_i
       # do not add same external_video twice
       next if external_videos.find { |ev| ev[:timestamp] == timestamp }
 
       re_start_timestamp = re[:start_timestamp]
       re_stop_timestamp = re[:stop_timestamp]
-      next unless ((start_timestamp >= re_start_timestamp) && (start_timestamp <= re_stop_timestamp)) ||
-                  ((start_timestamp < re_start_timestamp) && (re_stop_timestamp >= re_start_timestamp))
+      next unless ((start_timestamp >= re_start_timestamp) && (start_timestamp < re_stop_timestamp)) ||
+                  ((stop_timestamp > re_start_timestamp) && (stop_timestamp <= re_stop_timestamp)) ||
+                  ((start_timestamp <= re_start_timestamp) && (stop_timestamp >= re_stop_timestamp) &&
+                      (re_stop_timestamp > re_start_timestamp))
 
       external_videos << {
         timestamp: timestamp,
@@ -1287,6 +1305,58 @@ def process_external_video_events(_events, package_dir)
   end
 
   generate_json_file(package_dir, 'external_videos.json', external_videos)
+  
+  # Generate external_videos.xml for playback video within a presentation
+  # See: https://github.com/bigbluebutton/bbb-playback/pull/127
+  # You need to directly modify the script /usr/local/bigbluebutton/core/scripts/publish/presentation.rb
+  external_videos_play = []
+  @rec_events.each do |re|
+    external_video_events.each do |event|
+      start_timestamp = event[:start_timestamp]
+      stop_timestamp = event[:stop_timestamp]
+      # do not add same external_video twice
+      next if external_videos_play.find { |ev| ev[:start_timestamp] == start_timestamp }
+
+      re_start_timestamp = re[:start_timestamp]
+      re_stop_timestamp = re[:stop_timestamp]
+      #next unless ((start_timestamp >= re_start_timestamp) && (start_timestamp <= re_stop_timestamp)) ||
+      #            ((start_timestamp < re_start_timestamp || stop_timestamp > re_stop_timestamp) && (re_stop_timestamp >= re_start_timestamp))
+      next unless ((start_timestamp >= re_start_timestamp) && (start_timestamp < re_stop_timestamp)) ||
+                  ((stop_timestamp > re_start_timestamp) && (stop_timestamp <= re_stop_timestamp)) ||
+                  ((start_timestamp <= re_start_timestamp) && (stop_timestamp >= re_stop_timestamp) &&
+                      (re_stop_timestamp > re_start_timestamp))
+
+      updates = []
+      event[:updates].each do |update|
+        update[:timestamp] = (translate_timestamp(update[:timestamp]) / 1000)
+        update[:type] = update[:status]
+        update.delete(:status)
+        update[:playing] = update[:state] == 0 ? false : true
+        update.delete(:state)
+        updates << update
+      end
+
+      external_videos_play << {
+        start_timestamp: (translate_timestamp(event[:start_timestamp]) / 1000),
+        stop_timestamp: (translate_timestamp(event[:stop_timestamp]) / 1000),
+        url: event[:external_video_url],
+        updates: updates
+      }
+    end
+  end
+
+  xml_object = Nokogiri::XML::Builder.new do |xml|
+    xml.recording(:id => "external_videos_events") do
+      external_videos_play.each do |video|
+        xml.video(:start_timestamp => video[:start_timestamp], :stop_timestamp => video[:stop_timestamp], :url => video[:url]) do
+          video[:updates].each do |update|
+            xml.event(update)
+          end
+        end
+      end
+    end
+  end
+  File.open("#{package_dir}/external_videos.xml", 'w') { |f| f.puts(Nokogiri::XML(xml_object.to_xml, nil, 'utf-8').to_xml) }
 end
 
 def generate_done_or_fail_file(success)
