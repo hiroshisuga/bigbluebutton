@@ -201,6 +201,16 @@ function WebRtcPeer(mode, options, callback) {
     if (!pc) {
         pc = new RTCPeerConnection(configuration);
 
+		pc.ontrack = (event) => {
+          //console.log("BBB DEBUG ontrack fired", event.track);
+          if (!this.remoteStream) {
+            this.remoteStream = new MediaStream();
+          }
+		  if (!this.remoteStream.getTracks().includes(event.track)) {
+            this.remoteStream.addTrack(event.track);
+          }
+        };
+		
         //Add Transceiver for Webview on IOS
         if ((userAgent.indexOf('iphone') > -1 || userAgent.indexOf('ipad') > -1) && userAgent.indexOf('safari') == -1) {
             try {

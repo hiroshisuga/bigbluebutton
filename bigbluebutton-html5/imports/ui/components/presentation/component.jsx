@@ -1,4 +1,5 @@
-import React, { PureComponent } from 'react';
+import React, { PureComponent, Fragment } from 'react';
+import { createPortal } from 'react-dom';
 import PropTypes from 'prop-types';
 import WhiteboardOverlayContainer from '/imports/ui/components/whiteboard/whiteboard-overlay/container';
 import WhiteboardToolbarContainer from '/imports/ui/components/whiteboard/whiteboard-toolbar/container';
@@ -26,6 +27,7 @@ import browserInfo from '/imports/utils/browserInfo';
 import PresentationMenu from './presentation-menu/container';
 import { addNewAlert } from '../screenreader-alert/service';
 import { clearCursors } from '/imports/ui/components/cursor/service';
+import { copyStyles } from './service';
 
 const intlMessages = defineMessages({
   presentationLabel: {
@@ -63,6 +65,52 @@ const OLD_MINIMIZE_BUTTON_ENABLED = Meteor.settings.public.presentation.oldMinim
 const { isSafari } = browserInfo;
 const FULLSCREEN_CHANGE_EVENT = isSafari ? 'webkitfullscreenchange' : 'fullscreenchange';
 
+let presentationWindow = window;
+class WindowPortal extends React.PureComponent {
+  // Most of the idea and code were copied from https://stackoverflow.com/questions/47909601/onclick-not-working-inside-the-pop-up-opened-via-react-portals
+  constructor(props) {
+    super(props);
+    this.state = { win: null, el: null };
+  }
+
+  componentDidMount() {
+    const {
+      svgSize,
+      setEventExternalWindow,
+      setPresentationDetached,
+      toolbarHeight,
+    } = this.props;
+
+    let win = window.open('', '', `innerWidth=${svgSize.width},innerHeight=${svgSize.height+toolbarHeight}`);
+    win.document.title = 'BigBlueButton Portal Window';
+    win.document.body.style.position = 'relative'; // to center the slide
+    copyStyles(document, win.document);
+    let el = document.createElement('div');
+    win.document.body.appendChild(el);
+    presentationWindow = win;
+    setEventExternalWindow(win, toolbarHeight);
+
+    win.addEventListener('beforeunload', () => {
+      presentationWindow = window;
+      setPresentationDetached(false); //for closing the window by X button
+    });
+
+    this.setState({ win, el });
+  }
+
+  componentWillUnmount() {
+    this.state.win.close();
+  }
+
+  render() {
+    const { el } = this.state;
+    if (!el) {
+      return null;
+    }
+    return createPortal(this.props.children, el);
+  }
+}
+
 class Presentation extends PureComponent {
   constructor() {
     super();
@@ -88,6 +136,7 @@ class Presentation extends PureComponent {
     this.onFullscreenChange = this.onFullscreenChange.bind(this);
     this.getPresentationSizesAvailable = this.getPresentationSizesAvailable.bind(this);
     this.handleResize = this.handleResize.bind(this);
+    this.setEventExternalWindow = this.setEventExternalWindow.bind(this);
 
     this.onResize = () => setTimeout(this.handleResize.bind(this), 0);
     this.renderCurrentPresentationToast = this.renderCurrentPresentationToast.bind(this);
@@ -120,10 +169,15 @@ class Presentation extends PureComponent {
   }
 
   componentDidMount() {
+    const { isPresentationDetached } = this.props;
     this.getInitialPresentationSizes();
     this.refPresentationContainer
       .addEventListener(FULLSCREEN_CHANGE_EVENT, this.onFullscreenChange);
-    window.addEventListener('resize', this.onResize, false);
+    if (isPresentationDetached){
+      presentationWindow.addEventListener('resize', this.onResize, false);
+    } else {
+      window.addEventListener('resize', this.onResize, false);
+    }
 
     const {
       currentSlide, slidePosition, layoutContextDispatch,
@@ -276,9 +330,14 @@ class Presentation extends PureComponent {
 
   componentWillUnmount() {
     Session.set('componentPresentationWillUnmount', true);
-    const { fullscreenContext, layoutContextDispatch } = this.props;
+    const { fullscreenContext, layoutContextDispatch, isPresentationDetached } = this.props;
 
-    window.removeEventListener('resize', this.onResize, false);
+    if (isPresentationDetached) {
+      presentationWindow.removeEventListener('resize', this.onResize, false);
+    } else {
+      window.removeEventListener('resize', this.onResize, false);
+    }
+
     this.refPresentationContainer
       .removeEventListener(FULLSCREEN_CHANGE_EVENT, this.onFullscreenChange);
 
@@ -294,10 +353,12 @@ class Presentation extends PureComponent {
   }
 
   handleResize() {
+    const { isPresentationDetached } = this.props;
     const presentationSizes = this.getPresentationSizesAvailable();
     if (Object.keys(presentationSizes).length > 0) {
       // updating the size of the space available for the slide
-      if (!Session.get('componentPresentationWillUnmount')) {
+      //This condition enables the resizing of detached window, by removing this condition, the original window start to resize after merging the detached window.
+      if (!Session.get('componentPresentationWillUnmount') || !isPresentationDetached) {
         this.setState({
           presentationHeight: presentationSizes.presentationHeight,
           presentationWidth: presentationSizes.presentationWidth,
@@ -306,6 +367,27 @@ class Presentation extends PureComponent {
     }
   }
 
+  setEventExternalWindow (win, toolbarHeight) {
+    win.addEventListener('resize', () => {
+      this.setState({
+        presentationWidth: win.innerWidth,
+        presentationHeight: win.innerHeight - toolbarHeight,
+      });
+    });
+
+    win.addEventListener('fullscreenchange', () => {
+      const { isFullscreen } = this.state;
+      const newIsFullscreen = FullscreenService.isFullScreen(presentationWindow.document.documentElement);
+      if (isFullscreen !== newIsFullscreen) {
+        this.setState({ isFullscreen: newIsFullscreen });
+      }
+      this.setState({
+        presentationWidth: win.innerWidth,
+        presentationHeight: win.innerHeight - toolbarHeight,
+      });
+    });
+  }
+  
   onFullscreenChange() {
     const { isFullscreen } = this.state;
     const newIsFullscreen = FullscreenService.isFullScreen(this.refPresentationContainer);
@@ -335,6 +417,7 @@ class Presentation extends PureComponent {
   }
 
   getPresentationSizesAvailable() {
+    const { isPresentationDetached } = this.props;
     const {
       presentationBounds,
       presentationAreaSize: newPresentationAreaSize,
@@ -344,11 +427,16 @@ class Presentation extends PureComponent {
       presentationHeight: 0,
     };
 
-    if (newPresentationAreaSize) {
-      presentationSizes.presentationWidth = newPresentationAreaSize.presentationAreaWidth;
-      presentationSizes.presentationHeight = newPresentationAreaSize
-        .presentationAreaHeight - (this.getToolbarHeight() || 0);
-      return presentationSizes;
+    if (isPresentationDetached && presentationWindow.innerWidth != 0) {
+      presentationSizes.presentationWidth = presentationWindow.innerWidth;
+      presentationSizes.presentationHeight = presentationWindow.innerHeight - (this.getToolbarHeight() || 0)
+    } else {
+      if (newPresentationAreaSize) {
+        presentationSizes.presentationWidth = newPresentationAreaSize.presentationAreaWidth;
+        presentationSizes.presentationHeight = newPresentationAreaSize
+          .presentationAreaHeight - (this.getToolbarHeight() || 0);
+        return presentationSizes;
+      }
     }
 
     presentationSizes.presentationWidth = presentationBounds.width;
@@ -495,6 +583,7 @@ class Presentation extends PureComponent {
       podId,
       currentSlide,
       slidePosition,
+      isPresentationDetached,
     } = this.props;
 
     const {
@@ -534,6 +623,8 @@ class Presentation extends PureComponent {
         panAndZoomChanger={this.panAndZoomChanger}
         getSvgRef={this.getSvgRef}
         fitToWidth={fitToWidth}
+        presentationWindow={presentationWindow}
+        isPresentationDetached={isPresentationDetached}
       >
         <WhiteboardOverlayContainer
           getSvgRef={this.getSvgRef}
@@ -550,6 +641,8 @@ class Presentation extends PureComponent {
           physicalSlideHeight={physicalDimensions.height}
           zoom={zoom}
           zoomChanger={this.zoomChanger}
+          presentationWindow={presentationWindow}
+          isPresentationDetached={isPresentationDetached}
         />
       </PresentationOverlayContainer>
     );
@@ -564,6 +657,7 @@ class Presentation extends PureComponent {
       slidePosition,
       userIsPresenter,
       layoutSwapped,
+      isPresentationDetached,
     } = this.props;
 
     const {
@@ -614,15 +708,22 @@ class Presentation extends PureComponent {
       ${content}
       ${intl.formatMessage(intlMessages.slideContentEnd)}` : intl.formatMessage(intlMessages.noSlideContent);
 
+    let presentationStyle = {
+      position: 'absolute',
+      width: svgDimensions.width < 0 ? 0 : svgDimensions.width,
+      height: svgDimensions.height < 0 ? 0 : svgDimensions.height,
+      textAlign: 'center',
+      display: layoutSwapped ? 'none' : 'block',
+    };
+
+    if ( userIsPresenter && isPresentationDetached ) {
+      presentationStyle.left = "50%";
+      presentationStyle.transform = "translateX(-50%)";
+    }
+    
     return (
       <div
-        style={{
-          position: 'absolute',
-          width: svgDimensions.width < 0 ? 0 : svgDimensions.width,
-          height: svgDimensions.height < 0 ? 0 : svgDimensions.height,
-          textAlign: 'center',
-          display: layoutSwapped ? 'none' : 'block',
-        }}
+        style={presentationStyle}
       >
         <Styled.VisuallyHidden id="currentSlideText">{slideContent}</Styled.VisuallyHidden>
         {this.renderPresentationDownload()}
@@ -689,6 +790,8 @@ class Presentation extends PureComponent {
     const {
       currentSlide,
       podId,
+      isPresentationDetached,
+      togglePresentationDetached,
       isMobile,
       layoutType,
       numCameras,
@@ -722,6 +825,10 @@ class Presentation extends PureComponent {
         presentationId={currentSlide.presentationId}
         zoomChanger={this.zoomChanger}
         fitToWidthHandler={this.fitToWidthHandler}
+        togglePresentationDetached={togglePresentationDetached}
+        isPresentationDetached={isPresentationDetached}
+        presentationWindow={presentationWindow}
+        fullscreenRef={presentationWindow.document.documentElement}
         isFullscreen={fullscreenContext}
         fullscreenAction={ACTIONS.SET_FULLSCREEN_ELEMENT}
         fullscreenRef={this.refPresentationContainer}
@@ -737,6 +844,7 @@ class Presentation extends PureComponent {
       <WhiteboardToolbarContainer
         whiteboardId={currentSlide.id}
         height={svgDimensions.height}
+        presentationWindow={presentationWindow}
         isPresenter={userIsPresenter}
       />
     );
@@ -763,6 +871,7 @@ class Presentation extends PureComponent {
     const {
       intl,
       fullscreenElementId,
+      isPresentationDetached,
       layoutContextDispatch,
     } = this.props;
 
@@ -772,6 +881,8 @@ class Presentation extends PureComponent {
         getScreenshotRef={this.getSvgRef}
         elementName={intl.formatMessage(intlMessages.presentationLabel)}
         elementId={fullscreenElementId}
+        isPresentationDetached={isPresentationDetached}
+        presentationWindow={presentationWindow}
         toggleSwapLayout={MediaService.toggleSwapLayout}
         layoutContextDispatch={layoutContextDispatch}
       />
@@ -821,6 +932,12 @@ class Presentation extends PureComponent {
       userIsPresenter,
       multiUser,
       slidePosition,
+      isPresentationDetached,
+      setPresentationDetached,
+      setPreviousSvgSize,
+      getPreviousSvgSize,
+      setPreviousToolbarHeight,
+      getPreviousToolbarHeight,
       presentationBounds,
       fullscreenContext,
       isMobile,
@@ -861,6 +978,11 @@ class Presentation extends PureComponent {
     const svgWidth = svgDimensions.width;
 
     const toolbarHeight = this.getToolbarHeight();
+    
+    let toolbarWidth = 0;
+    if (this.refWhiteboardArea) {
+      toolbarWidth = svgWidth;
+    }
 
     const { presentationToolbarMinWidth } = DEFAULT_VALUES;
 
@@ -881,6 +1003,56 @@ class Presentation extends PureComponent {
           setPresentationRef={this.setPresentationRef}
         />
       );
+    }
+
+    const slide =
+            showSlide && svgWidth > 0 && svgHeight > 0
+              ? this.renderPresentation(svgDimensions, viewBoxDimensions)
+              : null ;
+
+    const wToolbar =
+            showSlide && (userIsPresenter || multiUser)
+              ? this.renderWhiteboardToolbar(svgDimensions)
+              : null ;
+
+    let pToolbarStyle = {width: containerWidth};
+    if (userIsPresenter && isPresentationDetached){
+      pToolbarStyle.left = "50%";
+      pToolbarStyle.transform = "translateX(-50%)";
+    }
+
+    const pToolbar =
+            showSlide && userIsPresenter
+              ? (
+                <Styled.PresentationToolbar
+                  ref={(ref) => { this.refPresentationToolbar = ref; }}
+                  style={pToolbarStyle}
+                >
+                  {this.renderPresentationToolbar(svgWidth)}
+                </Styled.PresentationToolbar>
+              )
+              : null ;
+
+    if (svgHeight != 0 && svgWidth != 0) {
+      setPreviousSvgSize(svgWidth, svgHeight);
+    }
+    if (toolbarHeight != 0) {
+      setPreviousToolbarHeight(toolbarHeight);
+    }
+    
+    if (isPresentationDetached) {
+      // Injecting submenu styles to the detached window.
+      const isRTL = document.documentElement.getAttribute("dir") === "rtl";
+      const styleId = "supplementedSubmenuStyle";
+      const submenuStyleText = Styled.submenuStyleText({ isRTL} );
+      const oldElement = presentationWindow.document.getElementById(styleId);
+      if (oldElement) {
+        presentationWindow.document.head.removeChild(oldElement);
+      }
+      const suppStyle = presentationWindow.document.createElement('style');
+      suppStyle.id = styleId;
+      suppStyle.appendChild(presentationWindow.document.createTextNode(submenuStyleText));
+      presentationWindow.document.head.appendChild(suppStyle);
     }
 
     return (
@@ -910,26 +1082,30 @@ class Presentation extends PureComponent {
               height: svgHeight + toolbarHeight,
             }}
           >
-            {showSlide && svgWidth > 0 && svgHeight > 0
-              ? this.renderPresentation(svgDimensions, viewBoxDimensions)
-              : null}
-            {showSlide && (userIsPresenter || multiUser)
-              ? this.renderWhiteboardToolbar(svgDimensions)
-              : null}
-            {showSlide && userIsPresenter
-              ? (
-                <Styled.PresentationToolbar
-                  ref={(ref) => { this.refPresentationToolbar = ref; }}
-                  style={
-                    {
-                      width: containerWidth,
-                    }
-                  }
+          {userIsPresenter && isPresentationDetached
+            ?
+              <Fragment>
+                <WindowPortal
+                  setPresentationDetached={setPresentationDetached}
+                  setEventExternalWindow={this.setEventExternalWindow}
+                  svgSize={getPreviousSvgSize()}
+                  toolbarHeight={getPreviousToolbarHeight()}
                 >
-                  {this.renderPresentationToolbar(svgWidth)}
-                </Styled.PresentationToolbar>
-              )
-              : null}
+                  {slide}
+                  {wToolbar}
+                  {pToolbar}
+                </WindowPortal>
+                {/*
+                  wToolbar can be here if it impairs the slide visibility
+                */}
+              </Fragment>
+            :
+              <Fragment>
+                {slide}
+                {wToolbar}
+                {pToolbar}
+              </Fragment>
+          }
           </Styled.SvgContainer>
         </Styled.Presentation>
       </Styled.PresentationContainer>

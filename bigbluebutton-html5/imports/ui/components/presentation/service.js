@@ -1,10 +1,226 @@
 import Presentations from '/imports/api/presentations';
 import { Slides, SlidePositions } from '/imports/api/slides';
+import ReactPlayer from 'react-player';
+import WhiteboardService, { Annotations } from '/imports/ui/components/whiteboard/service';
 import PollService from '/imports/ui/components/poll/service';
 import { safeMatch } from '/imports/utils/string-utils';
 
+const isUrlValid = url => ReactPlayer.canPlay(url);
 const POLL_SETTINGS = Meteor.settings.public.poll;
 const MAX_CUSTOM_FIELDS = POLL_SETTINGS.maxCustom;
+
+const getCurrentAnnotationsId = (whiteboardId) => {
+  if (!whiteboardId) {
+    return null;
+  }
+
+  return Annotations.find(
+    {
+      whiteboardId,
+    },
+    {
+      sort: { position: 1 },
+      fields: { status: 1, _id: 1, id: 1, annotationType: 1, selected: 1 },
+    },
+  ).fetch();
+};
+
+const getSelectedAnnotationsId = (whiteboardId) => {
+  if (!whiteboardId) {
+    return null;
+  }
+
+  return Annotations.find(
+    {
+      whiteboardId,
+      selected: true,
+    },
+    {
+      sort: { position: 1 },
+      fields: { id: 1, userId: 1, position: 1 },
+    },
+  ).fetch();
+};
+
+const selectAllAnnotation = (whiteboardId)  => {
+  if (!whiteboardId) {
+    return null;
+  }
+
+  const selector = {
+    whiteboardId,
+  };
+
+  if (WhiteboardService.isMultiUserActive(whiteboardId)) {
+    selector.userId = Auth.userID;
+  }
+
+  const modifier = {
+    $set: {
+      selected: true,
+    },
+  };
+
+  Annotations.update(selector, modifier, {multi: true});
+}
+
+const moveSelectedAnnotations = (whiteboardId, selected, dx, dy) => {
+  if (!whiteboardId) {
+    return null;
+  }
+
+  for (let key in selected) {
+    // Move only owned annotations in case of multiuser mode
+    if (WhiteboardService.isMultiUserActive(whiteboardId) && selected[key].userId != Auth.userID) {
+      continue;
+    }
+    WhiteboardService.moveAndUpdateOneAnnotation(whiteboardId, selected[key].id, {x: dx, y: dy});
+  }
+};
+
+const bringAnnotations = (whiteboardId, selected, up) => {
+  // "selected" must be sorted by position - getSelectedAnnotationsId does do the job
+  if (!whiteboardId) {
+    return null;
+  }
+
+  const sortedAnnotations = Annotations.find({whiteboardId},{ sort: { position: 1 }, fields: {id:1, position:1}}).fetch();
+
+  const id2idx = new Map(); // annotation ID -> the position index in the array
+  for (let key in sortedAnnotations) {
+    id2idx.set(sortedAnnotations[key].id, key);
+  }
+
+  let orderContainer = []; // to get new position <-> annotation.id
+  for (const a of sortedAnnotations) {
+    orderContainer.push({position: a.position, id:""});
+  }
+
+  const selectedAnnotationId2position = new Map(); // IDs of selected annotations -> annotation.position
+  // Increase positions of the selected annotations and put them into the container
+  let moved = 0;
+  if (up) {
+    // Bringing up (forward)
+    for (const s of selected.slice().reverse()) {
+      // Include only owned annotations in case of multiuser mode
+      if (WhiteboardService.isMultiUserActive(whiteboardId) && s.userId != Auth.userID) { continue; }
+      selectedAnnotationId2position.set(s.id, s.position);
+      let newIdx = parseInt(id2idx.get(s.id)) + 1;
+      if (newIdx >= sortedAnnotations.length) { newIdx = sortedAnnotations.length - 1; }
+      if (orderContainer[newIdx].id !== "") {
+        newIdx -= 1;
+      }
+      orderContainer[newIdx].id = s.id;
+      if (id2idx.get(s.id) != newIdx) {
+        moved += 1;
+      }
+    }
+  } else {
+    // Bringing down (backward)
+    for (const s of selected) {
+      // Include only owned annotations in case of multiuser mode
+      if (WhiteboardService.isMultiUserActive(whiteboardId) && s.userId != Auth.userID) { continue; }
+      selectedAnnotationId2position.set(s.id, s.position);
+      let newIdx = parseInt(id2idx.get(s.id)) - 1;
+      if (newIdx < 0) { newIdx = 0; }
+      if (orderContainer[newIdx].id !== "") {
+        newIdx += 1;
+      }
+      orderContainer[newIdx].id = s.id;
+      if (id2idx.get(s.id) != newIdx) {
+        moved += 1;
+      }
+    }
+  }
+
+  if (moved == 0) {
+    // No position change
+    return null;
+  } else {
+    // Put the non-selected annotations to the rest of the container
+    for (const a of sortedAnnotations) {
+      if (selectedAnnotationId2position.get(a.id) === undefined){
+        for (let key in orderContainer) {
+          if (orderContainer[key].id === "") {
+            orderContainer[key].id = a.id;
+            break;
+          }
+        }
+      }
+    }
+
+    for (const ac of orderContainer) {
+      const selector = {
+        whiteboardId,
+        id: ac.id,
+      };
+      const modifier = {
+        $set: {
+          position: ac.position,
+        },
+      };
+      Annotations.update(selector, modifier);
+    }
+
+    return orderContainer;
+  }
+};
+
+const isAnnotationSelected = (whiteboardId, id) => {
+  const isSelected =Annotations.findOne(
+    {
+      whiteboardId,
+      id,
+      selected: true,
+    }
+  );
+  return isSelected ? true : false;
+};
+
+const handleSelectAnnotation = (whiteboardId, id) => {
+  const selector = {
+    whiteboardId,
+    id,
+  };
+
+  const modifier = {
+    $set: {
+      selected: true,
+    },
+  };
+
+  Annotations.update(selector, modifier);
+};
+
+const handleUnselectAnnotation = (whiteboardId, id) => {
+  const selector = {
+    whiteboardId,
+    id,
+  };
+
+  const modifier = {
+    $set: {
+      selected: false,
+    },
+  };
+
+  Annotations.update(selector, modifier);
+};
+
+const handleUnselectAllAnnotations = (whiteboardId) => {
+  const selector = {
+    whiteboardId,
+    selected: true,
+  };
+
+  const modifier = {
+    $set: {
+      selected: false,
+    },
+  };
+
+  Annotations.update(selector, modifier, {multi: true});
+};
 
 const getCurrentPresentation = (podId) => Presentations.findOne({
   podId,
@@ -84,6 +300,18 @@ const parseCurrentSlideContent = (yesValue, noValue, abstentionValue, trueValue,
     content,
   } = currentSlide;
 
+  const urlRegex = /((http|https):\/\/[a-zA-Z0-9\-.:]+(\/\S*)?)/g;
+  const optionsUrls = content.match(urlRegex) || [];
+  const videoUrls = optionsUrls.filter(value => isUrlValid(value));
+  const urls = optionsUrls.filter(i => videoUrls.indexOf(i) == -1);
+  content = content.replace(new RegExp(urlRegex), '');
+  
+  const pollRegex = /\b(\d{1,2}|[A-Za-z])[.)].*/g; //from (#16622) + #16650
+  let optionsPoll = content.match(pollRegex) || [];
+  let optionsPollStrings = [];
+  if (optionsPoll) optionsPollStrings = optionsPoll.map(opt => `${opt.replace(/^[^.)]{1,2}[.)]/,'').replace(/^\s+/, '')}`);
+  if (optionsPoll) optionsPoll = optionsPoll.map(opt => `\r${opt.replace(/[.)].*/,'')}.`);
+  
   const questionRegex = /.*?\?/gm;
   const question = safeMatch(questionRegex, content, '');
 
@@ -93,22 +321,8 @@ const parseCurrentSlideContent = (yesValue, noValue, abstentionValue, trueValue,
   const yesNoPatt = /.*(yes\/no|no\/yes).*/gm;
   const hasYN = safeMatch(yesNoPatt, content, false);
 
-  const pollRegex = /[1-9A-Ia-i][.)].*/g;
-  let optionsPoll = safeMatch(pollRegex, content, []);
-  const optionsWithLabels = [];
-
-  if (hasYN) {
-    optionsPoll = ['yes', 'no'];
-  }
-
-  if (optionsPoll) {
-    optionsPoll = optionsPoll.map((opt) => {
-      const MAX_CHAR_LIMIT = 30;
-      const formattedOpt = opt.substring(0, MAX_CHAR_LIMIT);
-      optionsWithLabels.push(formattedOpt);
-      return `\r${opt[0]}.`;
-    });
-  }
+  const trueFalsePatt = /.*(true\/false|false\/true).*/gm;
+  const hasTF = safeMatch(trueFalsePatt, content, false);
 
   optionsPoll.reduce((acc, currentValue) => {
     const lastElement = acc[acc.length - 1];
@@ -130,12 +344,22 @@ const parseCurrentSlideContent = (yesValue, noValue, abstentionValue, trueValue,
     const isCurrentValueInteger = !!parseInt(currentValue.charAt(1), 10);
 
     if (isLastOptionInteger === isCurrentValueInteger) {
-      if (currentValue.toLowerCase().charCodeAt(1) > lastOption.toLowerCase().charCodeAt(1)) {
-        options.push(currentValue);
+      if (isCurrentValueInteger){
+        if (parseInt(currentValue.replace(/[\r.]g/,'')) == parseInt(lastOption.replace(/[\r.]g/,'')) + 1) {
+          options.push(currentValue);
+        } else {
+          acc.push({
+            options: [currentValue],
+          });
+        }
       } else {
-        acc.push({
-          options: [currentValue],
-        });
+        if (currentValue.toLowerCase().charCodeAt(1) == lastOption.toLowerCase().charCodeAt(1) + 1) {
+          options.push(currentValue);
+        } else {
+          acc.push({
+            options: [currentValue],
+          });
+        }
       }
     } else {
       acc.push({
@@ -143,28 +367,24 @@ const parseCurrentSlideContent = (yesValue, noValue, abstentionValue, trueValue,
       });
     }
     return acc;
-  }, []).filter(({
+  }, []).map(poll => {
+    for (let i = 0 ; i < poll.options.length ; i++) {
+      poll.options.shift();
+      poll.options.push(optionsPollStrings.shift());
+    }
+    return poll;
+  }).filter(({
     options,
-  }) => options.length > 1 && options.length < 10).forEach((p) => {
+  }) => options.length > 1 && options.length < MAX_CUSTOM_FIELDS).forEach((p) => {
     const poll = p;
     if (doubleQuestion) poll.multiResp = true;
-    if (poll.options.length <= 5 || MAX_CUSTOM_FIELDS <= 5) {
-      const maxAnswer = poll.options.length > MAX_CUSTOM_FIELDS
-        ? MAX_CUSTOM_FIELDS
-        : poll.options.length;
-      quickPollOptions.push({
-        type: `${pollTypes.Letter}${maxAnswer}`,
-        poll,
-      });
-    } else {
       quickPollOptions.push({
         type: pollTypes.Custom,
         poll,
       });
-    }
   });
 
-  if (question.length > 0 && optionsPoll.length === 0 && !doubleQuestion && !hasYN) {
+  if (question.length > 0 && optionsPoll.length === 0 && !doubleQuestion && !hasYN && !hasTF) {// from #17049
     quickPollOptions.push({
       type: 'R-',
       poll: {
@@ -201,10 +421,37 @@ const parseCurrentSlideContent = (yesValue, noValue, abstentionValue, trueValue,
   return {
     slideId: currentSlide.id,
     quickPollOptions,
-    optionsWithLabels,
     pollQuestion,
+    videoUrls,
+    urls,
   };
 };
+
+export const copyStyles = (sourceDoc, targetDoc) => {
+  //To be fair, I declare that this was copied from https://medium.com/hackernoon/using-a-react-16-portal-to-do-something-cool-2a2d627b0202
+  const hostUri = `https://${window.document.location.hostname}`;
+  const baseName = hostUri + Meteor.settings.public.app.cdn + Meteor.settings.public.app.basename + Meteor.settings.public.app.instanceId;
+  Array.from(sourceDoc.styleSheets).forEach(styleSheet => {
+    if (styleSheet.cssRules) {
+      const newStyleEl = sourceDoc.createElement('style');
+      Array.from(styleSheet.cssRules).forEach(cssRule => {
+        let newCssText;
+        if (cssRule.cssText.match(/url\(\"[fonts|files]/)) {
+          newCssText = cssRule.cssText.replace(/url\(\"([^\"]*)/g, function(){return 'url("' + baseName + '/' + arguments[1]});
+        } else {
+          newCssText = cssRule.cssText;
+        }
+        newStyleEl.appendChild(sourceDoc.createTextNode(newCssText));
+      });
+      targetDoc.head.appendChild(newStyleEl);
+    } else if (styleSheet.href) {
+      const newLinkEl = sourceDoc.createElement('link');
+      newLinkEl.rel = 'stylesheet';
+      newLinkEl.href = styleSheet.href;
+      targetDoc.head.appendChild(newLinkEl);
+    }
+  });
+}
 
 export default {
   getCurrentSlide,
@@ -214,4 +461,13 @@ export default {
   currentSlidHasContent,
   parseCurrentSlideContent,
   getCurrentPresentation,
+  getCurrentAnnotationsId,
+  getSelectedAnnotationsId,
+  moveSelectedAnnotations,
+  bringAnnotations,
+  isAnnotationSelected,
+  handleSelectAnnotation,
+  handleUnselectAnnotation,
+  handleUnselectAllAnnotations,
+  selectAllAnnotation,
 };

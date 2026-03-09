@@ -108,6 +108,7 @@ export default function addMeeting(meeting) {
       disablePublicChat: Boolean,
       disableNotes: Boolean,
       hideUserList: Boolean,
+      hideAnnotations: Boolean,
       lockOnJoin: Boolean,
       lockOnJoinConfigurable: Boolean,
       lockedLayout: Boolean,
@@ -171,6 +172,16 @@ export default function addMeeting(meeting) {
 
   newMeeting.welcomeProp.welcomeMsg = welcomeMsg;
 
+  let synchronizeWBUpdate = false;
+  let simplifyPencil = true;
+  if (restProps.meetingProp.isBreakout) {
+    const parentMeeting = Meetings.findOne({meetingId: restProps.breakoutProps.parentId});
+    ({ synchronizeWBUpdate, simplifyPencil } = parentMeeting);
+  } else {
+    const dataSavingSettings = Meteor.settings.public.app.defaultSettings.dataSaving;
+    ({ synchronizeWBUpdate, simplifyPencil } = dataSavingSettings);
+  }
+
   // note: as of July 2020 `modOnlyMessage` is not published to the client side.
   // We are sanitizing this data simply to prevent future potential usage
   // At the moment `modOnlyMessage` is obtained from client side as a response to Enter API
@@ -180,6 +191,8 @@ export default function addMeeting(meeting) {
     $set: Object.assign({
       meetingId,
       meetingEnded,
+      synchronizeWBUpdate,
+      simplifyPencil,
       layout: LAYOUT_TYPE[meeting.usersProp.meetingLayout] || 'smart',
       publishedPoll: false,
       guestLobbyMessage: '',

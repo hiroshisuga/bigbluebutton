@@ -16,7 +16,6 @@ export default function updateCaptionsOwner(meetingId, locale, ownerId) {
     const modifier = {
       $set: {
         ownerId,
-        dictating: false, // Refresh dictation mode
       },
     };
 

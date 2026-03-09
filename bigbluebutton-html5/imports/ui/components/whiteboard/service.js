@@ -5,20 +5,23 @@ import addAnnotationQuery from '/imports/api/annotations/addAnnotation';
 import { Slides } from '/imports/api/slides';
 import { makeCall } from '/imports/ui/services/api';
 import PresentationService from '/imports/ui/components/presentation/service';
+import Meetings from '/imports/api/meetings';
 import logger from '/imports/startup/client/logger';
 import { isEqual } from 'lodash';
 
 const Annotations = new Mongo.Collection(null);
 const UnsentAnnotations = new Mongo.Collection(null);
 const ANNOTATION_CONFIG = Meteor.settings.public.whiteboard.annotations;
+const DATASAVING_CONFIG = Meteor.settings.public.app.defaultSettings.dataSaving;
 const DRAW_START = ANNOTATION_CONFIG.status.start;
 const DRAW_UPDATE = ANNOTATION_CONFIG.status.update;
 const DRAW_END = ANNOTATION_CONFIG.status.end;
+const DRAW_NONE = ANNOTATION_CONFIG.status.none;
 
 const ANNOTATION_TYPE_PENCIL = 'pencil';
+const ANNOTATION_TYPE_MARKER = 'marker';
 const ANNOTATION_TYPE_TEXT = 'text';
 const discardedList = [];
-
 
 let annotationsStreamListener = null;
 
@@ -56,11 +59,22 @@ function handleAddedAnnotation({
   meetingId, whiteboardId, userId, annotation,
 }) {
   const isOwn = Auth.meetingID === meetingId && Auth.userID === userId;
-  const query = addAnnotationQuery(meetingId, whiteboardId, userId, annotation);
+  let query = addAnnotationQuery(meetingId, whiteboardId, userId, annotation);
 
-  Annotations.upsert(query.selector, query.modifier);
+  if ( Annotations.find(query.selector, {limit: 1}).count() === 0 && annotation.status == 'DRAW_UPDATE' ) {
+    // When DRAW_UPDATE arrives for the first time, this dirty solution is necessary due to the lack of DRAW_START
+    const statusOriginal = annotation.status;
+    annotation.status = 'DRAW_START';
+    query = addAnnotationQuery(meetingId, whiteboardId, userId, annotation);
+    annotation.status = statusOriginal;
+  }
+  
+  if ((isOwn && annotation.status == 'DRAW_END') || !isOwn) {
+    // we don't send the data with DRAW_UPDATE for the owner
+    Annotations.upsert(query.selector, query.modifier);
+  }
 
-  if (isOwn) {
+  if (isOwn && annotation.status == 'DRAW_END') {
     UnsentAnnotations.remove({ id: `${annotation.id}` });
   }
 }
@@ -82,6 +96,79 @@ function handleRemovedAnnotation({
     query.id = { $in: [shapeId, `${shapeId}-fake`] };
     Annotations.remove(query);
   }
+}
+
+const moveAndUpdateOneAnnotation = (whiteboardId, shapeId, offset) => {
+  const selector = { whiteboardId, id: shapeId };
+  const newAnnotationInfo = Annotations.findOne(selector).annotationInfo;
+
+  if (newAnnotationInfo.type == "text") {
+    newAnnotationInfo.x += offset.x;
+    newAnnotationInfo.y += offset.y;
+  } else {
+    const newPoints = newAnnotationInfo.points.map( function(val, idx) {
+      if( idx % 2 !== 0 ) {
+        return val + offset.y;
+      } else {
+        return val + offset.x;
+      }
+    });
+    newAnnotationInfo.points = newPoints;
+  }
+
+  const modifier = {
+    $set: {
+      annotationInfo: newAnnotationInfo,
+    },
+    $inc: {
+      version: 1,
+    },
+  };
+
+  Annotations.update(selector, modifier);
+}
+
+function handleMovedAnnotation({
+  meetingId, whiteboardId, userId, shapeId, offset
+}) {
+  // If you are an annotator, your annotations should have already been moved.
+  if ((isPresenter() || hasMultiUserAccess(whiteboardId, userId)) && userId == Auth.userID) return;
+
+  moveAndUpdateOneAnnotation(whiteboardId, shapeId, offset);
+}
+
+function handleReorderedAnnotation({
+  meetingId, whiteboardId, userId, order
+}) {
+  // If you are an annotator, your annotations should have already been moved.
+  if ((isPresenter() || hasMultiUserAccess(whiteboardId, userId)) && userId == Auth.userID) return;
+
+  for (const ac of order) {
+    // doesn't specify userId for the multi-user whiteboard
+    const selector = { meetingId, whiteboardId, id: ac.id };
+
+    const modifier = {
+      $set: {
+        position: ac.position,
+      },
+    };
+
+    Annotations.update(selector, modifier);
+  }
+}
+
+function handleDeselectedAnnotation({
+  meetingId, whiteboardId
+}) {
+  const selector = { meetingId, whiteboardId, selected: true };
+
+  const modifier = {
+    $set: {
+      selected: false,
+    },
+  };
+
+  Annotations.update(selector, modifier, { multi: true });
 }
 
 export function initAnnotationsStreamListener() {
@@ -109,6 +196,9 @@ export function initAnnotationsStreamListener() {
     logger.debug({ logCode: 'annotations_stream_handler_attach' }, 'Attaching handlers for annotations stream');
 
     annotationsStreamListener.on('removed', handleRemovedAnnotation);
+    annotationsStreamListener.on('reordered', handleReorderedAnnotation);
+    annotationsStreamListener.on('deselected', handleDeselectedAnnotation);
+    annotationsStreamListener.on('moved', handleMovedAnnotation);
 
     annotationsStreamListener.on('added', ({ annotations }) => {
       annotations.forEach((annotation) => {
@@ -148,11 +238,15 @@ const annotationsQueue = [];
 // How many packets we need to have to use annotationsBufferTimeMax
 const annotationsMaxDelayQueueSize = 60;
 // Minimum bufferTime
-const annotationsBufferTimeMin = 30;
+const annotationsBufferTimeMin = 30; // can be a different value for the synchronized updating?
 // Maximum bufferTime
 const annotationsBufferTimeMax = 200;
 // Time before running 'sendBulkAnnotations' again if user is offline
 const annotationsRetryDelay = 1000;
+// Resevoir of annotations for throttling synchronous update
+let annotationsReservoir = [];
+// Last time we drained the reservoir
+let lastDrain = 0;
 
 let annotationsSenderIsRunning = false;
 
@@ -182,16 +276,122 @@ const proccessAnnotationsQueue = async () => {
   }
 };
 
-const sendAnnotation = (annotation) => {
+const annotationWithNewPoints = (annotation, points) => {
+  const newAnnotationInfo = {
+    ...annotation.annotationInfo,
+    points,
+  };
+  return {
+    ...annotation,
+    annotationInfo: newAnnotationInfo,
+  };
+}
+
+const sendEmptyAnnotation = (an, sync) => {
+  const emptyAnnotation = {
+    status: DRAW_NONE,
+    userId: an.userId,
+    id: an.id,
+    annotationType: an.annotationType,
+  };
+  setTimeout(function(){ sendAnnotation(emptyAnnotation, sync)}, DATASAVING_CONFIG.intervalDrainResevoir * 1.1);
+}
+
+const sendAnnotation = (annotation, synchronizeWBUpdate) => {
   // Prevent sending annotations while disconnected
   // TODO: Change this to add the annotation, but delay the send until we're
   // reconnected. With this it will miss things
   if (!Meteor.status().connected) return;
 
   if (annotation.status === DRAW_END) {
-    annotationsQueue.push(annotation);
+    if (!synchronizeWBUpdate && (annotation.annotationType === ANNOTATION_TYPE_PENCIL|| annotation.annotationType === ANNOTATION_TYPE_MARKER)) {
+      // take the accumulated points from UnsentAnnotation and send them altogether.
+      const fakeAnnotation = UnsentAnnotations.findOne({meetingId: Auth.meetingID, whiteboardId: annotation.wbId, userId: Auth.userID, id: annotation.id});
+      annotation.annotationInfo.points.unshift(...fakeAnnotation.annotationInfo.points)
+      annotationsQueue.push(annotation);
+    } else if (synchronizeWBUpdate && (annotation.annotationType === ANNOTATION_TYPE_PENCIL || annotation.annotationType === ANNOTATION_TYPE_MARKER)) {
+     // collect all the updates (points) since the last drain and merge them to the latest annotation
+     let accumulatedPoints = [];
+     for (const a of annotationsReservoir) {
+       accumulatedPoints.push(...a.annotationInfo.points);
+     }
+      const newAnnotation = annotationWithNewPoints(annotation, accumulatedPoints.concat(...annotation.annotationInfo.points));
+      annotationsQueue.push(newAnnotation);
+    } else { // shapes or text
+      //send the lastest annotation, ignoring the reservoir
+      annotationsQueue.push(annotation);   
+    }
+    annotationsReservoir = [];
     if (!annotationsSenderIsRunning) setTimeout(proccessAnnotationsQueue, annotationsBufferTimeMin);
   } else {
+    if (synchronizeWBUpdate) {
+      // send also DRAW_UPDATE to akka-apps for synchronous updating
+      const timeNow = Date.now();
+      if (timeNow - lastDrain > DATASAVING_CONFIG.intervalDrainResevoir) {
+        if (annotation.annotationType === ANNOTATION_TYPE_PENCIL || annotation.annotationType === ANNOTATION_TYPE_MARKER) {
+          let accumulatedPoints = [];
+          for (const a of annotationsReservoir) {
+            accumulatedPoints.push(...a.annotationInfo.points);
+          }
+          let newAnnotation = null;
+          if (annotation.status === DRAW_NONE) {
+            // send all accumulated points in the reservoir
+            if (annotationsReservoir.length > 0) {
+              newAnnotation = annotationWithNewPoints(annotationsReservoir[annotationsReservoir.length -1], accumulatedPoints);
+              annotationsQueue.push(newAnnotation);
+            }
+          } else {
+            // send all accumulated points in the reservoir plus the new points,
+            newAnnotation = annotationWithNewPoints(annotation, accumulatedPoints.concat(...annotation.annotationInfo.points));
+            annotationsQueue.push(newAnnotation);
+            // To drain the first path left in the reservoir after a while
+            //  (e.g. when we pause drawing after the first stroke),
+            //  judging if it's the first one by looking at the UnsentAnnotations being empty
+            const isDrawingStart = UnsentAnnotations.find({meetingId: Auth.meetingID, userId: Auth.userID, id: annotation.id}, {limit: 1}).count() === 0;
+            if (isDrawingStart) {
+              sendEmptyAnnotation(annotation, synchronizeWBUpdate);
+            }
+          }
+        } else { // shape or text drawing
+          if (annotation.status === DRAW_NONE) {
+            if (annotationsReservoir.length > 0) {
+              annotationsQueue.push(annotationsReservoir[annotationsReservoir.length-1]);
+            }
+          } else {
+            // send only the latest one, ignoring the reservoir
+            annotationsQueue.push(annotation);
+            const isDrawingStart = UnsentAnnotations.find({meetingId: Auth.meetingID, userId: Auth.userID, id: annotation.id}, {limit: 1}).count() === 0;
+            if (isDrawingStart) {
+              sendEmptyAnnotation(annotation, synchronizeWBUpdate);
+            }
+          }
+        }
+        if (!annotationsSenderIsRunning) setTimeout(proccessAnnotationsQueue, annotationsBufferTimeMin);
+
+        // We do this in order to drain the reservoir after a while (to draw even when we pause)
+        // This will make a sendAnnotation loop until the drawing ends,
+        //  which will not matter as it is just a internal process.
+        const isStillDrawing = UnsentAnnotations.find({meetingId: Auth.meetingID, userId: Auth.userID, id: annotation.id}, {limit: 1}).count() > 0;
+        if (isStillDrawing) {
+          sendEmptyAnnotation(annotation, synchronizeWBUpdate);
+        }
+        // drain the reservoir
+        annotationsReservoir = []; lastDrain = Date.now();
+      } else {
+        // store the annotation to the reservoir until the draining time comes
+        if (annotation.status !== DRAW_NONE) {
+          annotationsReservoir.push(annotation);
+        }
+      }
+    }
+
+    if (annotation.status === DRAW_NONE) {
+      //don't proceed to the fake annotation drawing below
+      return;
+    }
+
+    // DRAW_START will be used for the fake annotation in the presenter's screen, but not for the true annotation (above).
+    // I decided not to send it to akka-apps because 1) it's not essential anyway and 2) network traffic is slightly reduced. 
     const { position, ...relevantAnotation } = annotation;
     const queryFake = addAnnotationQuery(
       Auth.meetingID, annotation.wbId, Auth.userID,
@@ -205,16 +405,6 @@ const sendAnnotation = (annotation) => {
         },
       },
     );
-
-    // This is a really hacky solution, but because of the previous code reuse we need to edit
-    // the pencil draw update modifier so that it sets the whole array instead of pushing to
-    // the end
-    const { status, annotationType } = relevantAnotation;
-    if (status === DRAW_UPDATE && annotationType === ANNOTATION_TYPE_PENCIL) {
-      delete queryFake.modifier.$push;
-      queryFake.modifier.$set['annotationInfo.points'] = annotation.annotationInfo.points;
-    }
-
     UnsentAnnotations.upsert(queryFake.selector, queryFake.modifier);
   }
 };
@@ -339,12 +529,60 @@ const addIndividualAccess = (whiteboardId, userId) => {
   makeCall('addIndividualAccess', whiteboardId, userId);
 };
 
+const setVisited = (visited) => {
+  makeCall('setVisited', visited);
+};
+
+const setWhiteboardMode = (whiteboardMode, credentials) => {
+  makeCall('setWhiteboardMode', whiteboardMode, credentials);
+};
+
+const getWhiteboardMode = (meetingId) => {
+  const mid = meetingId ? meetingId : Auth.meetingID;
+  const style = Meetings.findOne({meetingId: mid}, { fields: {synchronizeWBUpdate:1, simplifyPencil:1}});
+  if (style) {
+    delete style._id;
+    return style;
+  } else {
+    return {};
+  }
+};
+  
 const removeGlobalAccess = (whiteboardId) => {
   makeCall('removeGlobalAccess', whiteboardId);
 };
 
 const removeIndividualAccess = (whiteboardId, userId) => {
   makeCall('removeIndividualAccess', whiteboardId, userId);
+};
+
+const currentUserID = () => {
+  return Auth.userID ;
+};
+
+const annotatorID = (annotation) => {
+  return annotation.id.replace(/-.+/,'');
+};
+
+const hideAnnotationsForAnnotator = () => {
+  const meeting = Meetings.findOne({ meetingId: Auth.meetingID },
+    { fields: { 'lockSettingsProps.hideAnnotations': 1 } });
+  return meeting && meeting.lockSettingsProps ? meeting.lockSettingsProps.hideAnnotations : false;
+};
+
+const isPresenter = () => {
+  const currentUser = Users.findOne({ userId: Auth.userID }, { fields: { presenter: 1 } });
+  return currentUser ? currentUser.presenter : false;
+};
+
+const isHePresenter = (somebody) => {
+  const he = Users.findOne({ userId: somebody }, { fields: { presenter: 1 } });
+  return he ? he.presenter : false;
+};
+
+const hasAccessToWhiteboard = (whiteboardId) => {
+  const multiUser = getMultiUser(whiteboardId);
+  return multiUser.includes(Auth.userID) ? true : false;
 };
 
 export {
@@ -361,7 +599,17 @@ export {
   changeWhiteboardAccess,
   addGlobalAccess,
   addIndividualAccess,
+  setVisited,
+  setWhiteboardMode,
+  getWhiteboardMode,
   removeGlobalAccess,
   removeIndividualAccess,
+  currentUserID,
+  annotatorID,
+  hideAnnotationsForAnnotator,
+  isPresenter,
+  isHePresenter,
+  hasAccessToWhiteboard,
+  moveAndUpdateOneAnnotation,
   clearFakeAnnotations,
 };

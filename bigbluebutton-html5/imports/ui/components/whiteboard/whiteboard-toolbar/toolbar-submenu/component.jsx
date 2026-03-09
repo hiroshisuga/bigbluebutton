@@ -34,6 +34,14 @@ const intlMessages = defineMessages({
     id: 'app.whiteboard.toolbar.tools.text',
     description: 'Tool submenu text annotation',
   },
+  toolEraser: {
+    id: 'app.whiteboard.toolbar.tools.eraser',
+    description: 'Tool submenu eraser item',
+  },
+  toolMarker: {
+    id: 'app.whiteboard.toolbar.tools.marker',
+    description: 'Tool submenu marker item',
+  },
   colorBlack: {
     id: 'app.whiteboard.toolbar.color.black',
     description: 'Color submenu black color',
@@ -120,8 +128,10 @@ class ToolbarSubmenu extends Component {
   }
 
   componentDidMount() {
-    document.addEventListener('mousedown', this.handleMouseDown);
-    document.addEventListener('touchstart', this.handleMouseDown);
+    const { presentationWindow } = this.props;
+    
+    presentationWindow.document.addEventListener('mousedown', this.handleMouseDown);
+    presentationWindow.document.addEventListener('touchstart', this.handleMouseDown);
     const { handleMouseEnter, objectSelected, type } = this.props;
 
     if (handleMouseEnter) {
@@ -163,8 +173,10 @@ class ToolbarSubmenu extends Component {
   }
 
   componentWillUnmount() {
-    document.removeEventListener('mousedown', this.handleMouseDown);
-    document.removeEventListener('touchstart', this.handleMouseDown);
+    const { presentationWindow } = this.props;
+    
+    presentationWindow.document.removeEventListener('mousedown', this.handleMouseDown);
+    presentationWindow.document.removeEventListener('touchstart', this.handleMouseDown);
   }
 
   onItemClick(objectToReturn) {

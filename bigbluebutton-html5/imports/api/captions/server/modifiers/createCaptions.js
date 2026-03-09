@@ -20,6 +20,9 @@ export default function createCaptions(meetingId, locale, name) {
       ownerId: '',
       dictating: false,
       transcript: '',
+      translating: false,
+      translationDoner: {},
+      speechDoner: {},
     };
 
     const numberAffected = Captions.upsert(selector, modifier);

@@ -6,6 +6,9 @@ import injectWbResizeEvent from '/imports/ui/components/presentation/resize-wrap
 import { HUNDRED_PERCENT, MAX_PERCENT, STEP } from '/imports/utils/slideCalcUtils';
 import Styled from './styles';
 import ZoomTool from './zoom-tool/component';
+//import FullscreenButtonContainer from '../../fullscreen-button/container';
+import QuickLinksDropdown from './quick-links-dropdown/component';
+import FullscreenService from '/imports/ui/components/common/fullscreen-button/service';
 import TooltipContainer from '/imports/ui/components/common/tooltip/container';
 import KEY_CODES from '/imports/utils/keyCodes';
 
@@ -70,6 +73,14 @@ const intlMessages = defineMessages({
     id: 'app.presentationUploder.title',
     description: 'presentation area element label',
   },
+  splitPresentationDesc: {
+    id: 'app.presentation.presentationToolbar.splitPresentationDesc',
+    description: 'detach the presentation area label',
+  },
+  mergePresentationDesc: {
+    id: 'app.presentation.presentationToolbar.mergePresentationDesc',
+    description: 'merge the detached presentation area label',
+  },
   toolbarMultiUserOn: {
     id: 'app.whiteboard.toolbar.multiUserOn',
     description: 'Whiteboard toolbar turn multi-user on menu',
@@ -83,6 +94,8 @@ const intlMessages = defineMessages({
     description: 'presentation toolbar pan label',
   },
 });
+
+const ALLOW_FULLSCREEN = Meteor.settings.public.app.allowFullscreen;
 
 class PresentationToolbar extends PureComponent {
   constructor(props) {
@@ -99,11 +112,13 @@ class PresentationToolbar extends PureComponent {
   }
 
   componentDidMount() {
-    document.addEventListener('keydown', this.switchSlide);
+    const { presentationWindow } = this.props;
+    presentationWindow.document.addEventListener('keydown', this.switchSlide);
   }
 
   componentWillUnmount() {
-    document.removeEventListener('keydown', this.switchSlide);
+    const { presentationWindow } = this.props;
+    presentationWindow.document.removeEventListener('keydown', this.switchSlide);
   }
 
   handleSkipToSlideChange(event) {
@@ -171,6 +186,7 @@ class PresentationToolbar extends PureComponent {
   switchSlide(event) {
     const { target, which } = event;
     const isBody = target.nodeName === 'BODY';
+    const { presentationWindow, isPresentationDetached } = this.props;
 
     if (isBody) {
       switch (which) {
@@ -183,7 +199,11 @@ class PresentationToolbar extends PureComponent {
           this.nextSlideHandler();
           break;
         case KEY_CODES.ENTER:
-          this.fullscreenToggleHandler();
+          if (isPresentationDetached){
+            FullscreenService.toggleFullScreen(presentationWindow.document.documentElement);
+          } else {
+            this.fullscreenToggleHandler();
+          }
           break;
         default:
       }
@@ -248,6 +268,8 @@ class PresentationToolbar extends PureComponent {
       fitToWidth,
       intl,
       zoom,
+      isFullscreen,
+      fullscreenRef,
       isMeteorConnected,
       isPollingEnabled,
       amIPresenter,
@@ -255,6 +277,11 @@ class PresentationToolbar extends PureComponent {
       parseCurrentSlideContent,
       startPoll,
       currentSlide,
+      allowExternalVideo,
+      screenSharingCheck,
+      fullscreenElementId,
+      togglePresentationDetached,
+      isPresentationDetached,
       toolbarWidth,
     } = this.props;
 
@@ -298,6 +325,46 @@ class PresentationToolbar extends PureComponent {
             />
           ) : null}
         </div>
+
+        {
+          <div>
+          {
+              <QuickLinksDropdown
+                {...{
+                  intl,
+                  amIPresenter,
+                  parseCurrentSlideContent,
+                  allowExternalVideo,
+                  screenSharingCheck,
+                  isFullscreen,
+                  fullscreenRef,
+                }}
+              />
+          }
+          </div>
+        }
+        {
+          <div>
+            <Styled.DetachWindowButton
+              role="button"
+              aria-label={isPresentationDetached
+                ? intl.formatMessage(intlMessages.mergePresentationDesc)
+                : intl.formatMessage(intlMessages.splitPresentationDesc)
+              }
+              aria-describedby={isPresentationDetached ? 'mergePresentationDesc' : 'splitPresentationDesc'}
+              color="default"
+              icon={isPresentationDetached ? "application" : "rooms"}
+              size="md"
+              onClick={togglePresentationDetached}
+              label={isPresentationDetached
+                ? intl.formatMessage(intlMessages.mergePresentationDesc)
+                : intl.formatMessage(intlMessages.splitPresentationDesc)
+              }
+              hideLabel
+            />
+          </div>
+        }
+
         <Styled.PresentationSlideControls>
           <Styled.PrevSlideButton
             role="button"
@@ -362,6 +429,8 @@ class PresentationToolbar extends PureComponent {
                 )
                 : null
             }
+        {!isPresentationDetached
+          ?
             <Styled.FitToWidthButton
               role="button"
               data-test="fitToWidthButton"
@@ -382,6 +451,8 @@ class PresentationToolbar extends PureComponent {
               }
               hideLabel
             />
+          : null
+        }
           </Styled.PresentationZoomControls>
       </Styled.PresentationToolbarWrapper>
     );

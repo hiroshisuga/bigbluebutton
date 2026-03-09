@@ -1,6 +1,8 @@
 import React, { PureComponent } from 'react';
 import PropTypes from 'prop-types';
 import Service from '/imports/ui/components/captions/service';
+import UserContainer from './user/container';
+import Auth from '/imports/ui/services/auth';
 
 const CAPTIONS_CONFIG = Meteor.settings.public.captions;
 
@@ -49,12 +51,19 @@ class LiveCaptions extends PureComponent {
       backgroundColor,
     } = this.settings;
 
+    const wrapperStyles = {
+      display: 'flex',
+      alignItems: 'flex-end',
+      gap: '0em 0.5em',
+    };
+
+    const backgroundColorAlpha = backgroundColor.match(/^#[0-9a-fA-F]{6}$/) ? backgroundColor + 'a0' : backgroundColor;
     const captionStyles = {
       whiteSpace: 'pre-wrap',
       wordWrap: 'break-word',
       fontFamily,
       fontSize,
-      background: backgroundColor,
+      background: backgroundColorAlpha,
       color: fontColor,
     };
 
@@ -70,16 +79,21 @@ class LiveCaptions extends PureComponent {
     };
 
     return (
-      <div>
+      <div style={wrapperStyles}>
+        {clear ? null : (
+          <UserContainer
+            userId={data.whosText}
+          />
+        )}
         <div style={captionStyles}>
-          {clear ? '' : data}
+          {clear ? '' : data.captionText}
         </div>
         <div
           style={visuallyHidden}
           aria-atomic
           aria-live="polite"
         >
-          {clear ? '' : data}
+          {clear ? '' : data.captionText}
         </div>
       </div>
     );
@@ -87,7 +101,7 @@ class LiveCaptions extends PureComponent {
 }
 
 LiveCaptions.propTypes = {
-  data: PropTypes.string.isRequired,
+  data: PropTypes.object.isRequired,
 };
 
 export default LiveCaptions;
