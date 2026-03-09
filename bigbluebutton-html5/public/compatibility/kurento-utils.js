@@ -206,7 +206,9 @@ function WebRtcPeer(mode, options, callback) {
           if (!this.remoteStream) {
             this.remoteStream = new MediaStream();
           }
-          this.remoteStream.addTrack(event.track);
+		  if (!this.remoteStream.getTracks().includes(event.track)) {
+            this.remoteStream.addTrack(event.track);
+          }
         };
 		
         //Add Transceiver for Webview on IOS
