@@ -174,6 +174,11 @@ const TldrawV2GlobalStyle = createGlobalStyle`
     font-family: 'AMT', 'MRY', sans-serif;
   }
 
+  #.tl-text-shape__wrapper[data-font='serif'],
+  .tl-text-shape__wrapper[data-font='serif'] .tl-text {
+    font-family: 'Times New Roman', 'MM', serif;
+  }
+
   [data-side="bottom"][data-align="end"][data-state="open"][role="dialog"] {
     right: 3.5rem !important;
     bottom: 9.5rem !important;
