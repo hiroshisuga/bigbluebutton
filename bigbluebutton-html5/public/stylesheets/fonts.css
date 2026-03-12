@@ -233,7 +233,7 @@
   font-family: 'MRY';
   font-style: normal;
   font-weight: 400;
-  src: url('../fonts/MA/MRY.woff2') format('woff2');
+  src: url('../fonts/MA/MRY-subset.woff2') format('woff2');
   unicode-range:
     U+4E00-9FFF,   /* Common Chinese character */
     U+3000-303F,   /* CJK symbols*/
