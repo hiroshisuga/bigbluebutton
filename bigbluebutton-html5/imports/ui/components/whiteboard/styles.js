@@ -168,14 +168,12 @@ const TldrawV2GlobalStyle = createGlobalStyle`
     font-family: 'Arial', sans-serif !important;
   }
   
-  .tl-text-shape__wrapper[data-font='draw'],
-  .tl-text-shape__wrapper[data-font='draw'] .tl-text {
+  .tl-text-shape__wrapper[data-font='draw'] {
     /* font-family: 'tldraw_draw', 'KosugiMaruSubset', sans-serif; */
     font-family: 'AMT', 'MRY', sans-serif;
   }
 
-  #.tl-text-shape__wrapper[data-font='serif'],
-  .tl-text-shape__wrapper[data-font='serif'] .tl-text {
+  #.tl-text-shape__wrapper[data-font='serif'] {
     font-family: 'Times New Roman', 'MM', serif;
   }
 
