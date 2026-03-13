@@ -167,6 +167,15 @@ const TldrawV2GlobalStyle = createGlobalStyle`
   .tlui-kbd > span {
     font-family: 'Arial', sans-serif !important;
   }
+  
+  .tl-text-shape__wrapper[data-font='draw'] {
+    /* font-family: 'tldraw_draw', 'KosugiMaruSubset', sans-serif; */
+    font-family: 'AMT', 'MRY', sans-serif;
+  }
+
+  #.tl-text-shape__wrapper[data-font='serif'] {
+    font-family: 'Times New Roman', 'MM', serif;
+  }
 
   [data-side="bottom"][data-align="end"][data-state="open"][role="dialog"] {
     right: 3.5rem !important;
