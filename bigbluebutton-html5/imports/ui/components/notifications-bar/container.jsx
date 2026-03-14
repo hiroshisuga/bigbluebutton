@@ -66,7 +66,7 @@ const NotificationsBarContainer = () => {
 
   const errorMessage = useMemo(() => {
     const isCritical = rttStatus === STATUS_CRITICAL;
-
+    
     if (!connected) {
       const code = isCritical ? 3002 : 3001;
       const msg = intl.formatMessage(
