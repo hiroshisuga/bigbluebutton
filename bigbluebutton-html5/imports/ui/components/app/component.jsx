@@ -284,6 +284,7 @@ class App extends Component {
     const {
       hideActionsBar,
       presentationIsOpen,
+      isPresentationDetached,
     } = this.props;
 
     if (hideActionsBar) return null;
@@ -292,6 +293,7 @@ class App extends Component {
       <ActionsBarContainer
         presentationIsOpen={presentationIsOpen}
         setPresentationFitToWidth={this.setPresentationFitToWidth}
+        isPresentationDetached={isPresentationDetached}
       />
     );
   }
@@ -336,6 +338,9 @@ class App extends Component {
       isNotificationEnabled,
       isNonMediaLayout,
       isRaiseHandEnabled,
+      popupWindow,
+      isPresentationDetached,
+      toggleDetachPresentation,
       currentUserHasVoice,
     } = this.props;
 
@@ -385,6 +390,9 @@ class App extends Component {
                 fitToWidth={presentationFitToWidth}
                 darkTheme={darkTheme}
                 presentationIsOpen={presentationIsOpen}
+                popupWindow={popupWindow}
+                isPresentationDetached={isPresentationDetached}
+                toggleDetachPresentation={toggleDetachPresentation}
               />
             )
             : null
