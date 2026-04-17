@@ -62,6 +62,8 @@ const WhiteboardContainer = (props) => {
     refetchInitialPageAnnotations,
     annotationStreamData = [],
     restoreOnUpdate,
+    isPresentationDetached,
+    popupWindow,
   } = props;
 
   const WHITEBOARD_CONFIG = window.meetingClientSettings.public.whiteboard;
@@ -466,7 +468,7 @@ const WhiteboardContainer = (props) => {
   const {
     colorStyle, dashStyle, fillStyle, fontStyle, sizeStyle,
   } = WHITEBOARD_CONFIG.styles;
-  const handleToggleFullScreen = (ref) => FullscreenService.toggleFullScreen(ref);
+  const handleToggleFullScreen = (ref, isPresentationDetached, popupWindow) => FullscreenService.toggleFullScreen(ref, isPresentationDetached, popupWindow);
 
   // use -0.5 offset to avoid white borders rounding erros
   bgShape.push({

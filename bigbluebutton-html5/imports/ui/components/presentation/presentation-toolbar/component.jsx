@@ -123,11 +123,23 @@ class PresentationToolbar extends PureComponent {
   }
 
   componentDidMount() {
-    document.addEventListener('keydown', this.switchSlide);
+    const {
+      isPresentationDetached,
+      popupWindow,
+    } = this.props;
+
+    const targetDoc = isPresentationDetached && popupWindow?.document ? popupWindow.document : document;
+    targetDoc.addEventListener('keydown', this.switchSlide);
   }
 
   componentWillUnmount() {
-    document.removeEventListener('keydown', this.switchSlide);
+    const {
+      isPresentationDetached,
+      popupWindow,
+    } = this.props;
+
+    const targetDoc = isPresentationDetached && popupWindow?.document ? popupWindow.document : document;
+    targetDoc.removeEventListener('keydown', this.switchSlide);
   }
 
   handleSkipToSlideChange(event) {
@@ -171,9 +183,11 @@ class PresentationToolbar extends PureComponent {
       fullscreenAction,
       fullscreenRef,
       handleToggleFullScreen,
+      isPresentationDetached,
+      popupWindow,
     } = this.props;
 
-    handleToggleFullScreen(fullscreenRef);
+    handleToggleFullScreen(fullscreenRef, isPresentationDetached, popupWindow);
     const newElement = isFullscreen ? '' : fullscreenElementId;
 
     layoutContextDispatch({
