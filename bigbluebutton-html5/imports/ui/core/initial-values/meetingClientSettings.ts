@@ -815,6 +815,8 @@ export const meetingClientSettingsInitialValues: MeetingClientSettings = {
       annotationsQueueProcessInterval: 60,
       cursorInterval: 100,
       pointerDiameter: 5,
+      laserRadiusSmall: 10,
+      laserRadiusLarge: 16,
       maxStickyNoteLength: 1000,
       maxNumberOfAnnotations: 300,
       maxNumberOfActiveUsers: 25,
