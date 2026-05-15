@@ -2231,7 +2231,7 @@ const Whiteboard = React.memo((props) => {
   }, [isPresentationDetached, popupWindow]);
 
   React.useEffect(() => {
-    const targetDoc = document;
+    const targetDoc = isPresentationDetached && popupWindow?.document ? popupWindow.document : document;
     const presentationWrapper = targetDoc.querySelector('#presentationInnerWrapper');
     if (!presentationWrapper) return;
     if (!isPresenter) return;
@@ -2286,7 +2286,7 @@ const Whiteboard = React.memo((props) => {
   React.useEffect(() => {
     if (!laserMenuVisible) return;
     
-    const targetDoc = document;
+    const targetDoc = isPresentationDetached && popupWindow?.document ? popupWindow.document : document;
     const presentationWrapper = targetDoc.querySelector('#presentationInnerWrapper');
     if (!presentationWrapper) return;
 
@@ -2305,7 +2305,7 @@ const Whiteboard = React.memo((props) => {
   React.useEffect(() => {
     // compensation at the window edge
     if (!laserMenuVisible) return;
-    const targetDoc = document;
+    const targetDoc = isPresentationDetached && popupWindow?.document ? popupWindow.document : document;
 
     const el = laserMenuRef.current;
     if (!el) return;
@@ -2326,7 +2326,7 @@ const Whiteboard = React.memo((props) => {
   }, [laserMenuVisible]);
 
   React.useEffect(() => {
-    const targetDoc = document;
+    const targetDoc = isPresentationDetached && popupWindow?.document ? popupWindow.document : document;
     if (!isPresenter) return;
     const el = targetDoc.querySelector('.tl-container');
     if (!el) return;
@@ -2432,7 +2432,7 @@ const Whiteboard = React.memo((props) => {
 
   const removeViewerLaser = () => {
     laserElRef.current = null;
-    const targetDoc = document;
+    const targetDoc = isPresentationDetached && popupWindow?.document ? popupWindow.document : document;
     const lasers = targetDoc.querySelectorAll('.bbb-laser-pointer');
     lasers.forEach(el => el.remove());
   };
@@ -2442,7 +2442,7 @@ const Whiteboard = React.memo((props) => {
     if (isPresenter) return;
     //if (isMultiUserActive) return;
 
-    const targetDoc = document;
+    const targetDoc = isPresentationDetached && popupWindow?.document ? popupWindow.document : document;
 
     //Comment out below if we do not want to show laser when a presenter uses drawing tools on mobile devices.
     // Note a problem that the laser remains on the screen after switching to drawing tools.
