@@ -1,20 +1,23 @@
 import React, { useEffect } from 'react';
 import { throttle } from 'radash';
 
-const hasBackgroundImageUrl = (el) => {
-  const style = window.getComputedStyle(el);
+const hasBackgroundImageUrl = (el, isDetached = false, p) => {
+  const targetWin = isDetached ? p : window;
+  const style = targetWin.getComputedStyle(el);
   const bg = style.backgroundImage || '';
   return bg.includes('url(');
 };
 
-const useCursor = (publishCursorUpdate, whiteboardId) => {
+const useCursor = (publishCursorUpdate, whiteboardId, laserMode) => {
   const publishRef = React.useRef(publishCursorUpdate);
   const whiteboardIdRef = React.useRef(whiteboardId);
+  const laserModeRef = React.useRef(laserMode);
   const pendingRef = React.useRef(null);
   const rafRef = React.useRef(null);
 
   useEffect(() => { publishRef.current = publishCursorUpdate; }, [publishCursorUpdate]);
   useEffect(() => { whiteboardIdRef.current = whiteboardId; }, [whiteboardId]);
+  useEffect(() => { laserModeRef.current = laserMode; }, [laserMode]);
 
   useEffect(() => () => {
     if (rafRef.current) {
@@ -24,6 +27,7 @@ const useCursor = (publishCursorUpdate, whiteboardId) => {
         publishRef.current({
           whiteboardId: whiteboardIdRef.current,
           ...pendingRef.current,
+          laserType: laserModeRef.current,
         });
         pendingRef.current = null;
       }
@@ -40,6 +44,7 @@ const useCursor = (publishCursorUpdate, whiteboardId) => {
           publishRef.current({
             whiteboardId: whiteboardIdRef.current,
             ...pendingRef.current,
+            laserType: laserModeRef.current, 
           });
           pendingRef.current = null;
         }
@@ -50,13 +55,17 @@ const useCursor = (publishCursorUpdate, whiteboardId) => {
   return updateCursorPosition;
 };
 
-const getPresentationOptionsMenuItem = () => document.querySelector('li#presentationFullscreen')
-    || document.querySelector('li#presentationSnapshot')
-    || document.querySelector('li#toolVisibility')
-    || null;
+const getPresentationOptionsMenuItem = (isDetached = false, p) => {
+  const targetDoc = isDetached && p?.document ? p.document : document;
+  return targetDoc.querySelector('li#presentationFullscreen')
+      || targetDoc.querySelector('li#presentationSnapshot')
+      || targetDoc.querySelector('li#toolVisibility')
+      || null;
+}
 
-const getTldrawOpenMenu = () => {
-  const tlElement = document.querySelectorAll('[id^=radix-]');
+const getTldrawOpenMenu = (isDetached = false, p) => {
+  const targetDoc = isDetached && p?.document ? p.document : document;
+  const tlElement = targetDoc.querySelectorAll('[id^=radix-]');
   const tldrawMenu = Array.from(tlElement).find((el) => {
     const menuClasses = ['tlui-popover__content', 'tlui-menu'];
     if (el && menuClasses.includes(el.className)) {
@@ -81,6 +90,8 @@ const useMouseEvents = ({
   setIsWheelZoom,
   setWheelZoomTimeout,
   isInfiniteWhiteboard,
+  isPresentationDetached,
+  popupWindow,
 }) => {
   const timeoutIdRef = React.useRef();
   const fingerCountRef = React.useRef(0);
@@ -124,7 +135,8 @@ const useMouseEvents = ({
   const handleMouseDownWindow = (event) => {
     const { target } = event;
     const editor = tlEditorRef.current;
-    const presentationInnerWrapper = document.getElementById('presentationInnerWrapper');
+    const targetDoc = isPresentationDetached && popupWindow?.document ? popupWindow.document : document;
+    const presentationInnerWrapper = targetDoc.getElementById('presentationInnerWrapper');
 
     if (!(presentationInnerWrapper && presentationInnerWrapper.contains(target))) {
       if (editor?.getEditingShape()) {
@@ -139,13 +151,39 @@ const useMouseEvents = ({
       && editor?.getCurrentToolId() === 'select'
       && !target.matches('[data-testid*="selection.resize"]')
       && !target.matches('[data-testid*="selection.target"]')
-      && hasBackgroundImageUrl(target)
+      && hasBackgroundImageUrl(target, isPresentationDetached, popupWindow)
     ) {
       editor.selectNone();
       return editor.complete();
     }
 
     return undefined;
+  };
+
+  const handlePointerDownStylePanel = (event) => {
+    const panel = event.currentTarget;
+    const handlePointerUpStylePanel = (e) => {
+      //console.log("pointerup detected inside style panel", e);
+      const pointerUpEvent = new PointerEvent("pointerup", {
+        bubbles: true,
+        cancelable: true,
+        pointerId: e.pointerId || 1,
+        clientX: e.clientX,
+        clientY: e.clientY,
+        button: e.button,
+      });
+      // Inject a generic pointerup event both to the style-panel and to the main window,
+      //  hitting handlePointerUp in tldraw/src/lib/ui/components/primitives/ButtonPicker.tsx,
+      //  which is attached to the main window.
+      
+      //e.target.dispatchEvent(pointerUpEvent); // Removed due to the conflict with the HTMLElement hack.
+                                                // This triggered a infinite loop for measuring text size
+                                                //  when changing the font style from the style panel.
+      window.dispatchEvent(pointerUpEvent);
+
+      panel.removeEventListener("pointerup", handlePointerUpStylePanel);
+    };
+    panel.addEventListener("pointerup", handlePointerUpStylePanel);
   };
 
   const handleMouseEnter = () => {
@@ -156,6 +194,8 @@ const useMouseEvents = ({
         'fade-in',
         animations ? '.3s' : '0s',
         hasWBAccess || isPresenterRef.current,
+        isPresentationDetached,
+        popupWindow,
       );
     }
   };
@@ -163,8 +203,8 @@ const useMouseEvents = ({
   const handleMouseLeave = () => {
     if (whiteboardToolbarAutoHide) {
       clearTimeout(mouseLeaveTimeoutRef.current);
-      const presentationWBOptionsMenuItem = getPresentationOptionsMenuItem();
-      const tldrawMenu = getTldrawOpenMenu();
+      const presentationWBOptionsMenuItem = getPresentationOptionsMenuItem(isPresentationDetached, popupWindow);
+      const tldrawMenu = getTldrawOpenMenu(isPresentationDetached, popupWindow);
       if (presentationWBOptionsMenuItem || tldrawMenu) {
         if (tldrawMenu) {
           mouseLeaveTimeoutRef.current = setTimeout(() => {
@@ -184,6 +224,8 @@ const useMouseEvents = ({
               'fade-out',
               animations ? '3s' : '0s',
               hasWBAccess || isPresenterRef.current,
+              isPresentationDetached,
+              popupWindow,
             );
           }
         } else {
@@ -192,6 +234,8 @@ const useMouseEvents = ({
             'fade-out',
             animations ? '3s' : '0s',
             hasWBAccess || isPresenterRef.current,
+            isPresentationDetached,
+            popupWindow,
           );
         }
       }
@@ -362,6 +406,8 @@ const useMouseEvents = ({
         'fade-out',
         animations ? '3s' : '0s',
         hasWBAccess || isPresenterRef.current,
+        isPresentationDetached,
+        popupWindow,
       );
     } else {
       toggleToolsAnimations(
@@ -369,13 +415,26 @@ const useMouseEvents = ({
         'fade-in',
         animations ? '.3s' : '0s',
         hasWBAccess || isPresenterRef.current,
+        isPresentationDetached,
+        popupWindow,
       );
     }
   }, [whiteboardToolbarAutoHide]);
 
   React.useEffect(() => {
-    const presentationWrapper = document.getElementById('presentationInnerWrapper');
-    window.addEventListener('mousedown', handleMouseDownWindow);
+    const targetWin = isPresentationDetached && popupWindow ? popupWindow : window;
+    const presentationWrapper = targetWin.document.getElementById('presentationInnerWrapper');
+    targetWin.addEventListener('mousedown', handleMouseDownWindow);
+
+    // Solving a problem that the style changer on the popup continues to select every button
+    //  as pointerup event is stolen by the main window to which tldraw attaches the event.
+    if (isPresentationDetached) {
+      const stylePanelPopup = popupWindow.document.getElementsByClassName('tlui-style-panel')[0];
+      if (stylePanelPopup) {
+        stylePanelPopup.addEventListener('pointerdown', handlePointerDownStylePanel);
+      }
+    }
+
     if (presentationWrapper) {
       presentationWrapper.addEventListener('mousedown', handleMouseDownWhiteboard);
       presentationWrapper.addEventListener('mouseup', handleMouseUp);
@@ -400,7 +459,7 @@ const useMouseEvents = ({
         presentationWrapper.removeEventListener('touchend', handleTouchEnd, { capture: true });
         presentationWrapper.removeEventListener('touchmove', handleTouchMove);
       }
-      window.removeEventListener('mousedown', handleMouseDownWindow);
+      targetWin.removeEventListener('mousedown', handleMouseDownWindow);
     };
   }, [
     tlEditorRef,
