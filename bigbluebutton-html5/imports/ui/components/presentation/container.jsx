@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import { notify } from '/imports/ui/services/notification';
 import Presentation from '/imports/ui/components/presentation/component';
 import getFromUserSettings from '/imports/ui/services/users-settings';
+import Auth from '/imports/ui/services/auth';
 import {
   useMutation, useSubscription, useQuery,
 } from '@apollo/client';
@@ -43,7 +44,14 @@ const PresentationContainer = (props) => {
 
   const { pres_page_curr: presentationPageArray } = (presentationPageData || {});
   const currentPresentationPage = presentationPageArray?.[0];
-  const slideSvgUrl = currentPresentationPage?.svgUrl;
+  const nextPresentationPage =
+     currentPresentationPage?.nextPagesSvg?.length > 0
+      ? {
+          svgUrl: currentPresentationPage.nextPagesSvg[0],
+        }
+      : null;
+  const slideSvgUrl = currentPresentationPage?.svgUrl
+    ? Auth.authenticateURL(currentPresentationPage.svgUrl) : undefined;
   const currentPageId = currentPresentationPage?.pageId;
 
   const currentPresentationId = currentPresentationPage?.presentationId;
@@ -168,8 +176,21 @@ const PresentationContainer = (props) => {
     num: currentPresentationPage?.num,
     presentationId: currentPresentationPage?.presentationId,
     svgUri: slideSvgUrl,
+    noteUri: slideSvgUrl?.replace(
+      /\/svg\/(\d+)(\?.*)?$/,
+      '/notes/$1$2',
+    ),
     infiniteWhiteboard: currentPresentationPage.infiniteWhiteboard,
   } : null;
+
+  const nextSlide = nextPresentationPage
+    ? {
+        imageUri: Auth.authenticateURL(nextPresentationPage.svgUrl),
+        svgUri: Auth.authenticateURL(nextPresentationPage.svgUrl),
+        num: currentSlide ? currentSlide.num + 1 : undefined,
+        presentationId: currentSlide?.presentationId,
+      }
+    : null;
 
   let slidePosition;
   if (currentSlide) {
@@ -198,17 +219,14 @@ const PresentationContainer = (props) => {
       && !presentation.fetchedSlide[currentSlide.num + PRELOAD_NEXT_SLIDE]
       && presentation.canFetch) {
       const nextSlidesSvgUrl = (currentPresentationPage.nextPagesSvg || [])
-        .map((url) => ({ svgUrl: url }));
-      const slidesToFetch = [
-        currentPresentationPage,
-        ...nextSlidesSvgUrl,
-      ];
+        .map((url) => ({ svgUrl: Auth.authenticateURL(url) }));
+      const slidesToFetch = nextSlidesSvgUrl;
 
       const promiseImageGet = slidesToFetch
         .filter((s) => !fetchedpresentation[presentationId].fetchedSlide[s.svgUrl])
         .map(async (slide) => {
           if (presentation.canFetch) presentation.canFetch = false;
-          const image = await fetch(slide.svgUrl);
+          const image = await fetch(slide.svgUrl, { credentials: 'include' });
           if (image.ok) {
             presentation.fetchedSlide[slide.svgUrl] = true;
           }
@@ -267,9 +285,12 @@ const PresentationContainer = (props) => {
           isMobile: deviceType === DEVICE_TYPE.MOBILE,
           isIphone,
           currentSlide,
+          nextSlide,
           slidePosition,
           hasWBAccess: currentUser?.whiteboardWriteAccess,
-          downloadPresentationUri: `${APP_CONFIG.bbbWebBase}/${currentPresentationPage?.downloadFileUri}`,
+          downloadPresentationUri: currentPresentationPage?.downloadFileUri
+            ? Auth.authenticateURL(`${APP_CONFIG.bbbWebBase}/${currentPresentationPage.downloadFileUri}`)
+            : undefined,
           multiUser: (multiUserWhiteboardEnabled || multiUserData.active) && presentationIsOpen,
           presentationIsDownloadable: currentPresentationPage?.downloadable,
           mountPresentation: !!currentSlide,
@@ -287,6 +308,7 @@ const PresentationContainer = (props) => {
           presentationAreaSize,
           currentUser,
           currentPresentationPage,
+          nextPresentationPage,
           layoutType: selectedLayout || '',
           annotationStreamData,
           initialPageAnnotations,

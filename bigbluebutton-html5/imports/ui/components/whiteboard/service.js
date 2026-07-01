@@ -4,6 +4,7 @@ import { defineMessages } from 'react-intl';
 import { notify } from '/imports/ui/services/notification';
 import caseInsensitiveReducer from '/imports/utils/caseInsensitiveReducer';
 import { debounce } from '/imports/utils/debounce';
+import { isValidShapeType } from './utils';
 
 const intlMessages = defineMessages({
   notifyNotAllowedChange: {
@@ -120,9 +121,10 @@ const notifyShapeNumberExceeded = (intl, limit) => {
   if (intl) notify(intl.formatMessage(intlMessages.shapeNumberExceeded, { limit }), 'warning', 'whiteboard');
 };
 
-const toggleToolsAnimations = (activeAnim, anim, time, hasWBAccess = false) => {
+const toggleToolsAnimations = (activeAnim, anim, time, hasWBAccess = false, isDetached, p) => {
   const handleOptionsDropdown = () => {
-    const optionsDropdown = document.getElementById('WhiteboardOptionButton');
+    const targetDoc = isDetached && p?.document ? p.document : document;
+    const optionsDropdown = targetDoc.getElementById('WhiteboardOptionButton');
     if (optionsDropdown) {
       optionsDropdown.classList.remove(activeAnim);
       optionsDropdown.style.transition = `opacity ${time} ease-in-out`;
@@ -135,7 +137,8 @@ const toggleToolsAnimations = (activeAnim, anim, time, hasWBAccess = false) => {
   }
 
   const checkElementsAndRun = () => {
-    const tlEls = document.querySelectorAll('.tlui-menu-zone, .tlui-toolbar__tools, .tlui-toolbar__extras, .tlui-style-panel__wrapper, .tlui-undo, .tlui-redo');
+    const targetDoc = isDetached && p?.document ? p.document : document;
+    const tlEls = targetDoc.querySelectorAll('.tlui-menu-zone, .tlui-toolbar__tools, .tlui-toolbar__extras, .tlui-style-panel__wrapper, .tlui-undo, .tlui-redo');
     if (tlEls.length) {
       tlEls?.forEach((el) => {
         el.classList.remove(activeAnim);
@@ -390,8 +393,9 @@ const debouncedUpdateShapes = debounce((
     tlEditorRef.current?.store.mergeRemoteChanges(() => {
       const remoteShapesArray = Object.values(shapes).reduce((acc, shape) => {
         if (
-          shape.meta?.presentationId === presentationIdRef.current
-          || shape?.whiteboardId?.includes(presentationIdRef.current)
+          (shape.meta?.presentationId === presentationIdRef.current
+          || shape?.whiteboardId?.includes(presentationIdRef.current))
+          && isValidShapeType(shape)
         ) {
           acc.push(sanitizeShape(shape));
         }

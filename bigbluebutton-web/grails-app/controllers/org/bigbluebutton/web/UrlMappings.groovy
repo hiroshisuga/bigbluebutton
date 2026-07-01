@@ -11,6 +11,10 @@ class UrlMappings {
       action = [GET: 'checkPresentationBeforeUploading']
     }
 
+    "/bigbluebutton/presentation/checkAuthorization"(controller: "presentation") {
+      action = [GET: 'checkPresentationAuthorization']
+    }
+
     "/bigbluebutton/presentation/test-convert"(controller: "presentation") {
       action = [GET: 'testConversion']
     }
@@ -46,6 +50,18 @@ class UrlMappings {
       constraints {
         id matches: /\d+/
       }
+    }
+
+    "/bigbluebutton/presentation-notes/upload"(controller: "presentation") {
+      action = [POST: 'uploadNotes']
+    }
+
+    "/bigbluebutton/presentation-notes/extract-existing"(controller: "presentation") {
+      action = [POST: 'extractNotesFromExistingPptx']
+    }
+
+    "/bigbluebutton/presentation/$conference/$room/$presentation_name/notes/$id"(controller: "presentation") {
+      action = [GET: 'showNote']
     }
 
     "/bigbluebutton/presentation/$conference/$room/$presentation_name/textfiles"(controller: "presentation") {

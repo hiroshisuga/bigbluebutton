@@ -48,7 +48,7 @@ class ActionsBar extends PureComponent {
                   key: `${plugin.type}-${plugin.id}`,
                   onClick: plugin.onClick,
                   hideLabel: true,
-                  color: 'primary',
+                  color: plugin.color || 'primary',
                   size: 'lg',
                   circle: true,
                   label: plugin.tooltip,
@@ -157,6 +157,7 @@ class ActionsBar extends PureComponent {
       showScreenshareQuickSwapButton,
       isReactionsButtonEnabled,
       isRaiseHandEnabled,
+      isPresentationDetached,
     } = this.props;
 
     const Settings = getSettingsSingletonInstance();
@@ -254,6 +255,7 @@ class ActionsBar extends PureComponent {
                     hasPinnedSharedNotes={isSharedNotesPinned}
                     hasGenericContent={hasGenericContent}
                     hasCameraAsContent={hasCameraAsContent}
+                    isPresentationDetached={isPresentationDetached}
                   />
                 )
                 : null}
