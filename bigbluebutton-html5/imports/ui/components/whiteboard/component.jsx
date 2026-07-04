@@ -2319,6 +2319,7 @@ const Whiteboard = React.memo((props) => {
     presentationWrapper.addEventListener('touchmove', cancel, true);
 
     return () => {
+      clearTimeout(timer);
       presentationWrapper.removeEventListener('contextmenu', handleContextMenu, true);
       presentationWrapper.removeEventListener('touchstart', handleTouchStart, true);
       presentationWrapper.removeEventListener('touchend', cancel, true);
