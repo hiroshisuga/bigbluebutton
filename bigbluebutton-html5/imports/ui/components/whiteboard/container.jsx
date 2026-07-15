@@ -62,6 +62,8 @@ const WhiteboardContainer = (props) => {
     refetchInitialPageAnnotations,
     annotationStreamData = [],
     restoreOnUpdate,
+    isPresentationDetached,
+    popupWindow,
   } = props;
 
   const WHITEBOARD_CONFIG = window.meetingClientSettings.public.whiteboard;
@@ -231,7 +233,7 @@ const WhiteboardContainer = (props) => {
   };
 
   const publishCursorUpdate = useCallback((payload) => {
-    const { whiteboardId, xPercent, yPercent } = payload;
+    const { whiteboardId, xPercent, yPercent, laserType } = payload;
     if (!whiteboardId || xPercent == null || yPercent == null || !(hasWBAccess || isPresenter)) return;
 
     presentationPublishCursor({
@@ -239,6 +241,7 @@ const WhiteboardContainer = (props) => {
         whiteboardId,
         xPercent,
         yPercent,
+        laserType,
       },
     });
   }, [hasWBAccess, isPresenter]);
@@ -433,7 +436,7 @@ const WhiteboardContainer = (props) => {
 
   const bgShape = [];
 
-  const { isIphone, isPhone } = deviceInfo;
+  const { isIphone, isPhone, isMobile } = deviceInfo;
 
   const assetId = AssetRecordType.createId(curPageNum);
   const assets = [{
@@ -462,12 +465,14 @@ const WhiteboardContainer = (props) => {
   const sidebarNavigationWidth = layoutSelect(
     (i) => i?.output?.sidebarNavigation?.width,
   );
-  const { maxStickyNoteLength, maxNumberOfAnnotations, lockToolbarTools, pointerDiameter } = WHITEBOARD_CONFIG;
+  const { maxStickyNoteLength, maxNumberOfAnnotations, lockToolbarTools, pointerDiameter,
+    laserRadiusSmall, laserRadiusLarge, laserRedColor, laserGreenColor,
+  } = WHITEBOARD_CONFIG;
   const fontFamily = WHITEBOARD_CONFIG.styles.text.family;
   const {
     colorStyle, dashStyle, fillStyle, fontStyle, sizeStyle,
   } = WHITEBOARD_CONFIG.styles;
-  const handleToggleFullScreen = (ref) => FullscreenService.toggleFullScreen(ref);
+  const handleToggleFullScreen = (ref, isPresentationDetached, popupWindow) => FullscreenService.toggleFullScreen(ref, isPresentationDetached, popupWindow);
 
   // use -0.5 offset to avoid white borders rounding erros
   bgShape.push({
@@ -509,6 +514,10 @@ const WhiteboardContainer = (props) => {
           maxNumberOfAnnotations,
           lockToolbarTools,
           pointerDiameter,
+          laserRadiusSmall,
+          laserRadiusLarge,
+          laserRedColor,
+          laserGreenColor,
           fontFamily,
           colorStyle,
           dashStyle,
@@ -534,6 +543,7 @@ const WhiteboardContainer = (props) => {
           toggleToolsAnimations,
           isIphone,
           isPhone,
+          isMobile,
           currentPresentationPage,
           numberOfPages: currentPresentationPage?.totalPages,
           presentationId,

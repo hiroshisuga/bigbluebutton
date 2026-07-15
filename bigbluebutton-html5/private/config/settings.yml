@@ -1051,6 +1051,7 @@ public:
     allowDownloadOriginal: true
     allowDownloadWithAnnotations: true
     allowSnapshotOfCurrentSlide: true
+    allowPopupPresentation: false
     panZoomThrottle: 32
     restoreOnUpdate: true
     uploadEndpoint: '/bigbluebutton/presentation/upload'
@@ -1112,6 +1113,10 @@ public:
     allowInfiniteWhiteboardInBreakouts: false
     allowInfiniteWhiteboardPanForViewers: false
     pointerDiameter: 5
+    laserRadiusSmall: 10
+    laserRadiusLarge: 16
+    laserRedColor: '#ff1414'
+    laserGreenColor: '#00ff00'
     maxStickyNoteLength: 1000
     # limit number of annotations per slide
     maxNumberOfAnnotations: 300
