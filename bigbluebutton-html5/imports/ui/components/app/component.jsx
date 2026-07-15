@@ -47,6 +47,7 @@ import VoiceActivityAdapter from '../../core/adapters/voice-activity';
 import LayoutObserver from '../layout/observer';
 import BBBLiveKitRoomContainer from '/imports/ui/components/livekit/component';
 import RaiseHandNotifier from '/imports/ui/components/raisehand-notifier/container';
+import DocumentTitleManager from './document-title-manager/component';
 
 const intlMessages = defineMessages({
   userListLabel: {
@@ -284,6 +285,7 @@ class App extends Component {
     const {
       hideActionsBar,
       presentationIsOpen,
+      isPresentationDetached,
     } = this.props;
 
     if (hideActionsBar) return null;
@@ -292,6 +294,7 @@ class App extends Component {
       <ActionsBarContainer
         presentationIsOpen={presentationIsOpen}
         setPresentationFitToWidth={this.setPresentationFitToWidth}
+        isPresentationDetached={isPresentationDetached}
       />
     );
   }
@@ -336,6 +339,9 @@ class App extends Component {
       isNotificationEnabled,
       isNonMediaLayout,
       isRaiseHandEnabled,
+      popupWindow,
+      isPresentationDetached,
+      toggleDetachPresentation,
       currentUserHasVoice,
     } = this.props;
 
@@ -364,6 +370,7 @@ class App extends Component {
           }}
         >
           <ActivityCheckContainer />
+          <DocumentTitleManager />
           <ScreenReaderAlertContainer />
           <BannerBarContainer />
           <NotificationsBarContainer />
@@ -386,6 +393,9 @@ class App extends Component {
                 fitToWidth={presentationFitToWidth}
                 darkTheme={darkTheme}
                 presentationIsOpen={presentationIsOpen}
+                popupWindow={popupWindow}
+                isPresentationDetached={isPresentationDetached}
+                toggleDetachPresentation={toggleDetachPresentation}
               />
             )
             : null
