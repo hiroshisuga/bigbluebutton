@@ -183,6 +183,7 @@ const Whiteboard = React.memo((props) => {
     laserGreenColor,
     isPresentationDetached,
     popupWindow,
+    onPresenterViewChange,
   } = props;
 
   const allowInfiniteWhiteboardPanForViewers = window.meetingClientSettings?.public?.whiteboard?.allowInfiniteWhiteboardPanForViewers;
@@ -254,6 +255,10 @@ const Whiteboard = React.memo((props) => {
   const laserLayerRef = React.useRef(null);
   const laserElRef = React.useRef(null);
   const originalHTMLElementRef = React.useRef(null);
+  const presenterViewFrameRef = React.useRef(null);
+  const lastPresenterViewRef = React.useRef(null);
+  const onPresenterViewChangeRef = React.useRef(onPresenterViewChange);
+  const isPresentationDetachedRef = React.useRef(isPresentationDetached);
 
   currentUserRef.current = currentUser;
 
@@ -537,6 +542,14 @@ const Whiteboard = React.memo((props) => {
       });
     }
   }, [removedShapes]);
+
+  React.useEffect(() => {
+    onPresenterViewChangeRef.current = onPresenterViewChange;
+  }, [onPresenterViewChange]);
+
+  React.useEffect(() => {
+    isPresentationDetachedRef.current = isPresentationDetached;
+  }, [isPresentationDetached]);
 
   const handleCopy = useCallback(() => {
     const selectedShapes = tlEditorRef.current?.getSelectedShapes();
@@ -1276,6 +1289,112 @@ const Whiteboard = React.memo((props) => {
     }
   };
 
+  const roundPresenterViewValue = (value) => (
+    Number.isFinite(value)
+      ? Number(value.toFixed(6))
+      : 0
+  );
+
+  const updatePresenterView = (editor) => {
+    const callback = onPresenterViewChangeRef.current;
+
+    if (
+      !editor
+      || !isPresenterRef.current
+      || !isPresentationDetachedRef.current
+      || typeof callback !== 'function'
+    ) {
+      return;
+    }
+
+    const viewport = editor.getViewportPageBounds();
+    const slideShape = editor.getShape(
+      `shape:BG-${curPageIdRef.current}`,
+    );
+    const cursorPoint = editor.inputs.currentPagePoint;
+
+    if (
+      !viewport
+      || !(viewport.w > 0)
+      || !(viewport.h > 0)
+      || !slideShape
+      || !(slideShape.props?.w > 0)
+      || !(slideShape.props?.h > 0)
+    ) {
+      if (lastPresenterViewRef.current !== null) {
+        lastPresenterViewRef.current = null;
+        callback(null);
+      }
+
+      return;
+    }
+
+    const cursorLeftRatio = cursorPoint
+      ? (cursorPoint.x - viewport.x) / viewport.w
+      : -1;
+
+    const cursorTopRatio = cursorPoint
+      ? (cursorPoint.y - viewport.y) / viewport.h
+      : -1;
+
+    const cursorVisible =
+      cursorLeftRatio >= 0
+      && cursorLeftRatio <= 1
+      && cursorTopRatio >= 0
+      && cursorTopRatio <= 1;
+
+    const nextPresenterView = {
+      presentationId: presentationIdRef.current,
+      pageId: Number(curPageIdRef.current),
+
+      viewportAspectRatio: roundPresenterViewValue(
+        viewport.w / viewport.h,
+      ),
+
+      slide: {
+        leftRatio: roundPresenterViewValue(
+          (slideShape.x - viewport.x) / viewport.w,
+        ),
+        topRatio: roundPresenterViewValue(
+          (slideShape.y - viewport.y) / viewport.h,
+        ),
+        widthRatio: roundPresenterViewValue(
+          slideShape.props.w / viewport.w,
+        ),
+        heightRatio: roundPresenterViewValue(
+          slideShape.props.h / viewport.h,
+        ),
+      },
+
+      cursor: {
+        leftRatio: roundPresenterViewValue(cursorLeftRatio),
+        topRatio: roundPresenterViewValue(cursorTopRatio),
+        visible: cursorVisible,
+      },
+    };
+
+    if (isEqual(lastPresenterViewRef.current, nextPresenterView)) {
+      return;
+    }
+
+    lastPresenterViewRef.current = nextPresenterView;
+    callback(nextPresenterView);
+  };
+
+  const schedulePresenterViewUpdate = (editor) => {
+    if (
+      !editor
+      || presenterViewFrameRef.current !== null
+    ) {
+      return;
+    }
+
+    presenterViewFrameRef.current = raf(() => {
+      presenterViewFrameRef.current = null;
+      updatePresenterView(editor);
+    });
+  };
+
   const handleTldrawMount = (editor) => {
     if (typeof editor.history.setMaxStackSize === 'function') {
       editor.history.setMaxStackSize(window.meetingClientSettings.public.whiteboard.maxHistoryStackSize);
@@ -1459,6 +1578,10 @@ const Whiteboard = React.memo((props) => {
         const camKey = `camera:page:${curPageIdRef.current}`;
         const { [camKey]: cameras } = updated;
 
+        if (pointers || cameras) {
+          schedulePresenterViewUpdate(editor);
+        }
+
         if (cameras) {
           const [prevCam, nextCam] = cameras;
           const panned = prevCam.x !== nextCam.x || prevCam.y !== nextCam.y;
@@ -1565,6 +1688,7 @@ const Whiteboard = React.memo((props) => {
             }
           }
           updateCursorZoomRef.current?.();
+          schedulePresenterViewUpdate(editor);
         }
       },
     );
@@ -1784,6 +1908,10 @@ const Whiteboard = React.memo((props) => {
 
     pollInnerWrapperDimensionsUntilStable(() => {
       adjustCameraOnMount(!isPresenterRef.current);
+
+      raf(() => {
+        schedulePresenterViewUpdate(editor);
+      });
     });
 
     // New cursor hint shape: circle scaled by pointerDiameter, centered at (0,0)
@@ -2684,6 +2812,10 @@ const Whiteboard = React.memo((props) => {
       toggleToolbarIfNeeded();
       resetSlideState();
 
+      raf(() => {
+        schedulePresenterViewUpdate(tlEditorRef.current);
+      });
+
       if (viewerCanPanRef.current) {
         pollInnerWrapperDimensionsUntilStable(() => {
           adjustCameraOnMount(true);
@@ -2696,6 +2828,13 @@ const Whiteboard = React.memo((props) => {
     setTldrawIsMounting(true);
     return () => {
       isMountedRef.current = false;
+
+      if (presenterViewFrameRef.current !== null) {
+        caf(presenterViewFrameRef.current);
+        presenterViewFrameRef.current = null;
+      }
+      lastPresenterViewRef.current = null;
+
       localStorage.removeItem('initialViewBoxWidth');
       localStorage.removeItem('initialViewBoxHeight');
       localStorage.removeItem('pageZoomMap');
@@ -2934,5 +3073,6 @@ Whiteboard.propTypes = {
   locale: PropTypes.string.isRequired,
   isInfiniteWhiteboard: PropTypes.bool,
   whiteboardWriters: PropTypes.arrayOf(PropTypes.shape).isRequired,
+  onPresenterViewChange: PropTypes.func,
 };
 

@@ -575,6 +575,7 @@ WhiteboardContainer.propTypes = {
   }).isRequired,
   zoomChanger: PropTypes.func.isRequired,
   fitToWidth: PropTypes.bool.isRequired,
+  onPresenterViewChange: PropTypes.func,
 };
 
 export default WhiteboardContainer;
