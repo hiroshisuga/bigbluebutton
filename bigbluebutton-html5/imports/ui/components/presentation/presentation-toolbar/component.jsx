@@ -128,18 +128,26 @@ class PresentationToolbar extends PureComponent {
       popupWindow,
     } = this.props;
 
-    const targetDoc = isPresentationDetached && popupWindow?.document ? popupWindow.document : document;
-    targetDoc.addEventListener('keydown', this.switchSlide);
+    this.keydownDocument = (
+      isPresentationDetached && popupWindow?.document
+        ? popupWindow.document
+        : document
+    );
+
+    this.keydownDocument.addEventListener(
+      'keydown',
+      this.switchSlide,
+    );
   }
 
   componentWillUnmount() {
-    const {
-      isPresentationDetached,
-      popupWindow,
-    } = this.props;
-
-    const targetDoc = isPresentationDetached && popupWindow?.document ? popupWindow.document : document;
-    targetDoc.removeEventListener('keydown', this.switchSlide);
+    if (this.keydownDocument) {
+      this.keydownDocument.removeEventListener(
+        'keydown',
+        this.switchSlide,
+      );
+      this.keydownDocument = null;
+    }
   }
 
   handleSkipToSlideChange(event) {
