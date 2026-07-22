@@ -260,7 +260,7 @@ const uploadPresentationNotes = (
   };
 
   return futch(
-    Auth.authenticateURL('/bigbluebutton/presentation-notes/upload'),
+    Auth.authenticateURL(endpoint),
     opts,
     onProgress,
   )
