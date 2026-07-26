@@ -1363,6 +1363,9 @@ const Whiteboard = React.memo((props) => {
   const schedulePresenterViewUpdate = (editor) => {
     if (
       !editor
+      || !isPresenterRef.current
+      || !isPresentationDetachedRef.current
+      || typeof onPresenterViewChangeRef.current !== 'function'
       || presenterViewFrameRef.current !== null
     ) {
       return;
@@ -2570,7 +2573,7 @@ const Whiteboard = React.memo((props) => {
         optionsDropdown.classList.remove('fade-in');
       }
     }
-  }, [whiteboardToolbarAutoHide, isPresentationDetached]);
+  }, [whiteboardToolbarAutoHide, isPresentationDetached, popupWindow]);
 
   const hiddenGeoShapes = React.useMemo(() => {
     const bbbMultiUserPenOnly = getFromUserSettings(
