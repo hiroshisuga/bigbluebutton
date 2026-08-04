@@ -111,6 +111,7 @@ class Presentation extends PureComponent {
       ignorePresentationRestoring: true,
       currentSlideNote: '',
       presenterView: null,
+      presenterAnnotations: null,
     };
 
     const PAN_ZOOM_INTERV = window.meetingClientSettings.public.presentation.panZoomInterval || 200;
@@ -137,6 +138,7 @@ class Presentation extends PureComponent {
     this.loadCurrentSlideNote = this.loadCurrentSlideNote.bind(this);
     this.handlePresentationNotesUpdated = this.handlePresentationNotesUpdated.bind(this);
     this.handlePresenterViewChange = this.handlePresenterViewChange.bind(this);
+    this.presenterAnnotationsObjectUrl = null;
     Session.setItem('componentPresentationWillUnmount', false);
   }
 
@@ -275,6 +277,23 @@ class Presentation extends PureComponent {
       && !userIsPresenter
     );
 
+    const presenterToolClosed = (
+      prevProps.isPresentationDetached
+      && !isPresentationDetached
+    );
+
+    const presenterAnnotationSlideChanged = (
+      prevProps.currentSlide?.id !== currentSlide?.id
+      || prevProps.currentPresentationId !== currentPresentationId
+    );
+
+    if (
+      presenterToolClosed
+      || presenterAnnotationSlideChanged
+    ) {
+      this.clearPresenterAnnotations();
+    }
+
     if (numCameras !== prevNumCameras) {
       this.onResize();
     }
@@ -409,6 +428,11 @@ class Presentation extends PureComponent {
         'keyup',
         this.handlePanShortcut,
       );
+    }
+
+    if (this.presenterAnnotationsObjectUrl) {
+      URL.revokeObjectURL(this.presenterAnnotationsObjectUrl);
+      this.presenterAnnotationsObjectUrl = null;
     }
 
     if (fullscreenContext) {
@@ -994,6 +1018,86 @@ class Presentation extends PureComponent {
     });
   }
 
+  clearPresenterAnnotations = () => {
+    const previousObjectUrl =
+      this.presenterAnnotationsObjectUrl;
+
+    this.presenterAnnotationsObjectUrl = null;
+
+    if (!this.state.presenterAnnotations) {
+      if (previousObjectUrl) {
+        URL.revokeObjectURL(previousObjectUrl);
+      }
+      return;
+    }
+
+    this.setState(
+      {
+        presenterAnnotations: null,
+      },
+      () => {
+        if (previousObjectUrl) {
+          URL.revokeObjectURL(previousObjectUrl);
+        }
+      },
+    );
+  };
+
+  handlePresenterAnnotationsChange = ({
+    presentationId,
+    pageId,
+    svgMarkup,
+  }) => {
+    const { currentSlide } = this.props;
+
+    // Ignore an asynchronous result belonging to an old slide.
+    if (
+      !currentSlide
+      || Number(pageId) !== Number(currentSlide.num)
+      || (
+        presentationId
+        && currentSlide.presentationId
+        && presentationId !== currentSlide.presentationId
+      )
+    ) {
+      return;
+    }
+
+    if (!svgMarkup) {
+      this.clearPresenterAnnotations();
+      return;
+    }
+
+    const svgBlob = new Blob(
+      [svgMarkup],
+      { type: 'image/svg+xml;charset=utf-8' },
+    );
+
+    const nextObjectUrl = URL.createObjectURL(svgBlob);
+    const previousObjectUrl =
+      this.presenterAnnotationsObjectUrl;
+
+    this.presenterAnnotationsObjectUrl = nextObjectUrl;
+
+    this.setState(
+      {
+        presenterAnnotations: {
+          presentationId,
+          pageId,
+          objectUrl: nextObjectUrl,
+        },
+      },
+      () => {
+        if (
+          previousObjectUrl
+          && previousObjectUrl !== nextObjectUrl
+        ) {
+          URL.revokeObjectURL(previousObjectUrl);
+        }
+      },
+    );
+  };
+
   renderPresentationToolbar(svgWidth = 0) {
     const {
       currentSlide,
@@ -1326,6 +1430,7 @@ class Presentation extends PureComponent {
                     isPresentationDetached={isPresentationDetached}
                     popupWindow={popupWindow}
                     onPresenterViewChange={this.handlePresenterViewChange}
+                    onPresenterAnnotationsChange={this.handlePresenterAnnotationsChange}
                   />
                 </LocatedErrorBoundary>
                 {isFullscreen && <PollingContainer />}
@@ -1361,6 +1466,7 @@ class Presentation extends PureComponent {
     const {
       currentSlideNote,
       presenterView,
+      presenterAnnotations,
     } = this.state;
 
     if (
@@ -1401,6 +1507,16 @@ class Presentation extends PureComponent {
         )
       );
 
+      const annotationsMatchSlide = (
+        reflectPresenterView
+        && presenterAnnotations?.objectUrl
+        && Number(presenterAnnotations.pageId) === Number(slide.num)
+        && (
+          !presenterAnnotations.presentationId
+          || presenterAnnotations.presentationId === slide.presentationId
+        )
+      );
+
       return (
         <Styled.PresenterToolSlideFrame>
           <Styled.PresenterToolSlideLabel>
@@ -1412,14 +1528,25 @@ class Presentation extends PureComponent {
               <Styled.PresenterToolSlideViewport
                 $aspectRatio={presenterView.viewportAspectRatio}
               >
-                <Styled.PresenterToolTransformedSlide
-                  src={slide.svgUri}
-                  alt={`${label} ${slide.num || ''}`}
+                <Styled.PresenterToolTransformedSlideLayer
                   $leftRatio={presenterView.slide.leftRatio}
                   $topRatio={presenterView.slide.topRatio}
                   $widthRatio={presenterView.slide.widthRatio}
                   $heightRatio={presenterView.slide.heightRatio}
-                />
+                >
+                  <Styled.PresenterToolTransformedSlide
+                    src={slide.svgUri}
+                    alt={`${label} ${slide.num || ''}`}
+                  />
+
+                  {annotationsMatchSlide && (
+                    <Styled.PresenterToolAnnotationsOverlay
+                      src={presenterAnnotations.objectUrl}
+                      alt=""
+                      aria-hidden="true"
+                    />
+                  )}
+                </Styled.PresenterToolTransformedSlideLayer>
 
                 {presenterView.cursor.visible && (
                   <Styled.PresenterToolCursorDot
