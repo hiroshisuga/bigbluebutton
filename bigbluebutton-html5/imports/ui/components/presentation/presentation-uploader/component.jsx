@@ -1085,6 +1085,8 @@ class PresentationUploader extends Component {
                   closeModal={() => Session.setItem('showUploadPresentationView', false)}
                   handleDownloadingOfPresentation={(fileStateType) => this
                     .handleDownloadingOfPresentation(item, fileStateType)}
+                  handleUploadPresentationNotes={this.handleUploadPresentationNotes}
+                  handleExtractPresentationNotesFromExistingPptx={this.handleExtractPresentationNotesFromExistingPptx}
                 />
               ) : null}
               {removable ? (
@@ -1150,81 +1152,6 @@ class PresentationUploader extends Component {
           </Styled.AnimationOptionsRow>
         ) : null}
       </React.Fragment>
-      <Styled.PresentationItem
-        key={item.presentationId}
-        isNew={item.presentationId.indexOf(item.name) !== -1}
-        uploading={isUploading}
-        uploadInProgress={uploadInProgress}
-        error={hasError}
-        animated={isProcessing}
-        animations={animations}
-        data-test="presentationItem"
-      >
-        <Styled.SetCurrentAction>
-          <Radio
-            animations={animations}
-            ariaLabel={`${intl.formatMessage(intlMessages.setAsCurrentPresentation)} ${item.name}`}
-            checked={item.current}
-            keyValue={item.presentationId}
-            onChange={() => this.handleCurrentChange(item.presentationId)}
-            disabled={disableActions || hasError}
-          />
-        </Styled.SetCurrentAction>
-        <Styled.TableItemName colSpan={!isActualCurrent ? 2 : 0}>
-          <span>{item.name}</span>
-        </Styled.TableItemName>
-        {
-          isActualCurrent
-            ? (
-              <Styled.TableItemCurrent>
-                <Styled.CurrentLabel>
-                  {intl.formatMessage(intlMessages.currentBadge)}
-                </Styled.CurrentLabel>
-              </Styled.TableItemCurrent>
-            )
-            : null
-        }
-        <Styled.TableItemStatus colSpan={hasError ? 2 : 0}>
-          {renderPresentationItemStatus(item, intl)}
-        </Styled.TableItemStatus>
-        {
-        hasError ? null : (
-          <Styled.TableItemActions notDownloadable={!allowDownloadOriginal}>
-            {allowDownloadOriginal || allowDownloadWithAnnotations || allowDownloadConverted ? (
-              <PresentationDownloadDropdown
-                disabled={disableExportDropdown}
-                data-test="exportPresentation"
-                aria-label={formattedDownloadAriaLabel}
-                color="primary"
-                isDownloadable={downloadable}
-                allowDownloadOriginal={allowDownloadOriginal}
-                allowDownloadConverted={allowDownloadConverted}
-                allowDownloadWithAnnotations={allowDownloadWithAnnotations}
-                handleDownloadableChange={this.handleDownloadableChange}
-                item={item}
-                closeModal={() => Session.setItem('showUploadPresentationView', false)}
-                handleDownloadingOfPresentation={(fileStateType) => this
-                  .handleDownloadingOfPresentation(item, fileStateType)}
-                handleUploadPresentationNotes={this.handleUploadPresentationNotes}
-                handleExtractPresentationNotesFromExistingPptx={this.handleExtractPresentationNotesFromExistingPptx}
-              />
-            ) : null}
-            {removable ? (
-              <Styled.RemoveButton
-                disabled={disableActions}
-                label={intl.formatMessage(intlMessages.removePresentation)}
-                data-test="removePresentation"
-                aria-label={`${intl.formatMessage(intlMessages.removePresentation)} ${item.name}`}
-                size="sm"
-                icon="delete"
-                hideLabel
-                onClick={() => this.handleRemove(item)}
-                animations={animations}
-              />
-            ) : null}
-          </Styled.TableItemActions>
-        )}
-      </Styled.PresentationItem>
     );
   }
 
