@@ -249,6 +249,7 @@ class Presentation extends PureComponent {
       restoreOnUpdate,
       layoutContextDispatch,
       userIsPresenter,
+      isPresentationDetached,
       presentationBounds,
       numCameras,
       intl,
