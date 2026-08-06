@@ -284,6 +284,7 @@ const intlMessages = defineMessages({
   expandAnimationsNo: {
     id: 'app.presentationUploader.expandAnimationsNo',
     description: 'do not expand PowerPoint animations',
+  },
   uploadingNotes: {
     id: 'app.presentationUploader.uploadingPresenterNotes',
     description: 'uploading notes',
