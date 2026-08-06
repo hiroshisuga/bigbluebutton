@@ -104,6 +104,10 @@ AUTO_GROW_PROPERTIES = (
     "TextAutoGrowHeight",
 )
 
+# PowerPoint ignores these paragraph-final spaces when determining wrapping,
+# while LibreOffice may include them in the line width.
+TRAILING_SPACES = " \u3000"
+
 ASIAN_WESTERN_ADJACENCY = re.compile(
     r"(?:"
     r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]"
@@ -113,10 +117,6 @@ ASIAN_WESTERN_ADJACENCY = re.compile(
     r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]"
     r")"
 )
-
-# PowerPoint ignores these paragraph-final spaces when determining wrapping,
-# while LibreOffice may include them in the line width.
-TRAILING_SPACES = " \u3000"
 
 class ConversionError(RuntimeError):
     """Raised when the presentation cannot be converted safely."""
