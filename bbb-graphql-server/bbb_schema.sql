@@ -1685,7 +1685,10 @@ SELECT pres_presentation."meetingId",
     pres_page."infiniteWhiteboard",
     pres_page."fitToWidth",
     (
-        select array_agg("nextPages"."urlsJson"->>'svg')
+		select array_agg(
+			"nextPages"."urlsJson"->>'svg'
+			ORDER BY "nextPages".num
+		)
         from pres_page "nextPages"
         where "nextPages"."presentationId" = pres_page."presentationId"
         and "nextPages".num > pres_page."num"
@@ -1753,6 +1756,7 @@ CREATE UNLOGGED TABLE "pres_page_cursor" (
     "userId" varchar(50),
     "xPercent" numeric,
     "yPercent" numeric,
+	"laserType" varchar(50),
     "lastUpdatedAt" timestamp with time zone DEFAULT now(),
     CONSTRAINT "pres_page_cursor_pkey" PRIMARY KEY ("pageId","meetingId","userId"),
     FOREIGN KEY ("meetingId", "userId") REFERENCES "user"("meetingId","userId") ON DELETE CASCADE

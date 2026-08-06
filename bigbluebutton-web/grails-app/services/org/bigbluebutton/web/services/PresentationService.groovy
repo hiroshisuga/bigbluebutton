@@ -23,8 +23,19 @@ import org.bigbluebutton.api.service.ServiceUtils
 import org.bigbluebutton.presentation.DocumentConversionService
 import org.bigbluebutton.presentation.UploadedPresentation
 import org.springframework.beans.factory.annotation.Autowired
+import jakarta.annotation.PostConstruct
+import jakarta.annotation.PreDestroy
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.ThreadFactory
+import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+import java.util.Comparator
+import java.util.concurrent.atomic.AtomicInteger
 
 class PresentationService {
 
@@ -41,6 +52,66 @@ class PresentationService {
 	def preUploadedPresentationOverrideDefault
 	def scanUploadedPresentationFiles
 	def pageTokenSecret
+	def numDownloadThreads
+
+	// Bounds how many tasks may wait for a free download thread, as a multiple of
+	// the pool size. Keeps a burst of create/insertDocument requests from queueing
+	// without limit (each raw-bytes task can hold a whole file in memory).
+	private static final int DOWNLOAD_QUEUE_CAPACITY_PER_THREAD = 20
+
+	private ExecutorService downloadExecutor
+
+	@PostConstruct
+	void initDownloadExecutor() {
+		// Clamp to at least 1: a configured 0 or negative would make the
+		// ThreadPoolExecutor constructor throw and fail bean initialization.
+		// (numDownloadThreads is injected as a String, so "0" is truthy here and
+		// slips past the Elvis default — only null/empty falls back to 5.)
+		int threads = Math.max(1, (numDownloadThreads ?: 5) as int)
+		AtomicInteger threadSeq = new AtomicInteger()
+		ThreadFactory threadFactory = { Runnable r ->
+			Thread t = new Thread(r, "pres-download-" + threadSeq.incrementAndGet())
+			t.daemon = true
+			return t
+		} as ThreadFactory
+		// Fixed pool with a *bounded* queue. Executors.newFixedThreadPool would use an
+		// unbounded queue, letting bursts pile up until the heap is exhausted; here
+		// excess tasks are rejected (see submitPresentationTask) instead.
+		downloadExecutor = new ThreadPoolExecutor(
+				threads, threads,
+				0L, TimeUnit.MILLISECONDS,
+				new LinkedBlockingQueue<Runnable>(threads * DOWNLOAD_QUEUE_CAPACITY_PER_THREAD),
+				threadFactory,
+				new ThreadPoolExecutor.AbortPolicy())
+	}
+
+	@PreDestroy
+	void shutdownDownloadExecutor() {
+		downloadExecutor?.shutdownNow()
+	}
+
+	/**
+	 * Runs presentation download/processing off the request thread so API responses
+	 * are not delayed by it. The pool is bounded (numPresentationDownloadThreads) and
+	 * backed by a bounded queue; if it is saturated the task is rejected and logged
+	 * rather than queued without limit. Any failure escaping the work closure is
+	 * logged with meeting context. Returns false when the task could not be accepted.
+	 */
+	boolean submitPresentationTask(String meetingId, String source, Closure work) {
+		try {
+			downloadExecutor.submit({
+				try {
+					work()
+				} catch (Throwable t) {
+					log.error("Failed to process pre-uploaded presentation for meeting [${meetingId}], source [${source}]", t)
+				}
+			} as Runnable)
+			return true
+		} catch (RejectedExecutionException e) {
+			log.error("Rejected pre-uploaded presentation task, download pool saturated for meeting [${meetingId}], source [${source}]", e)
+			return false
+		}
+	}
 
 	def deletePresentation = {conf, room, filename ->
 		def directory = new File(roomDirectory(conf, room).absolutePath + File.separatorChar + filename)
@@ -124,6 +195,162 @@ class PresentationService {
 		new File(roomDirectory(conf, room).absolutePath + File.separatorChar + presentationName + File.separatorChar + "svgs" + File.separatorChar + "slide${id}.svg")
 	}
 
+	def showNote(String conf, String room, String presentationName, String id) {
+		 new File(roomDirectory(conf, room).absolutePath + File.separatorChar + presentationName + File.separatorChar + "notes" + File.separatorChar + "${id}.txt")
+	}
+
+	def uploadNotesPptx(String conf, String room, String presentationId, file) {
+		def presDir = new File(
+			roomDirectory(conf, room).absolutePath
+				+ File.separatorChar
+				+ presentationId
+		)
+
+		if (!presDir.exists()) {
+			throw new RuntimeException("Presentation directory does not exist: ${presDir.absolutePath}")
+		}
+
+		def timestamp = System.currentTimeMillis()
+
+			def pptxTmpFile = new File(
+				presDir.absolutePath
+					+ File.separatorChar
+					+ "notes.${timestamp}.pptx"
+			)
+
+			try {
+				file.transferTo(pptxTmpFile)
+
+				log.info("Saved notes pptx temporarily to ${pptxTmpFile.absolutePath}")
+
+				extractNotesFromPptxFile(presDir, pptxTmpFile)
+
+				if (pptxTmpFile.exists()) {
+					pptxTmpFile.delete()
+				}
+
+				return true
+			} catch (Exception e) {
+				log.error("Failed to upload/extract notes pptx. meetingId=${conf}, room=${room}, pres=${presentationId}", e)
+
+				if (pptxTmpFile.exists()) {
+					pptxTmpFile.delete()
+				}
+
+				throw e
+			}
+		}
+
+		def extractNotesFromExistingPptx(String conf, String room, String presentationId) {
+			def presDir = new File(
+				roomDirectory(conf, room).absolutePath
+					+ File.separatorChar
+					+ presentationId
+			)
+
+			if (!presDir.exists()) {
+				throw new FileNotFoundException("Presentation directory does not exist: ${presDir.absolutePath}")
+			}
+
+			def pptxFile = new File(
+				presDir.absolutePath
+					+ File.separatorChar
+					+ "${presentationId}.pptx"
+			)
+
+			if (!pptxFile.exists()) {
+				throw new FileNotFoundException("Existing pptx file not found: ${pptxFile.absolutePath}")
+			}
+
+			log.info("Extracting notes from existing pptx: ${pptxFile.absolutePath}")
+
+			extractNotesFromPptxFile(presDir, pptxFile)
+
+			return true
+		}
+
+		private void extractNotesFromPptxFile(File presDir, File pptxFile) {
+			def script = new File("/usr/local/bin/extract_pptx_notes.py")
+
+			if (!script.exists()) {
+				throw new RuntimeException("Notes extraction script does not exist: ${script.absolutePath}")
+			}
+
+			def timestamp = System.currentTimeMillis()
+
+			def notesDir = new File(
+				presDir.absolutePath
+					+ File.separatorChar
+					+ "notes"
+			)
+
+			def notesTmpDir = new File(
+				presDir.absolutePath
+					+ File.separatorChar
+					+ "notes.tmp.${timestamp}"
+			)
+
+			try {
+				if (!notesTmpDir.mkdirs() && !notesTmpDir.exists()) {
+					throw new RuntimeException("Failed to create notes tmp dir: ${notesTmpDir.absolutePath}")
+				}
+
+				def cmd = [
+					"python3",
+					script.absolutePath,
+					pptxFile.absolutePath,
+					"--output",
+					notesTmpDir.absolutePath
+				]
+
+				log.info("Running notes extraction: ${cmd.join(' ')}")
+
+				def proc = new ProcessBuilder(cmd)
+					.redirectErrorStream(false)
+					.start()
+
+				def stdout = new StringBuffer()
+				def stderr = new StringBuffer()
+
+				proc.consumeProcessOutput(stdout, stderr)
+
+				boolean finished = proc.waitFor(120, TimeUnit.SECONDS)
+
+				if (!finished) {
+					proc.destroyForcibly()
+					throw new RuntimeException("Notes extraction timed out")
+				}
+
+				if (proc.exitValue() != 0) {
+					throw new RuntimeException(
+					"Notes extraction failed. exit=${proc.exitValue()}, stderr=${stderr.toString()}"
+				)
+			}
+
+			log.info("Notes extraction stdout: ${stdout.toString()}")
+
+			if (notesDir.exists()) {
+				deleteRecursively(notesDir)
+			}
+
+			Files.move(
+				notesTmpDir.toPath(),
+				notesDir.toPath(),
+				StandardCopyOption.REPLACE_EXISTING
+			)
+
+			log.info("Updated presentation notes: notesDir=${notesDir.absolutePath}")
+		} catch (Exception e) {
+			log.error("Failed to extract notes. pptx=${pptxFile.absolutePath}", e)
+
+			if (notesTmpDir.exists()) {
+				deleteRecursively(notesTmpDir)
+			}
+
+			throw e
+		}
+	}
+
 	def showThumbnail = {conf, room, presentationName, thumb ->
 		def thumbFile = roomDirectory(conf, room).absolutePath + File.separatorChar + presentationName + File.separatorChar +
 				"thumbnails" + File.separatorChar + "thumb-${thumb}.png"
@@ -191,6 +418,23 @@ class PresentationService {
 
 	}
 
+	private void deleteRecursively(File file) {
+		if (file == null || !file.exists()) {
+			return
+		}
+
+		def stream = Files.walk(file.toPath())
+
+		try {
+			stream
+				.sorted(Comparator.reverseOrder())
+				.forEach { path ->
+					Files.deleteIfExists(path)
+				}
+		} finally {
+			stream.close()
+		}
+	}
 }
 
 /*** Helper classes **/

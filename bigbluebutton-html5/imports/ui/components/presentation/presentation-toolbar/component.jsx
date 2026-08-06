@@ -123,11 +123,31 @@ class PresentationToolbar extends PureComponent {
   }
 
   componentDidMount() {
-    document.addEventListener('keydown', this.switchSlide);
+    const {
+      isPresentationDetached,
+      popupWindow,
+    } = this.props;
+
+    this.keydownDocument = (
+      isPresentationDetached && popupWindow?.document
+        ? popupWindow.document
+        : document
+    );
+
+    this.keydownDocument.addEventListener(
+      'keydown',
+      this.switchSlide,
+    );
   }
 
   componentWillUnmount() {
-    document.removeEventListener('keydown', this.switchSlide);
+    if (this.keydownDocument) {
+      this.keydownDocument.removeEventListener(
+        'keydown',
+        this.switchSlide,
+      );
+      this.keydownDocument = null;
+    }
   }
 
   handleSkipToSlideChange(event) {
@@ -171,9 +191,11 @@ class PresentationToolbar extends PureComponent {
       fullscreenAction,
       fullscreenRef,
       handleToggleFullScreen,
+      isPresentationDetached,
+      popupWindow,
     } = this.props;
 
-    handleToggleFullScreen(fullscreenRef);
+    handleToggleFullScreen(fullscreenRef, isPresentationDetached, popupWindow);
     const newElement = isFullscreen ? '' : fullscreenElementId;
 
     layoutContextDispatch({
@@ -252,6 +274,10 @@ class PresentationToolbar extends PureComponent {
               key={ppbId}
               style={{ marginLeft: '2px', ...ppb.style }}
               label={ppb.label}
+              color={ppb.color || 'default'}
+              circle={ppb.circle === true}
+              hideLabel={ppb.hideLabel === true}
+              size={ppb.size || 'md'}
               onClick={ppb.onClick}
               tooltipLabel={ppb.tooltip}
               dataTest={ppb.dataTest}
@@ -343,9 +369,6 @@ class PresentationToolbar extends PureComponent {
       allowInfiniteWhiteboard,
       allowInfiniteWhiteboardInBreakouts,
       infiniteWhiteboardIcon,
-      resetSlide,
-      zoomChanger,
-      tldrawAPI,
       maxNumberOfActiveUsers,
       numberOfJoinedUsers,
     } = this.props;

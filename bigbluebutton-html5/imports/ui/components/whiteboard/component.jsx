@@ -45,6 +45,14 @@ import DeleteSelectedItemsTool from './custom-tools/delete-selected-items/compon
 import SessionStorage from '/imports/ui/services/storage/session';
 
 const CAMERA_TYPE = 'camera';
+// Fallback upper bound (ms) for waiting on the new slide's background image to decode
+// before swapping the visible page, used when meetingClientSettings does not provide
+// public.whiteboard.slideSwapDecodeTimeoutMs. Kept short: a warm/near cache decodes in
+// sub-frame time and wins the race, while a cold or slow asset falls through fast to the
+// old (un-gated) behavior rather than pinning the toolbar/zoom UI - which are NOT gated -
+// on a stale slide for long. Above this bound the original white flash still shows; the
+// gate mitigates the common near-cache case, it does not eliminate the worst (slow) case.
+const SLIDE_SWAP_DECODE_TIMEOUT_DEFAULT = 250;
 const colorStyles = [
   'black',
   'blue',
@@ -124,6 +132,132 @@ const intlMessages = defineMessages({
 // any individual component instance without serialization overhead.
 const _pageZoomRatioCache = {};
 
+const PRESENTER_ANNOTATIONS_UPDATE_INTERVAL = 200;
+
+const isAnnotationShapeRecord = (record) => (
+  record?.typeName === 'shape'
+  && !record.id?.startsWith('shape:BG-')
+);
+
+const hasAnnotationShapeChanges = (changes) => {
+  if (!changes) return false;
+
+  const {
+    added = {},
+    updated = {},
+    removed = {},
+  } = changes;
+
+  return (
+    Object.values(added).some(isAnnotationShapeRecord)
+    || Object.values(updated).some(([previousRecord, nextRecord]) => (
+      isAnnotationShapeRecord(previousRecord)
+      || isAnnotationShapeRecord(nextRecord)
+    ))
+    || Object.values(removed).some(isAnnotationShapeRecord)
+  );
+};
+
+const exportPresenterAnnotations = async (
+  currentEditor,
+  currentPageId,
+) => {
+  if (
+    !currentEditor
+    || typeof currentEditor.getSvg !== 'function'
+    || typeof currentEditor.getShapePageBounds !== 'function'
+  ) {
+    logger.error(
+      { logCode: 'PresenterAnnotationsExport' },
+      'Required tldraw export APIs are unavailable',
+    );
+
+    return {
+      status: 'error',
+    };
+  }
+
+  const expectedTldrawPageId = `page:${currentPageId}`;
+
+  // A slide change may still be updating the tldraw store.
+  if (currentEditor.getCurrentPageId() !== expectedTldrawPageId) {
+    return {
+      status: 'not-ready',
+    };
+  }
+
+  const currentPageShapes =
+    currentEditor.getCurrentPageShapes();
+
+  const backgroundShape = (
+    currentEditor.getShape(`shape:BG-${currentPageId}`)
+    || currentPageShapes.find(
+      (shape) => shape.id.startsWith('shape:BG-'),
+    )
+  );
+
+  if (!backgroundShape) {
+    return {
+      status: 'not-ready',
+    };
+  }
+
+  const annotationShapes = currentPageShapes.filter(
+    isAnnotationShapeRecord,
+  );
+
+  if (annotationShapes.length === 0) {
+    return {
+      status: 'empty',
+    };
+  }
+
+  const slideBounds =
+    currentEditor.getShapePageBounds(backgroundShape);
+
+  if (!slideBounds) {
+    return {
+      status: 'not-ready',
+    };
+  }
+
+  try {
+    const svgElement = await currentEditor.getSvg(
+      annotationShapes,
+      {
+        bounds: slideBounds.clone(),
+        background: false,
+        padding: 0,
+        preserveAspectRatio: 'xMidYMid meet',
+      },
+    );
+
+    if (!svgElement) {
+      return {
+        status: 'error',
+      };
+    }
+
+    const svgMarkup = new XMLSerializer().serializeToString(
+      svgElement,
+    );
+
+    return {
+      status: 'success',
+      svgMarkup,
+    };
+  } catch (error) {
+    logger.error(
+      { logCode: 'PresenterAnnotationsExport' },
+      `Failed to export presenter annotations: ${error}`,
+    );
+
+    return {
+      status: 'error',
+    };
+  }
+};
+
 const Whiteboard = React.memo((props) => {
   const {
     isPresenter = false,
@@ -172,10 +306,19 @@ const Whiteboard = React.memo((props) => {
     isInfiniteWhiteboard,
     whiteboardWriters,
     isPhone,
+    isMobile,
     setEditor,
     lockToolbarTools,
     layoutChanged,
     pointerDiameter = 5,
+    laserRadiusSmall,
+    laserRadiusLarge,
+    laserRedColor,
+    laserGreenColor,
+    isPresentationDetached,
+    popupWindow,
+    onPresenterViewChange,
+    onPresenterAnnotationsChange,
   } = props;
 
   const allowInfiniteWhiteboardPanForViewers = window.meetingClientSettings?.public?.whiteboard?.allowInfiniteWhiteboardPanForViewers;
@@ -188,11 +331,25 @@ const Whiteboard = React.memo((props) => {
 
   clearTldrawCache();
 
+  const targetWin = isPresentationDetached && popupWindow ? popupWindow : window;
+  const raf = targetWin.requestAnimationFrame.bind(targetWin);
+  const caf = targetWin.cancelAnimationFrame.bind(targetWin);
+
+
   const [isMounting, setIsMounting] = React.useState(true);
   const [cursorType, setCursorType] = React.useState('');
   const [cursorZoom, setCursorZoom] = React.useState({ slideZoom: 1, containerZoom: 1 });
+  // Re-surfaces a deferred slide-swap failure into render so ErrorBoundaryWithReload can
+  // catch it (see the decode-gate effect). Setting state with a function that throws makes
+  // the throw happen during render, where the boundary sees it - a bare .catch could not.
+  const [, setSwapError] = React.useState();
   const updateCursorZoomRef = React.useRef(null);
-
+  const [laserMenuVisible, setLaserMenuVisible] = React.useState(false);
+  const [laserMenuPos, setLaserMenuPos] = React.useState({ x: 0, y: 0 });
+  const laserMenuRef = React.useRef(null);
+  const [laserMode, setLaserMode] = React.useState('');
+  const [presenterCursorPoint, setPresenterCursorPoint] = React.useState( { x: -1, y: -1} );
+  
   if (isMounting) {
     setDefaultEditorAssetUrls(getCustomEditorAssetUrls());
     setDefaultUiAssetUrls(getCustomAssetUrls());
@@ -234,9 +391,31 @@ const Whiteboard = React.memo((props) => {
   const hasZoomSyncedRef = useRef(false);
   const lastForcedViewRef = useRef(null);
   const currentUserRef = useRef(currentUser);
+  const currentLaserTypeRef = React.useRef(null);
+  const laserLayerRef = React.useRef(null);
+  const laserElRef = React.useRef(null);
+  const originalHTMLElementRef = React.useRef(null);
+  const presenterViewFrameRef = React.useRef(null);
+  const lastPresenterViewRef = React.useRef(null);
+  const onPresenterViewChangeRef = React.useRef(onPresenterViewChange);
+  const onPresenterAnnotationsChangeRef = React.useRef(onPresenterAnnotationsChange);
+  const isPresentationDetachedRef = React.useRef(isPresentationDetached);
+  const presenterAnnotationsTimerRef = React.useRef(null);
+  const presenterAnnotationsExportingRef = React.useRef(false);
+  const presenterAnnotationsPendingRef = React.useRef(false);
+  const presenterAnnotationsActiveRef = React.useRef(true);
+  const publishPresenterAnnotationsRef = React.useRef(null);
 
   currentUserRef.current = currentUser;
 
+  const laserItems = [
+    { key: 'redSmall',   label: '🔴', size: 10 },
+    { key: 'greenSmall', label: '🟢', size: 10 },
+    { key: 'redLarge',   label: '🔴', size: 18 },
+    { key: 'greenLarge', label: '🟢', size: 18 },
+    { key: '',           label: '✋', size: 14 },
+  ];
+  
   const [pageZoomMap, setPageZoomMap] = useState(() => {
     try {
       const saved = localStorage.getItem('pageZoomMap');
@@ -509,6 +688,19 @@ const Whiteboard = React.memo((props) => {
       });
     }
   }, [removedShapes]);
+
+  React.useEffect(() => {
+    onPresenterViewChangeRef.current = onPresenterViewChange;
+  }, [onPresenterViewChange]);
+
+  React.useEffect(() => {
+    onPresenterAnnotationsChangeRef.current =
+      onPresenterAnnotationsChange;
+  }, [onPresenterAnnotationsChange]);
+
+  React.useEffect(() => {
+    isPresentationDetachedRef.current = isPresentationDetached;
+  }, [isPresentationDetached]);
 
   const handleCopy = useCallback(() => {
     const selectedShapes = tlEditorRef.current?.getSelectedShapes();
@@ -915,6 +1107,7 @@ const Whiteboard = React.memo((props) => {
   const updateCursorPosition = useCursor(
     publishCursorUpdate,
     whiteboardIdRef.current,
+    laserMode,
   );
 
   const setCamera = (zoom, x = 0, y = 0) => {
@@ -940,8 +1133,10 @@ const Whiteboard = React.memo((props) => {
   calculateZoomValueRef.current = calculateZoomValue;
 
   const getContainerDimensions = () => {
-    const container = document.querySelector('[data-test="presentationContainer"]');
-    const innerWrapper = document.getElementById('presentationInnerWrapper');
+    // This change affects the behaviour when resize and fullscreen the popupWindow.
+    const targetDoc = isPresentationDetached && popupWindow?.document ? popupWindow.document : document;
+    const container = targetDoc.querySelector('[data-test="presentationContainer"]');
+    const innerWrapper = targetDoc.getElementById('presentationInnerWrapper');
     const containerWidth = container ? container.offsetWidth : 0;
     const innerWrapperWidth = innerWrapper ? innerWrapper.offsetWidth : 0;
     const widthGap = Math.max(containerWidth - innerWrapperWidth, 0);
@@ -1165,8 +1360,10 @@ const Whiteboard = React.memo((props) => {
     stableCount = 0,
     lastDimensions = { width: 0, height: 0 },
   ) => {
-    const container = document.querySelector('[data-test="presentationContainer"]');
-    const innerWrapper = document.getElementById('presentationInnerWrapper');
+    // This change affects the behaviour when resize and fullscreen the popupWindow.
+    const targetDoc = isPresentationDetached && popupWindow?.document ? popupWindow.document : document;
+    const container = targetDoc.querySelector('[data-test="presentationContainer"]');
+    const innerWrapper = targetDoc.getElementById('presentationInnerWrapper');
 
     const containerWidth = container ? container.offsetWidth : 0;
     const containerHeight = container ? container.offsetHeight : 0;
@@ -1197,7 +1394,7 @@ const Whiteboard = React.memo((props) => {
     }
 
     if (currentTry < options.maxTries) {
-      const frameId = requestAnimationFrame(() => {
+      const frameId = raf(() => {
         pollInnerWrapperDimensionsUntilStable(
           onReady,
           options,
@@ -1232,7 +1429,7 @@ const Whiteboard = React.memo((props) => {
     if (isMountedRef.current) {
       onReady();
     } else if (currentTry <= options.maxTries) {
-      const frameId = requestAnimationFrame(() => {
+      const frameId = raf(() => {
         pollUntilMounted(onReady, onFail, ref, options, currentTry + 1);
       });
       if (_ref) {
@@ -1242,6 +1439,234 @@ const Whiteboard = React.memo((props) => {
       onFail();
     }
   };
+
+  const roundPresenterViewValue = (value) => (
+    Number.isFinite(value)
+      ? Number(value.toFixed(6))
+      : 0
+  );
+
+  const updatePresenterView = (editor) => {
+    const callback = onPresenterViewChangeRef.current;
+
+    if (
+      !editor
+      || !isPresenterRef.current
+      || !isPresentationDetachedRef.current
+      || typeof callback !== 'function'
+    ) {
+      return;
+    }
+
+    const viewport = editor.getViewportPageBounds();
+    const slideShape = editor.getShape(
+      `shape:BG-${curPageIdRef.current}`,
+    );
+    const cursorPoint = editor.inputs.currentPagePoint;
+
+    if (
+      !viewport
+      || !(viewport.w > 0)
+      || !(viewport.h > 0)
+      || !slideShape
+      || !(slideShape.props?.w > 0)
+      || !(slideShape.props?.h > 0)
+    ) {
+      if (lastPresenterViewRef.current !== null) {
+        lastPresenterViewRef.current = null;
+        callback(null);
+      }
+
+      return;
+    }
+
+    const cursorLeftRatio = cursorPoint
+      ? (cursorPoint.x - viewport.x) / viewport.w
+      : -1;
+
+    const cursorTopRatio = cursorPoint
+      ? (cursorPoint.y - viewport.y) / viewport.h
+      : -1;
+
+    const cursorVisible =
+      cursorLeftRatio >= 0
+      && cursorLeftRatio <= 1
+      && cursorTopRatio >= 0
+      && cursorTopRatio <= 1;
+
+    const nextPresenterView = {
+      presentationId: presentationIdRef.current,
+      pageId: Number(curPageIdRef.current),
+
+      viewportAspectRatio: roundPresenterViewValue(
+        viewport.w / viewport.h,
+      ),
+
+      slide: {
+        leftRatio: roundPresenterViewValue(
+          (slideShape.x - viewport.x) / viewport.w,
+        ),
+        topRatio: roundPresenterViewValue(
+          (slideShape.y - viewport.y) / viewport.h,
+        ),
+        widthRatio: roundPresenterViewValue(
+          slideShape.props.w / viewport.w,
+        ),
+        heightRatio: roundPresenterViewValue(
+          slideShape.props.h / viewport.h,
+        ),
+      },
+
+      cursor: {
+        leftRatio: roundPresenterViewValue(cursorLeftRatio),
+        topRatio: roundPresenterViewValue(cursorTopRatio),
+        visible: cursorVisible,
+      },
+    };
+
+    if (isEqual(lastPresenterViewRef.current, nextPresenterView)) {
+      return;
+    }
+
+    lastPresenterViewRef.current = nextPresenterView;
+    callback(nextPresenterView);
+  };
+
+  const schedulePresenterViewUpdate = (editor) => {
+    if (
+      !editor
+      || !isPresenterRef.current
+      || !isPresentationDetachedRef.current
+      || typeof onPresenterViewChangeRef.current !== 'function'
+      || presenterViewFrameRef.current !== null
+    ) {
+      return;
+    }
+
+    presenterViewFrameRef.current = raf(() => {
+      presenterViewFrameRef.current = null;
+      updatePresenterView(editor);
+    });
+  };
+
+  const schedulePresenterAnnotationsUpdate = () => {
+    if (
+      !presenterAnnotationsActiveRef.current
+      || !tlEditorRef.current
+      || !isPresenterRef.current
+      || !isPresentationDetachedRef.current
+      || typeof onPresenterAnnotationsChangeRef.current !== 'function'
+    ) {
+      return;
+    }
+
+    // Remember that the store has changed, even if an export is
+    // already running.
+    presenterAnnotationsPendingRef.current = true;
+
+    if (
+      presenterAnnotationsTimerRef.current !== null
+      || presenterAnnotationsExportingRef.current
+    ) {
+      return;
+    }
+
+    presenterAnnotationsTimerRef.current = window.setTimeout(() => {
+      presenterAnnotationsTimerRef.current = null;
+
+      const publish = publishPresenterAnnotationsRef.current;
+      if (typeof publish === 'function') {
+        void publish();
+      }
+    }, PRESENTER_ANNOTATIONS_UPDATE_INTERVAL);
+  };
+
+  const publishPresenterAnnotations = async () => {
+    if (presenterAnnotationsExportingRef.current) {
+      presenterAnnotationsPendingRef.current = true;
+      return;
+    }
+
+    const currentEditor = tlEditorRef.current;
+    const callback = onPresenterAnnotationsChangeRef.current;
+    const currentPageId = Number(curPageIdRef.current);
+    const currentPresentationId = presentationIdRef.current;
+
+    if (
+      !presenterAnnotationsActiveRef.current
+      || !currentEditor
+      || !isPresenterRef.current
+      || !isPresentationDetachedRef.current
+      || typeof callback !== 'function'
+      || !Number.isFinite(currentPageId)
+    ) {
+      return;
+    }
+
+    presenterAnnotationsExportingRef.current = true;
+    presenterAnnotationsPendingRef.current = false;
+
+    try {
+      const exportResult = await exportPresenterAnnotations(
+        currentEditor,
+        currentPageId,
+      );
+
+      /*
+       * getSvg() is asynchronous. The presenter may have changed slides,
+       * closed the popup, or lost presenter status while it was running.
+       */
+      const resultStillCurrent = (
+        presenterAnnotationsActiveRef.current
+        && currentEditor === tlEditorRef.current
+        && isPresenterRef.current
+        && isPresentationDetachedRef.current
+        && Number(curPageIdRef.current) === currentPageId
+        && presentationIdRef.current === currentPresentationId
+        && onPresenterAnnotationsChangeRef.current === callback
+      );
+
+      if (!resultStillCurrent) {
+        presenterAnnotationsPendingRef.current = true;
+        return;
+      }
+
+      if (exportResult.status === 'success') {
+        callback({
+          presentationId: currentPresentationId,
+          pageId: currentPageId,
+          svgMarkup: exportResult.svgMarkup,
+        });
+        return;
+      }
+
+      if (exportResult.status === 'empty') {
+        // Remove an old overlay when the last annotation was deleted.
+        callback({
+          presentationId: currentPresentationId,
+          pageId: currentPageId,
+          svgMarkup: null,
+        });
+      }
+
+      /*
+       * For 'not-ready' and 'error', keep the currently displayed
+       * annotation SVG. A later store or page update will schedule
+       * another export.
+       */
+    } finally {
+      presenterAnnotationsExportingRef.current = false;
+
+      if (
+        presenterAnnotationsPendingRef.current
+        && presenterAnnotationsActiveRef.current
+      ) {
+        schedulePresenterAnnotationsUpdate();
+      }
+    }
+  };
+
+  publishPresenterAnnotationsRef.current = publishPresenterAnnotations;
 
   const handleTldrawMount = (editor) => {
     if (typeof editor.history.setMaxStackSize === 'function') {
@@ -1426,6 +1851,10 @@ const Whiteboard = React.memo((props) => {
         const camKey = `camera:page:${curPageIdRef.current}`;
         const { [camKey]: cameras } = updated;
 
+        if (pointers || cameras) {
+          schedulePresenterViewUpdate(editor);
+        }
+
         if (cameras) {
           const [prevCam, nextCam] = cameras;
           const panned = prevCam.x !== nextCam.x || prevCam.y !== nextCam.y;
@@ -1532,7 +1961,19 @@ const Whiteboard = React.memo((props) => {
             }
           }
           updateCursorZoomRef.current?.();
+          schedulePresenterViewUpdate(editor);
         }
+      },
+    );
+
+    editor.store.listen(
+      ({ changes }) => {
+        if (hasAnnotationShapeChanges(changes)) {
+          schedulePresenterAnnotationsUpdate();
+        }
+      },
+      {
+        scope: 'document',
       },
     );
 
@@ -1572,6 +2013,8 @@ const Whiteboard = React.memo((props) => {
           editor.history.clear();
         });
       });
+
+      schedulePresenterAnnotationsUpdate();
 
       // eslint-disable-next-line no-param-reassign
       editor.store.onBeforeChange = (prev, next) => {
@@ -1613,6 +2056,8 @@ const Whiteboard = React.memo((props) => {
                 'fade-out',
                 '0s',
                 hasWBAccessRef.current || isPresenterRef.current,
+                isPresentationDetached,
+                popupWindow,
               );
             } else if (visibilityState === 'hidden') {
               toggleToolsAnimations(
@@ -1620,6 +2065,8 @@ const Whiteboard = React.memo((props) => {
                 'fade-in',
                 '0s',
                 hasWBAccessRef.current || isPresenterRef.current,
+                isPresentationDetached,
+                popupWindow,
               );
             }
             lastVisibilityStateRef.current = visibilityState;
@@ -1747,6 +2194,10 @@ const Whiteboard = React.memo((props) => {
 
     pollInnerWrapperDimensionsUntilStable(() => {
       adjustCameraOnMount(!isPresenterRef.current);
+
+      raf(() => {
+        schedulePresenterViewUpdate(editor);
+      });
     });
 
     // New cursor hint shape: circle scaled by pointerDiameter, centered at (0,0)
@@ -1964,6 +2415,88 @@ const Whiteboard = React.memo((props) => {
     }
   };
 
+  const makeLaserSvg = ({ color, cx, cy, r }, id) => {
+    const width = cx * 2;
+    const height = cy * 2;
+
+    // On Windows and Linux, it darkens towards the edge
+    /*
+    return `
+      <svg class="bbb-laser-pointer" xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+        <defs>
+          <radialGradient id="g-${id}">
+            <stop offset="0%" stop-color="${color}" stop-opacity="0.95"/>
+            <stop offset="50%" stop-color="${color}" stop-opacity="0.70"/>
+            <stop offset="100%" stop-color="${color}" stop-opacity="0.1"/>
+          </radialGradient>
+        </defs>
+        <circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#g-${id})" />
+      </svg>
+      `.replace(/\s+/g, ' ').trim();
+    */
+      return `
+      <svg class="bbb-laser-pointer" xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+        <defs>
+          <radialGradient id="g-${id}-core" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#ffffff" stop-opacity="1"/>
+            <stop offset="10%" stop-color="#ffffff" stop-opacity="0.95"/>
+            <stop offset="30%" stop-color="${color}" stop-opacity="0.95"/>
+            <stop offset="60%" stop-color="${color}" stop-opacity="0.65"/>
+            <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+          </radialGradient>
+          <radialGradient id="g-${id}-ring" cx="50%" cy="50%" r="50%">
+            <stop offset="60%" stop-color="${color}" stop-opacity="0"/>
+            <stop offset="68%" stop-color="${color}" stop-opacity="0.35"/>
+            <stop offset="74%" stop-color="#ffffff" stop-opacity="0.95"/>
+            <stop offset="84%" stop-color="#ffffff" stop-opacity="0.95"/>
+            <stop offset="90%" stop-color="${color}" stop-opacity="0.65"/>
+            <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+          </radialGradient>
+        </defs>
+        <circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#g-${id}-core)" />
+        <circle cx="${cx}" cy="${cy}" r="${r * 0.72}" fill="url(#g-${id}-ring)" />
+        <circle cx="${cx}" cy="${cy}" r="${Math.max(2, r * 0.13)}" fill="#ffffff" />
+      </svg>
+    `.replace(/\s+/g, ' ').trim();
+  };
+
+  const laserDefs = {
+    redSmall:   { color: laserRedColor,   cx: laserRadiusSmall+2, cy: laserRadiusSmall+2, r: laserRadiusSmall },
+    greenSmall: { color: laserGreenColor, cx: laserRadiusSmall+2, cy: laserRadiusSmall+2, r: laserRadiusSmall },
+    redLarge:   { color: laserRedColor,   cx: laserRadiusLarge+2, cy: laserRadiusLarge+2, r: laserRadiusLarge },
+    greenLarge: { color: laserGreenColor, cx: laserRadiusLarge+2, cy: laserRadiusLarge+2, r: laserRadiusLarge },
+  };
+
+  const laserSvgs = Object.fromEntries(
+    Object.entries(laserDefs).map(([key, def]) => [
+      key,
+      makeLaserSvg(def, key),
+    ])
+  );
+
+  const svgToCursor = (svg, x, y) =>
+    `url("data:image/svg+xml;utf8,${encodeURIComponent(svg)}") ${x} ${y}, auto`;
+
+  const cursorLasers = Object.fromEntries(
+    Object.entries(laserDefs).map(([key, def]) => [
+      key,
+      svgToCursor(laserSvgs[key], def.cx, def.cy),
+    ])
+  );
+
+  const createLaserElement = (svgString, targetDoc) => {
+    const wrapper = targetDoc.createElement('div');
+    wrapper.className = 'custom-laser';
+    wrapper.innerHTML = svgString;
+    const el = wrapper.firstChild;
+    Object.assign(el.style, {
+      position: 'absolute',
+      pointerEvents: 'none',
+      overflow: 'visible',
+    });
+    return el;
+  };
+
   useMouseEvents(
     {
       whiteboardRef, tlEditorRef, isWheelZoomRef, initialZoomRef, isPresenterRef,
@@ -1980,6 +2513,8 @@ const Whiteboard = React.memo((props) => {
       setIsWheelZoom,
       setWheelZoomTimeout,
       isInfiniteWhiteboard,
+      isPresentationDetached,
+      popupWindow,
     },
   );
 
@@ -2121,14 +2656,14 @@ const Whiteboard = React.memo((props) => {
 
   React.useEffect(() => {
     if (isMountedPollingFrameRef.current !== null) {
-      cancelAnimationFrame(isMountedPollingFrameRef.current);
+      caf(isMountedPollingFrameRef.current);
     }
-    isMountedPollingFrameRef.current = requestAnimationFrame(() => {
+    isMountedPollingFrameRef.current = raf(() => {
       pollUntilMounted(() => {
         if (innerWrapperPollingFrameRef.current !== null) {
-          cancelAnimationFrame(innerWrapperPollingFrameRef.current);
+          caf(innerWrapperPollingFrameRef.current);
         }
-        innerWrapperPollingFrameRef.current = requestAnimationFrame(() => {
+        innerWrapperPollingFrameRef.current = raf(() => {
           pollInnerWrapperDimensionsUntilStable(() => {
             syncCameraWithPresentationArea();
           }, {
@@ -2169,6 +2704,149 @@ const Whiteboard = React.memo((props) => {
     }
   }, [currentPresentationPage, isPresenter, viewerCanPan]);
 
+  // HTMLElement injection
+  // The tldraw module uses HTMLElement variable, which is not from the popup.
+  // Thus some tldraw functions such as fullscreen and resize a drawing
+  //  does not work on the popup window.
+  // This actually modify a global variable, possibly causing other problems
+  //  -> Indeed. Now the original HTMLElement is backed up and used elsewhere.
+  React.useEffect(() => {
+    if (!isPresenter) return;
+
+    if (isPresentationDetached && popupWindow?.HTMLElement) {
+      if (!originalHTMLElementRef.current) {
+        originalHTMLElementRef.current = window.HTMLElement;
+      }
+      window.HTMLElement = popupWindow.HTMLElement;
+    } else {
+      if (originalHTMLElementRef.current) {
+        window.HTMLElement = originalHTMLElementRef.current;
+        originalHTMLElementRef.current = null;
+      }
+    }
+
+    return () => {
+      if (originalHTMLElementRef.current) {
+        window.HTMLElement = originalHTMLElementRef.current;
+        originalHTMLElementRef.current = null;
+      }
+    };
+  }, [isPresentationDetached, popupWindow, isPresenter]);
+
+  React.useEffect(() => {
+    const targetDoc = document;
+    const presentationWrapper = targetDoc.querySelector('#presentationInnerWrapper');
+    if (!presentationWrapper) return;
+    if (!isPresenter) return;
+
+    const handleContextMenu = (e) => {
+      const tool = tlEditorRef.current?.getCurrentToolId?.();
+      if (tool !== 'hand') return;
+      if (!presentationWrapper.contains(e.target)) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      setLaserMenuPos({ x: e.clientX, y: e.clientY });
+      setLaserMenuVisible(true);
+    };
+
+    let timer = null;
+
+    const handleTouchStart = (e) => {
+      const tool = tlEditorRef.current?.getCurrentToolId?.();
+     if (tool !== 'hand') return;
+      if (!presentationWrapper.contains(e.target)) return;
+
+      const touch = e.touches[0];
+
+      timer = setTimeout(() => {
+        setLaserMenuPos({
+          x: touch.clientX,
+          y: touch.clientY,
+        });
+        setLaserMenuVisible(true);
+      }, 500);
+    };
+
+    const cancel = () => {
+      clearTimeout(timer);
+    };
+
+    presentationWrapper.addEventListener('contextmenu', handleContextMenu, true);
+    presentationWrapper.addEventListener('touchstart', handleTouchStart, true);
+    presentationWrapper.addEventListener('touchend', cancel, true);
+    presentationWrapper.addEventListener('touchmove', cancel, true);
+
+    return () => {
+      clearTimeout(timer);
+      presentationWrapper.removeEventListener('contextmenu', handleContextMenu, true);
+      presentationWrapper.removeEventListener('touchstart', handleTouchStart, true);
+      presentationWrapper.removeEventListener('touchend', cancel, true);
+      presentationWrapper.removeEventListener('touchmove', cancel, true);
+    };
+  }, [isPresenter]);
+
+  React.useEffect(() => {
+    if (!laserMenuVisible) return;
+    
+    const targetDoc = document;
+    const presentationWrapper = targetDoc.querySelector('#presentationInnerWrapper');
+    if (!presentationWrapper) return;
+
+    const handleOutsideClick = (e) => {
+      if (laserMenuRef.current?.contains(e.target)) return;
+      setLaserMenuVisible(false);
+    };
+
+    presentationWrapper.addEventListener('pointerdown', handleOutsideClick, true);
+
+    return () => {
+      presentationWrapper.removeEventListener('pointerdown', handleOutsideClick, true);
+    };
+  }, [laserMenuVisible]);
+
+  React.useEffect(() => {
+    // compensation at the window edge
+    if (!laserMenuVisible) return;
+    const targetDoc = document;
+
+    const el = laserMenuRef.current;
+    if (!el) return;
+
+    const rect = el.getBoundingClientRect();
+    const vw = targetDoc.defaultView.innerWidth;
+    const vh = targetDoc.defaultView.innerHeight;
+
+    let x = laserMenuPos.x;
+    let y = laserMenuPos.y;
+
+    if (rect.right > vw) x = vw - rect.width - 8;
+    if (rect.bottom > vh) y = vh - rect.height - 50;
+
+    if (x !== laserMenuPos.x || y !== laserMenuPos.y) {
+      setLaserMenuPos({ x, y });
+    }
+  }, [laserMenuVisible]);
+
+  React.useEffect(() => {
+    const targetDoc = document;
+    if (!isPresenter) return;
+    const el = targetDoc.querySelector('.tl-container');
+    if (!el) return;
+
+    removeViewerLaser();
+    
+    const laser = cursorLasers[laserMode];
+    if (laser) {
+      el.style.setProperty('--tl-cursor-grab', laser);
+      el.style.setProperty('--tl-cursor-grabbing', laser);
+    } else {
+      el.style.removeProperty('--tl-cursor-grab');
+      el.style.removeProperty('--tl-cursor-grabbing');
+    }
+  }, [laserMode, isPresenter]);
+
   React.useEffect(() => {
     if (tlEditorRef.current) {
       const useElement = document.querySelector('.tl-cursor use');
@@ -2196,7 +2874,7 @@ const Whiteboard = React.memo((props) => {
 
       const updatedPresences = otherCursors
         .map(({
-          userId, xPercent, yPercent, presenter, name, isModerator,
+          userId, xPercent, yPercent, laserType, presenter, name, isModerator,
         }) => {
           const id = InstancePresenceRecordType.createId(userId);
           const active = xPercent !== -1 && yPercent !== -1;
@@ -2245,6 +2923,117 @@ const Whiteboard = React.memo((props) => {
     }
   }, [otherCursors, whiteboardWriters]);
 
+  // Store presenter's cursor position to draw laser for mobile presenter
+  React.useEffect(() => {
+    const editor = tlEditorRef.current;
+    if (!editor) return undefined;
+
+    const unlisten = editor.store.listen(() => {
+      const p = editor.inputs.currentPagePoint;
+      if (!p) return;
+      const screenPos = editor.pageToScreen(p);
+      setPresenterCursorPoint({ x: screenPos.x, y: screenPos.y });
+    });
+
+    return () => {
+      unlisten?.();
+    };
+  }, [tlEditorRef.current]);
+
+  const removeViewerLaser = () => {
+    laserElRef.current = null;
+    const targetDoc = document;
+    const lasers = targetDoc.querySelectorAll('.bbb-laser-pointer');
+    lasers.forEach(el => el.remove());
+  };
+
+  // Show viewers Laser SVG
+  React.useEffect(() => {
+    if (isPresenter) return;
+    //if (isMultiUserActive) return;
+
+    const targetDoc = document;
+
+    //Comment out below if we do not want to show laser when a presenter uses drawing tools on mobile devices.
+    // Note a problem that the laser remains on the screen after switching to drawing tools.
+    //const tool = tlEditorRef.current?.getCurrentToolId?.();
+    //if (isPresenter && isMobile && tool !== 'hand') return;
+
+    const tlContainer = targetDoc.querySelector('.tl-container');
+
+    let layer = laserLayerRef.current;
+    if (!layer || !targetDoc.contains(layer)) {
+      layer = targetDoc.querySelector('.tl-overlays > .tl-html-layer');
+      laserLayerRef.current = layer;
+    }
+
+    let laserEl = laserElRef.current;
+
+    const presenterCursor = otherCursors.find(c => c.presenter);
+    if (!presenterCursor) return;
+    
+    const laserKey = presenterCursor?.laserType;
+    const laserDef = laserDefs[laserKey];
+
+    const changed = laserKey !== currentLaserTypeRef.current;
+    if (changed) {
+      currentLaserTypeRef.current = laserKey;
+      laserEl?.remove();
+      laserEl = null;
+      laserElRef.current = null;
+      const defaultPointer = document.getElementById('redPointer');
+      if (!laserDef) {
+        // Presenter uses hand tool, so the default red pointer is visible for viewers
+        defaultPointer?.style.setProperty('display', 'block');
+      } else {
+        // Presenter uses laser pointer, so the default red pointer is invisible for viewers
+        defaultPointer?.style.setProperty('display', 'none');
+      }
+    }
+
+    if (!layer) return;
+    if (!laserDef) return; // meaning that hand tool is selected, so we move forward to draw laser pointer
+
+    if (!laserEl && layer) {
+      laserEl = createLaserElement(laserSvgs[laserKey], targetDoc);
+      layer.appendChild(laserEl);
+      laserElRef.current = laserEl;
+    }
+
+    // Now we place the laser SVG at the position of redPointer, which is invisible.
+    
+    //const cursorEl = document.querySelector('.tl-collaborator__cursor');
+    //if (!cursorEl) return;
+
+    //const zoom = parseFloat(getComputedStyle(tlContainer).getPropertyValue('--tl-zoom')) || 1;
+    const { z: zoom } = tlEditorRef.current ? tlEditorRef.current.getCamera() : 1;
+
+    //const transform = cursorEl.style.transform;
+    //if (!transform) return;
+    //const match = transform.match(/translate\(([^,]+)px,\s*([^)]+)px\)/);
+    //if (!match) return;
+    //const x = parseFloat(match[1]);
+    //const y = parseFloat(match[2]);
+    const x = presenterCursor.xPercent;
+    const y = presenterCursor.yPercent;
+    if (x === -1 || y === -1) {
+      removeViewerLaser();
+      return;
+    }
+
+    // Keep cursor size regardless of the slide zoom or window size change,
+    //   similar to the pointer of the presenter (CSS-based) or the one in the real world.
+    laserEl.style.transform = `
+      translate(${x - laserDef.cx}px, ${y - laserDef.cy}px)
+      scale(${1/zoom})
+    `;
+    return;
+  }, [otherCursors, isPresenter]);
+
+  React.useEffect(() => {
+    removeViewerLaser();
+  }, [curPageId]);
+
   const updateStore = (pages, cameras) => {
     tlEditorRef.current.store.put(pages);
     tlEditorRef.current.store.put(cameras);
@@ -2258,7 +3047,7 @@ const Whiteboard = React.memo((props) => {
 
   const toggleToolbarIfNeeded = () => {
     if (whiteboardToolbarAutoHide && toggleToolsAnimations) {
-      toggleToolsAnimations('fade-in', 'fade-out', '0s', hasWBAccessRef.current || isPresenterRef.current);
+      toggleToolsAnimations('fade-in', 'fade-out', '0s', hasWBAccessRef.current || isPresenterRef.current, isPresentationDetached, popupWindow);
     }
   };
 
@@ -2269,38 +3058,69 @@ const Whiteboard = React.memo((props) => {
 
   React.useEffect(() => {
     const formattedPageId = parseInt(curPageIdRef.current, 10);
-    if (tlEditorRef.current && formattedPageId !== 0) {
-      // If a viewer is mid-edit (select.editing_shape) when the slide changes,
-      // the store mutation below (cleanupStore + setCurrentPage) removes the shape
-      // being edited out from under tldraw, leaving the editor in editing_shape with
-      // a dangling editingShapeId. The next pointer-down then hits EditingShape's
-      // `Expected an editing shape!` assertion and crashes the client (issue 25332).
-      // Commit the in-progress edit first so tldraw exits editing_shape (running
-      // EditingShape.onExit) while the shape still exists. Guarded so a normal slide
-      // change (no active edit) never resets the presenter's current tool.
+    if (!tlEditorRef.current || formattedPageId === 0) return undefined;
+
+    // The new page's background image-shape used to be mounted here synchronously, before
+    // its SVG had been fetched/decoded, leaving the presentation area blank until the asset
+    // arrived (issue 25397). We defer only the VISIBLE part of the swap (cleanupStore +
+    // background + setCurrentPage) behind a decode-gate so the page becomes visible once it
+    // is paintable, double-buffering the change instead of flashing white.
+    let cancelled = false;
+    const currentPageId = `page:${formattedPageId}`;
+
+    // Create the new page + its camera record synchronously, before the gate. These records
+    // are invisible (nothing renders until setCurrentPage runs in applyPageSwap), but remote
+    // annotations for the new page arrive via debouncedUpdateShapes (service.js, 175ms)
+    // parented to `page:N`. With the visible swap now deferred behind the decode - commonly
+    // past 175ms on the cold-cache path this fix targets - that debounce would otherwise put
+    // page-parented shapes before the page exists, and tldraw drops them or throws in
+    // ensureStoreIsUsable (inside a debounce callback, no error boundary). Creating the page
+    // up front keeps the parent present regardless of gate timing.
+    const ensurePageAndCamera = () => {
+      tlEditorRef.current.store.mergeRemoteChanges(() => {
+        tlEditorRef.current.batch(() => {
+          const pages = [];
+          const cameras = [];
+          if (!tlEditorRef.current.getPage(currentPageId)) {
+            pages.push(...createPage(currentPageId));
+          }
+          const cameraExists = tlEditorRef.current.store.allRecords().some(
+            (record) => record.typeName === 'camera' && record.id === `camera:${currentPageId}`,
+          );
+          if (!cameraExists) {
+            cameras.push(createCamera(formattedPageId, tlEditorRef.current.getCamera()?.z));
+          }
+          if (pages.length) tlEditorRef.current.store.put(pages);
+          if (cameras.length) tlEditorRef.current.store.put(cameras);
+        });
+      });
+    };
+
+    const applyPageSwap = () => {
+      // Rapid-navigation / unmount guard: while awaiting the decode the user may have
+      // navigated on, or the effect may have been cleaned up (React runs the cleanup below
+      // on unmount and before re-running the effect). The `cancelled` flag - set in that
+      // cleanup - covers both, so a late decode for an abandoned page can't clobber the
+      // current one; re-check tlEditorRef too since the editor can be torn down mid-decode.
+      if (cancelled) return;
+      if (!tlEditorRef.current) return;
+      if (parseInt(curPageIdRef.current, 10) !== formattedPageId) return;
+
+      // If a viewer is mid-edit (select.editing_shape) when the slide changes, the store
+      // mutation below removes the shape being edited out from under tldraw, leaving a
+      // dangling editingShapeId; the next pointer-down then trips EditingShape's `Expected
+      // an editing shape!` assertion and crashes the client (issue 25332). Commit the
+      // in-progress edit first so tldraw exits editing_shape while the shape still exists.
+      // Guarded so a normal slide change never resets the presenter's current tool.
       if (tlEditorRef.current.getEditingShape()) {
         tlEditorRef.current.complete();
       }
       tlEditorRef.current.store.mergeRemoteChanges(() => {
         tlEditorRef.current.batch(() => {
-          const currentPageId = `page:${formattedPageId}`;
-          const tlZ = tlEditorRef.current.getCamera()?.z;
-          const cameras = [];
-          const pages = [];
-          const currPageExists = tlEditorRef.current?.getPage(currentPageId);
-          if (!currPageExists) {
-            const currentPage = createPage(currentPageId);
-            pages.push(...currentPage);
-          }
-          const allRecords = tlEditorRef.current.store.allRecords();
-          const cameraRecords = allRecords.filter(
-            (record) => record.typeName === 'camera' && record.id === `camera:page:${formattedPageId}`,
-          );
-          if (cameraRecords?.length < 1) {
-            cameras.push(createCamera(formattedPageId, tlZ));
-          }
+          // Page + camera already exist (ensurePageAndCamera ran synchronously above).
           cleanupStore(currentPageId);
-          updateStore(pages, cameras);
+          tlEditorRef.current.store.put(assets);
+          tlEditorRef.current.store.put(bgShape);
           tlEditorRef.current.setCurrentPage(currentPageId);
           finalizeStore();
         });
@@ -2309,18 +3129,95 @@ const Whiteboard = React.memo((props) => {
       toggleToolbarIfNeeded();
       resetSlideState();
 
+      raf(() => {
+        schedulePresenterViewUpdate(tlEditorRef.current);
+        schedulePresenterAnnotationsUpdate();
+      });
+
       if (viewerCanPanRef.current) {
         pollInnerWrapperDimensionsUntilStable(() => {
           adjustCameraOnMount(true);
         });
       }
+    };
+
+    ensurePageAndCamera();
+
+    // `assets` is derived from the same currentPresentationPage as curPageId in the same
+    // render (container.jsx:439-453), so assets[0].props.src is the background for THIS
+    // page and is never stale relative to it. A stale src would silently disable the gate
+    // (the swap just returns), so keep that derivation in lock-step with curPageId.
+    const bgShapeSrc = assets?.[0]?.props?.src;
+    if (!bgShapeSrc) {
+      // No background URL to gate on (currentPresentationPage has no svgUrl): nothing to
+      // decode, so swap now.
+      applyPageSwap();
+      return undefined;
     }
+
+    // Prime a detached Image so the visible swap only happens once the new slide's
+    // background is decodable. When the SVG is browser-cacheable (see the sibling
+    // Cache-Control PR) this prime also warms the cache tldraw's later same-origin no-cors
+    // load reuses; on cluster-proxy/cross-origin setups the entries may not be shared, in
+    // which case the gate still works but without the cache-hit saving.
+    const img = new Image();
+    img.src = bgShapeSrc;
+    let fallbackTimer;
+    const decodeTimeout = window.meetingClientSettings?.public?.whiteboard?.slideSwapDecodeTimeoutMs
+      ?? SLIDE_SWAP_DECODE_TIMEOUT_DEFAULT;
+    Promise.race([
+      // decode() rejects on a broken/401/malformed asset; swallow it so a bad asset degrades
+      // to "apply the swap anyway" (the pre-fix behavior) and never wedges navigation.
+      img.decode().catch(() => {}),
+      new Promise((resolve) => {
+        fallbackTimer = setTimeout(resolve, decodeTimeout);
+      }),
+    ])
+      .then(applyPageSwap)
+      .catch((error) => {
+        // The synchronous swap used to throw straight into ErrorBoundaryWithReload, which
+        // recovered with a reload. Inside this async chain a throw would escape as an
+        // unhandled rejection - no boundary, no reload. Log it, then re-surface it into
+        // render via setSwapError so the boundary still sees it.
+        logger.error({ logCode: 'SlideSwapDecodeGate' }, `Deferred page swap failed: ${error}`);
+        setSwapError(() => { throw error; });
+      })
+      .finally(() => {
+        // Clear the fallback timer on the decode-wins path too: the cleanup below only runs
+        // on unmount / effect re-run, not when the race resolves normally.
+        if (fallbackTimer) clearTimeout(fallbackTimer);
+      });
+
+    return () => {
+      cancelled = true;
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+      // Release the detached decode Image so a burst of rapid navigation doesn't pin a queue
+      // of half-decoded SVGs in flight.
+      img.removeAttribute('src');
+    };
   }, [curPageId]);
 
   React.useEffect(() => {
+    presenterAnnotationsActiveRef.current = true;
     setTldrawIsMounting(true);
     return () => {
       isMountedRef.current = false;
+      presenterAnnotationsActiveRef.current = false;
+      presenterAnnotationsPendingRef.current = false;
+
+      if (presenterAnnotationsTimerRef.current !== null) {
+        window.clearTimeout(
+          presenterAnnotationsTimerRef.current,
+        );
+        presenterAnnotationsTimerRef.current = null;
+      }
+
+      if (presenterViewFrameRef.current !== null) {
+        caf(presenterViewFrameRef.current);
+        presenterViewFrameRef.current = null;
+      }
+      lastPresenterViewRef.current = null;
+
       localStorage.removeItem('initialViewBoxWidth');
       localStorage.removeItem('initialViewBoxHeight');
       localStorage.removeItem('pageZoomMap');
@@ -2378,12 +3275,13 @@ const Whiteboard = React.memo((props) => {
 
   React.useEffect(() => {
     if (!whiteboardToolbarAutoHide) {
-      const optionsDropdown = document.getElementById('WhiteboardOptionButton');
+      const targetDoc = isPresentationDetached && popupWindow?.document ? popupWindow.document : document;
+      const optionsDropdown = targetDoc.getElementById('WhiteboardOptionButton');
       if (optionsDropdown?.classList.contains('fade-in')) {
         optionsDropdown.classList.remove('fade-in');
       }
     }
-  }, [whiteboardToolbarAutoHide]);
+  }, [whiteboardToolbarAutoHide, isPresentationDetached, popupWindow]);
 
   const hiddenGeoShapes = React.useMemo(() => {
     const bbbMultiUserPenOnly = getFromUserSettings(
@@ -2453,6 +3351,49 @@ const Whiteboard = React.memo((props) => {
           viewerCanPan,
         }}
       />
+      { (isPresenter && isMobile) && (() => {
+        const svg = laserSvgs[laserMode];
+        if (!svg) return null;
+        const tool = tlEditorRef.current?.getCurrentToolId?.();
+        if (tool !== 'hand') return;
+        const svgMobilePresenter = svg.replace(
+          'bbb-laser-pointer',
+          'bbb-laser-pointer-mobile-presenter'
+        );
+        return (
+          <div
+            style={{
+              position: 'fixed',
+              left: presenterCursorPoint.x - laserDefs[laserMode].cx,
+              top: presenterCursorPoint.y - laserDefs[laserMode].cy,
+              pointerEvents: 'none',
+              zIndex: 200,
+            }}
+            dangerouslySetInnerHTML={{ __html: svgMobilePresenter}}
+          />
+        );
+      })()}
+      {laserMenuVisible && (
+        <Styled.LaserContextMenu
+          ref={laserMenuRef}
+          style={{
+            left: laserMenuPos.x,
+            top: laserMenuPos.y,
+          }}
+        >
+          {laserItems.map(({ key, label, size }) => (
+            <Styled.LaserMenuItem
+              key={key}
+              onClick={() => {
+                setLaserMode(key);
+                setLaserMenuVisible(false);
+              }}
+            >
+              <span style={{ fontSize: size }}>{label}</span>
+            </Styled.LaserMenuItem>
+          ))}
+        </Styled.LaserContextMenu>
+      )}
     </div>
   );
 });
@@ -2462,6 +3403,7 @@ export default Whiteboard;
 Whiteboard.propTypes = {
   isPresenter: PropTypes.bool,
   isPhone: PropTypes.bool,
+  isMobile: PropTypes.bool,
   removeShapes: PropTypes.func.isRequired,
   persistShapeWrapper: PropTypes.func.isRequired,
   notifyNotAllowedChange: PropTypes.func.isRequired,
@@ -2491,6 +3433,10 @@ Whiteboard.propTypes = {
   presentationAreaWidth: PropTypes.number.isRequired,
   maxNumberOfAnnotations: PropTypes.number.isRequired,
   pointerDiameter: PropTypes.number,
+  laserRadiusSmall: PropTypes.number.isRequired,
+  laserRadiusLarge: PropTypes.number.isRequired,
+  laserRedColor: PropTypes.string.isRequired,
+  laserGreenColor: PropTypes.string.isRequired,
   setTldrawIsMounting: PropTypes.func.isRequired,
   presentationId: PropTypes.string,
   setTldrawAPI: PropTypes.func.isRequired,
@@ -2510,4 +3456,7 @@ Whiteboard.propTypes = {
   locale: PropTypes.string.isRequired,
   isInfiniteWhiteboard: PropTypes.bool,
   whiteboardWriters: PropTypes.arrayOf(PropTypes.shape).isRequired,
+  onPresenterViewChange: PropTypes.func,
+  onPresenterAnnotationsChange: PropTypes.func,
 };
+

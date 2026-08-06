@@ -582,6 +582,8 @@ export interface SharedNotes {
   maxDocumentChars: number
   maxLengthForContentUpdate: number
   staticFormattingToolbar: boolean
+  importMarkdownEnabled: boolean
+  exportMarkdownEnabled: boolean
 }
 
 export interface Media {
@@ -750,10 +752,15 @@ export interface Whiteboard {
   annotationsQueueProcessInterval: number
   cursorInterval: number
   pointerDiameter: number
+  laserRadiusSmall: number
+  laserRadiusLarge: number
+  laserRedColor: string
+  laserGreenColor: string
   maxStickyNoteLength: number
   maxNumberOfAnnotations: number
   maxNumberOfActiveUsers: number
   maxHistoryStackSize: number
+  slideSwapDecodeTimeoutMs: number
   lockToolbarTools: boolean
   annotations: Annotations
   allowInfiniteWhiteboard: boolean
