@@ -364,7 +364,7 @@ const getCustomAssetUrls = () => {
       'size-medium': `${TL_ICON_PATHS}/size-medium.svg`,
       'size-large': `${TL_ICON_PATHS}/size-large.svg`,
       'size-extra-large': `${TL_ICON_PATHS}/size-extra-large.svg`,
-      'font-draw': `${TL_ICON_PATHS}/font-draw.svg`,
+      'font-draw': `${TL_ICON_PATHS}/font-amt.svg`,
       'font-sans': `${TL_ICON_PATHS}/font-sans.svg`,
       'font-serif': `${TL_ICON_PATHS}/font-serif.svg`,
       'font-mono': `${TL_ICON_PATHS}/font-mono.svg`,
