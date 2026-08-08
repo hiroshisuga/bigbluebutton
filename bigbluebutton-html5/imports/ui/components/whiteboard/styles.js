@@ -169,11 +169,13 @@ const TldrawV2GlobalStyle = createGlobalStyle`
   }
   
   .tl-text-shape__wrapper[data-font='draw'] {
+    /* tldraw text */
     /* font-family: 'tldraw_draw', 'KosugiMaruSubset', sans-serif; */
     font-family: 'AMT', 'MRY', sans-serif;
   }
 
   .tl-text-label[data-font='draw'] .tl-text {
+    /* tldraw sticky note */
     font-family: 'AMT', 'MRY', sans-serif;
   }
 
