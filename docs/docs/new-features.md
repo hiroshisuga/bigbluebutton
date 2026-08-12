@@ -425,12 +425,6 @@ In BigBlueButton 3.0.0-alpha.5 we replaced the JOIN parameter `defaultLayout` wi
 - Client settings.yml: `public.sharedNotes.importMarkdownEnabled`. Defaults to `false`. When `true`, presenters see an **Import from Markdown** option in the BlockNote shared notes menu.
 - Client settings.yml: `public.sharedNotes.exportMarkdownEnabled`. Defaults to `false`. When `true`, an **Export notes as Markdown** option is shown in the BlockNote shared notes menu.
 
-#### Added new setting to tune the slide-change image swap
-
-- Client settings.yml: `public.whiteboard.slideSwapDecodeTimeoutMs`. Defaults to `250` (milliseconds). Added in BigBlueButton 3.0.33.
-
-On a slide change the client waits, up to this bound, for the new slide's image to finish decoding before swapping the visible page — which removes the white flash that used to appear between slides. A cached or fast-loading slide resolves well within the bound; if the image takes longer, the swap proceeds anyway (the pre-3.0.33 behaviour, including the white flash) rather than leaving the toolbar and zoom controls on a stale slide. Raise it only if your presentations are served slowly enough that the flash is still visible, and keep in mind that a larger value delays the slide change itself by the same amount.
-
 #### Added new setting and userdata to allow skipping echo test if session has valid input/output devices stored
 
 - Client settings.yml: `skipEchoTestIfPreviousDevice`. Defaults to `false`
