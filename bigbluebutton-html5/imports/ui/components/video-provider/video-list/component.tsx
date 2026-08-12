@@ -221,7 +221,6 @@ class VideoList extends Component<VideoListProps, VideoListState> {
 
   handleCanvasResize() {
     if (!this.ticking) {
-      // still unclear if this matters..
       window.requestAnimationFrame(() => {
         this.ticking = false;
         this.setOptimalGrid();
