@@ -380,7 +380,6 @@ const Whiteboard = React.memo((props) => {
   const hasZoomSyncedRef = useRef(false);
   const lastForcedViewRef = useRef(null);
   const currentUserRef = useRef(currentUser);
-  const originalHTMLElementRef = React.useRef(null);
   const presenterViewFrameRef = React.useRef(null);
   const lastPresenterViewRef = React.useRef(null);
   const onPresenterViewChangeRef = React.useRef(onPresenterViewChange);
@@ -2598,35 +2597,6 @@ const Whiteboard = React.memo((props) => {
       );
     }
   }, [currentPresentationPage, isPresenter, viewerCanPan]);
-
-  // HTMLElement injection
-  // The tldraw module uses HTMLElement variable, which is not from the popup.
-  // Thus some tldraw functions such as fullscreen and resize a drawing
-  //  does not work on the popup window.
-  // This actually modify a global variable, possibly causing other problems
-  //  -> Indeed. Now the original HTMLElement is backed up and used elsewhere.
-  React.useEffect(() => {
-    if (!isPresenter) return;
-
-    if (isPresentationDetached && popupWindow?.HTMLElement) {
-      if (!originalHTMLElementRef.current) {
-        originalHTMLElementRef.current = window.HTMLElement;
-      }
-      window.HTMLElement = popupWindow.HTMLElement;
-    } else {
-      if (originalHTMLElementRef.current) {
-        window.HTMLElement = originalHTMLElementRef.current;
-        originalHTMLElementRef.current = null;
-      }
-    }
-
-    return () => {
-      if (originalHTMLElementRef.current) {
-        window.HTMLElement = originalHTMLElementRef.current;
-        originalHTMLElementRef.current = null;
-      }
-    };
-  }, [isPresentationDetached, popupWindow, isPresenter]);
 
   React.useEffect(() => {
     if (tlEditorRef.current) {
