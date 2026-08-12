@@ -3,7 +3,6 @@ import { IntlShape, defineMessages, injectIntl } from 'react-intl';
 import { UpdatedDataForUserCameraDomElement } from 'bigbluebutton-html-plugin-sdk/dist/cjs/dom-element-manipulation/user-camera/types';
 import { throttle } from '/imports/utils/throttle';
 import { range } from '/imports/utils/array-utils';
-import { originalRAF } from '/imports/utils/animationFrameBackup';
 import Styled from './styles';
 import VideoListItemContainer from './video-list-item/container';
 import OverflowTile from './overflow-tile/component';
@@ -223,7 +222,7 @@ class VideoList extends Component<VideoListProps, VideoListState> {
   handleCanvasResize() {
     if (!this.ticking) {
       // still unclear if this matters..
-      originalRAF(() => {
+      window.requestAnimationFrame(() => {
         this.ticking = false;
         this.setOptimalGrid();
       });
