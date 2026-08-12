@@ -472,7 +472,7 @@ Modified/added events
 - `muteOnStart` default value changed to `true` - which helps now that `transparentListenOnly` is enabled by default too. See [PR 20848](https://github.com/bigbluebutton/bigbluebutton/issues/20848) for more info.
 - `insertDocumentSupportedProtocols` renamed to `fetchUrlSupportedProtocols`
 - `insertDocumentBlockedHosts` renamed to `fetchUrlBlockedExternalHosts`
-- `html5PluginSdkVersion` bumped to `0.0.104` (in BBB 3.0.33)
+- `html5PluginSdkVersion` bumped to `0.0.103`
 
 #### Added
 - `pluginManifestFetchTimeout` added
@@ -525,8 +525,7 @@ Modified/added events
 - `pluginManifestCacheRefreshIntervalMinutes` added in BBB 3.0.27
 - `clientSettingsOverrideStrictValidation` added in BBB 3.0.30
 - `clientSettingsFilePath` added in BBB 3.0.30
-- `maxSharedNotesInitialContentUrlPayloadSize` added in BBB 3.0.33 — caps the size (in KiB, default `1024`) of the response fetched by `sharedNotesInitialContentJsonUrl` / `sharedNotesInitialContentMarkdownUrl`
-- `numPresentationDownloadThreads` added in BBB 3.0.33 — size of the bounded pool that downloads pre-uploaded presentations in the background (default `5`). See [Tune parallel downloads of pre-uploaded presentations](/administration/customize#tune-parallel-downloads-of-pre-uploaded-presentations)
+- `maxSharedNotesInitialContentUrlPayloadSize` added — caps the size (in KiB, default `1024`) of the response fetched by `sharedNotesInitialContentJsonUrl` / `sharedNotesInitialContentMarkdownUrl`
 
 ### Removed support for POST requests on `join` endpoint and Content-Type headers are now required
 
