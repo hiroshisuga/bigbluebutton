@@ -20,7 +20,6 @@ import browserInfo from '/imports/utils/browserInfo';
 import { addAlert } from '../screenreader-alert/service';
 import { debounce } from '/imports/utils/debounce';
 import { throttle } from '/imports/utils/throttle';
-import { originalRAF, originalCAF } from '/imports/utils/animationFrameBackup';
 import LocatedErrorBoundary from '/imports/ui/components/common/error-boundary/located-error-boundary/component';
 import FallbackView from '/imports/ui/components/common/fallback-errors/fallback-view/component';
 import TooltipContainer from '/imports/ui/components/common/tooltip/container';
@@ -778,15 +777,6 @@ class Presentation extends PureComponent {
       //});
       //nullObserver.observe(observedTarget, { childList: true, subtree: true, characterData: true });
 
-      // Globally inject popup.requestAnimationFrame to requestAnimationFrame for internal usage of tldraw.
-      // These changes enable fullscreen of popup window in the main monitor.
-      if (popup.requestAnimationFrame) {
-        window.requestAnimationFrame = popup.requestAnimationFrame.bind(popup);
-      }
-      if (popup.cancelAnimationFrame) {
-        window.cancelAnimationFrame = popup.cancelAnimationFrame.bind(popup);
-      }
-
       syncDarkReaderStylesToPopup(document, popup.document);
       
       toggleDetachPresentation(popup);
@@ -809,10 +799,6 @@ class Presentation extends PureComponent {
       const handlePopupBeforeUnload = () => {
         window.removeEventListener('beforeunload', closePopup);
         window.removeEventListener('darkmodechange', handleDarkModeChange);
-
-        window.requestAnimationFrame = originalRAF;
-        window.cancelAnimationFrame = originalCAF;
-
         toggleDetachPresentation(null);
       };
 
