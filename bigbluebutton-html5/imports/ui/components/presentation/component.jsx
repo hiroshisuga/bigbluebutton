@@ -840,11 +840,11 @@ class Presentation extends PureComponent {
         }
         // Then normal fullscreen change (by button or ESC)
         this.onFullscreenChange();
+      });
 
-        window.addEventListener( 'darkmodechange',
-          handleDarkModeChange,
-        );
-      });        
+      window.addEventListener( 'darkmodechange',
+        handleDarkModeChange,
+      );
     } else {
       // to explicitely exit fullsreen; we do not need setState "isFullscreen: false".
       //  (in case user directly merge popup when it is fullscreen)
