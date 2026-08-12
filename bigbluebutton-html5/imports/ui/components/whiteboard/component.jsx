@@ -330,7 +330,6 @@ const Whiteboard = React.memo((props) => {
   const raf = targetWin.requestAnimationFrame.bind(targetWin);
   const caf = targetWin.cancelAnimationFrame.bind(targetWin);
 
-
   const [isMounting, setIsMounting] = React.useState(true);
   const [cursorType, setCursorType] = React.useState('');
   const [cursorZoom, setCursorZoom] = React.useState({ slideZoom: 1, containerZoom: 1 });
