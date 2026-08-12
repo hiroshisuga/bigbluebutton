@@ -162,12 +162,6 @@ Integrations can also seed a session's shared notes with Markdown at creation ti
 
 <!-- TODO add screenshot of the Import from Markdown dialog (append/replace + file upload) -->
 
-#### Panopto videos can be shared as external video
-
-The **Share an external video** feature now includes a player for [Panopto](https://www.panopto.com/) recordings (available in BigBlueButton 3.0.33). Paste a Panopto viewer link of the form `https://<your-panopto-host>/Panopto/Pages/Viewer.aspx?id=<video-id>` and it plays inside the presentation area with the usual synchronization (play/pause, seek and playback rate are shared with the other participants), just like the YouTube and Vimeo players.
-
-The player is tenant-agnostic — any Panopto host works, including `*.panopto.com`, `*.panopto.eu` and self-hosted installations. Note that it loads the Panopto embed API from `https://developers.panopto.com`, so participants need to be able to reach that host, and the video must be viewable by them in Panopto (BigBlueButton does not proxy Panopto's own authentication).
-
 
 ### Engagement
 
