@@ -38,8 +38,6 @@ import { CHAT_DELETE_REACTION_MUTATION, CHAT_SEND_REACTION_MUTATION } from './pa
 import logger from '/imports/startup/client/logger';
 import { ChatLoading } from '../component';
 import Storage from '/imports/ui/services/storage/in-memory';
-import { originalHTMLElement } from '/imports/utils/HTMLElementBackup';
-import { originalRAF } from '/imports/utils/animationFrameBackup';
 
 const PAGE_SIZE = 50;
 const CLEANUP_TIMEOUT = 3000;
@@ -71,7 +69,7 @@ interface ChatListProps {
 }
 
 const isElement = (el: unknown): el is HTMLElement => {
-  return el instanceof originalHTMLElement;
+  return el instanceof HTMLElement;
 };
 
 const isMap = (map: unknown): map is Map<number, string> => {
@@ -441,7 +439,7 @@ const ChatMessageList: React.FC<ChatListProps> = ({
       const value = (timestamp - initialTimestamp) / 300;
       if (value <= 1) {
         container.scrollTop = initialPosition + (value * scrollPositionDiff);
-        originalRAF(animateScrollPosition);
+        requestAnimationFrame(animateScrollPosition);
       } else {
         container.scrollTop = container.scrollHeight - container.offsetHeight;
         setIsScrollingDisabled(false);
@@ -458,10 +456,10 @@ const ChatMessageList: React.FC<ChatListProps> = ({
       initialTimestamp = timestamp;
       initialPosition = scrollTop;
       scrollPositionDiff = scrollHeight - offsetHeight - scrollTop;
-      originalRAF(animateScrollPosition);
+      requestAnimationFrame(animateScrollPosition);
     };
 
-    originalRAF(startScrollAnimation);
+    requestAnimationFrame(startScrollAnimation);
   }, []);
 
   const renderUnreadNotification = useMemo(() => {
