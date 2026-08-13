@@ -579,10 +579,9 @@ class Presentation extends PureComponent {
         `innerwidth=${svgDimensions.width},innerheight=${svgDimensions.height + toolbarHeight},resizable,scrollbars`);
       if (!popup) return;
       popup.document.title = 'BigBlueButton Portal Window';
-      // unnecessary div
-      //const container = popup.document.createElement('div');
-      //popup.document.body.appendChild(container);
-
+      // The popup content is absolutely positioned, so it does not contribute
+      // to the body width. Keep the body sized to the popup viewport.
+      popup.document.body.style.width = '100%';
       // Copying the attributes of <html>, so that the bbb-icons font looks a bit smaller
       const mainHtml = document.documentElement; // メインウィンドウの <html>
       const popupHtml = popup.document.documentElement;
