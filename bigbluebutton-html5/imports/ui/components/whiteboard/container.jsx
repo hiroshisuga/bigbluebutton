@@ -32,7 +32,6 @@ import {
   layoutDispatch,
 } from '/imports/ui/components/layout/context';
 import logger from '/imports/startup/client/logger';
-import FullscreenService from '/imports/ui/components/common/fullscreen-button/service';
 import deviceInfo from '/imports/utils/deviceInfo';
 import Whiteboard from './component';
 import ErrorBoundaryWithReload from '../common/error-boundary/error-boundary-with-reload/component';
@@ -473,8 +472,7 @@ const WhiteboardContainer = (props) => {
   const {
     colorStyle, dashStyle, fillStyle, fontStyle, sizeStyle,
   } = WHITEBOARD_CONFIG.styles;
-  const handleToggleFullScreen = (ref, isPresentationDetached, popupWindow) => FullscreenService.toggleFullScreen(ref, isPresentationDetached, popupWindow);
-
+ 
   // use -0.5 offset to avoid white borders rounding erros
   bgShape.push({
     x: -0.5,
@@ -521,7 +519,6 @@ const WhiteboardContainer = (props) => {
           fillStyle,
           fontStyle,
           sizeStyle,
-          handleToggleFullScreen,
           sidebarNavigationWidth,
           layoutContextDispatch,
           initDefaultPages,
