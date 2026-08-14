@@ -163,7 +163,6 @@ const PresentationMenu = (props) => {
     whiteboardId,
     persistShape,
     hasWBAccess,
-    popupWindow,
     isPresentationDetached,
   } = props;
 
@@ -433,7 +432,11 @@ const PresentationMenu = (props) => {
           label: formattedLabel(isFullscreen),
           icon: isFullscreen ? 'exit_fullscreen' : 'fullscreen',
           onClick: () => {
-            handleToggleFullscreen(fullscreenRef, isPresentationDetached, popupWindow);
+            if (!fullscreenRef) return;
+            const fullscreenTarget = isPresentationDetached
+              ? fullscreenRef.ownerDocument.documentElement
+              : fullscreenRef;
+            handleToggleFullscreen(fullscreenTarget);
             const newElement = (elementId === currentElement) ? '' : elementId;
             const newGroup = (elementGroup === currentGroup) ? '' : elementGroup;
 
