@@ -1510,7 +1510,6 @@ class Presentation extends PureComponent {
                     refetchInitialPageAnnotations={refetchInitialPageAnnotations}
                     restoreOnUpdate={restoreOnUpdate}
                     isPresentationDetached={isPresentationDetached}
-                    popupWindow={popupWindow}
                     onPresenterViewChange={this.handlePresenterViewChange}
                     onPresenterAnnotationsChange={this.handlePresenterAnnotationsChange}
                   />
