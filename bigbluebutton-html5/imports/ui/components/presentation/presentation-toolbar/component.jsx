@@ -112,6 +112,7 @@ class PresentationToolbar extends PureComponent {
   constructor(props) {
     super(props);
 
+    this.toolbarRef = React.createRef();
     this.handleSkipToSlideChange = this.handleSkipToSlideChange.bind(this);
     this.change = this.change.bind(this);
     this.renderAriaDescs = this.renderAriaDescs.bind(this);
@@ -123,16 +124,7 @@ class PresentationToolbar extends PureComponent {
   }
 
   componentDidMount() {
-    const {
-      isPresentationDetached,
-      popupWindow,
-    } = this.props;
-
-    this.keydownDocument = (
-      isPresentationDetached && popupWindow?.document
-        ? popupWindow.document
-        : document
-    );
+    this.keydownDocument = this.toolbarRef.current?.ownerDocument || document;
 
     this.keydownDocument.addEventListener(
       'keydown',
@@ -192,10 +184,14 @@ class PresentationToolbar extends PureComponent {
       fullscreenRef,
       handleToggleFullScreen,
       isPresentationDetached,
-      popupWindow,
     } = this.props;
 
-    handleToggleFullScreen(fullscreenRef, isPresentationDetached, popupWindow);
+    if (!fullscreenRef) return;
+    const fullscreenTarget = isPresentationDetached
+      ? fullscreenRef.ownerDocument.documentElement
+      : fullscreenRef;
+    handleToggleFullScreen(fullscreenTarget);
+
     const newElement = isFullscreen ? '' : fullscreenElementId;
 
     layoutContextDispatch({
@@ -410,6 +406,7 @@ class PresentationToolbar extends PureComponent {
     return (
       <Styled.PresentationToolbarWrapper
         id="presentationToolbarWrapper"
+        ref={this.toolbarRef}
       >
         {this.renderAriaDescs()}
         <Styled.QuickPollButtonWrapper>
