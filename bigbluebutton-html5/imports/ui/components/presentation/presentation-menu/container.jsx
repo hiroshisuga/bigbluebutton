@@ -36,7 +36,7 @@ const PresentationMenuContainer = (props) => {
     name: meeting?.name,
   }));
 
-  const handleToggleFullscreen = (ref, isdetached, popup) => FullscreenService.toggleFullScreen(ref, isdetached, popup);
+  const handleToggleFullscreen = (ref) => FullscreenService.toggleFullScreen(ref);
   const isIphone = !!(navigator.userAgent.match(/iPhone/i));
   const allowSnapshotOfCurrentSlide = useIsSnapshotOfCurrentSlideEnabled();
   const allowPopupPresentation = useIsPopupPresentationEnabled();
