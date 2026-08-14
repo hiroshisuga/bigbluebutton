@@ -2417,7 +2417,6 @@ const Whiteboard = React.memo((props) => {
       setIsWheelZoom,
       setWheelZoomTimeout,
       isInfiniteWhiteboard,
-      isPresentationDetached,
     },
   );
 
