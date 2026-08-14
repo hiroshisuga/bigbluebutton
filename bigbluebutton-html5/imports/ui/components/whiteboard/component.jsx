@@ -311,7 +311,6 @@ const Whiteboard = React.memo((props) => {
     layoutChanged,
     pointerDiameter = 5,
     isPresentationDetached,
-    popupWindow,
     onPresenterViewChange,
     onPresenterAnnotationsChange,
   } = props;
@@ -325,10 +324,6 @@ const Whiteboard = React.memo((props) => {
     && hasWBAccess;
 
   clearTldrawCache();
-
-  const targetWin = isPresentationDetached && popupWindow ? popupWindow : window;
-  const raf = targetWin.requestAnimationFrame.bind(targetWin);
-  const caf = targetWin.cancelAnimationFrame.bind(targetWin);
 
   const [isMounting, setIsMounting] = React.useState(true);
   const [cursorType, setCursorType] = React.useState('');
@@ -392,6 +387,23 @@ const Whiteboard = React.memo((props) => {
   const publishPresenterAnnotationsRef = React.useRef(null);
 
   currentUserRef.current = currentUser;
+
+  const getWhiteboardDocument = () => (
+    whiteboardRef.current?.ownerDocument || document
+  );
+
+  const raf = (callback) => {
+    const targetWin = getWhiteboardDocument().defaultView || window;
+    return {
+      id: targetWin.requestAnimationFrame(callback),
+      win: targetWin,
+    };
+  };
+
+  const caf = (frame) => {
+    if (!frame) return;
+    frame.win.cancelAnimationFrame(frame.id);
+  };
 
   const [pageZoomMap, setPageZoomMap] = useState(() => {
     try {
@@ -1110,7 +1122,7 @@ const Whiteboard = React.memo((props) => {
 
   const getContainerDimensions = () => {
     // This change affects the behaviour when resize and fullscreen the popupWindow.
-    const targetDoc = isPresentationDetached && popupWindow?.document ? popupWindow.document : document;
+    const targetDoc = getWhiteboardDocument();
     const container = targetDoc.querySelector('[data-test="presentationContainer"]');
     const innerWrapper = targetDoc.getElementById('presentationInnerWrapper');
     const containerWidth = container ? container.offsetWidth : 0;
@@ -1313,8 +1325,8 @@ const Whiteboard = React.memo((props) => {
         // isMountedRef.current = true here, the async listener sees it as true
         // and overwrites the stored zoom ratio with fit-zoom (ratio=1.0).
         // Double-rAF guarantees we only become "mounted" after that flush fires.
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
+        raf(() => {
+          raf(() => {
             isMountedRef.current = true;
           });
         });
@@ -1337,7 +1349,7 @@ const Whiteboard = React.memo((props) => {
     lastDimensions = { width: 0, height: 0 },
   ) => {
     // This change affects the behaviour when resize and fullscreen the popupWindow.
-    const targetDoc = isPresentationDetached && popupWindow?.document ? popupWindow.document : document;
+    const targetDoc = getWhiteboardDocument();
     const container = targetDoc.querySelector('[data-test="presentationContainer"]');
     const innerWrapper = targetDoc.getElementById('presentationInnerWrapper');
 
@@ -2032,8 +2044,7 @@ const Whiteboard = React.memo((props) => {
                 'fade-out',
                 '0s',
                 hasWBAccessRef.current || isPresenterRef.current,
-                isPresentationDetached,
-                popupWindow,
+                getWhiteboardDocument(),
               );
             } else if (visibilityState === 'hidden') {
               toggleToolsAnimations(
@@ -2041,8 +2052,7 @@ const Whiteboard = React.memo((props) => {
                 'fade-in',
                 '0s',
                 hasWBAccessRef.current || isPresenterRef.current,
-                isPresentationDetached,
-                popupWindow,
+                getWhiteboardDocument(),
               );
             }
             lastVisibilityStateRef.current = visibilityState;
@@ -2333,7 +2343,7 @@ const Whiteboard = React.memo((props) => {
       // Remote camera updates do not trigger the user-source listener,
       // so publish the final settled presenter view explicitly.
       if (fitToWidthRef.current) {
-        requestAnimationFrame(() => {
+        raf(() => {
           const viewportPageBounds = tlEditorRef.current?.getViewportPageBounds();
           if (!viewportPageBounds?.w || !viewportPageBounds?.h) {
             return;
@@ -2408,7 +2418,6 @@ const Whiteboard = React.memo((props) => {
       setWheelZoomTimeout,
       isInfiniteWhiteboard,
       isPresentationDetached,
-      popupWindow,
     },
   );
 
@@ -2680,7 +2689,7 @@ const Whiteboard = React.memo((props) => {
 
   const toggleToolbarIfNeeded = () => {
     if (whiteboardToolbarAutoHide && toggleToolsAnimations) {
-      toggleToolsAnimations('fade-in', 'fade-out', '0s', hasWBAccessRef.current || isPresenterRef.current, isPresentationDetached, popupWindow);
+      toggleToolsAnimations('fade-in', 'fade-out', '0s', hasWBAccessRef.current || isPresenterRef.current, getWhiteboardDocument());
     }
   };
 
@@ -2908,13 +2917,13 @@ const Whiteboard = React.memo((props) => {
 
   React.useEffect(() => {
     if (!whiteboardToolbarAutoHide) {
-      const targetDoc = isPresentationDetached && popupWindow?.document ? popupWindow.document : document;
+      const targetDoc = getWhiteboardDocument();
       const optionsDropdown = targetDoc.getElementById('WhiteboardOptionButton');
       if (optionsDropdown?.classList.contains('fade-in')) {
         optionsDropdown.classList.remove('fade-in');
       }
     }
-  }, [whiteboardToolbarAutoHide, isPresentationDetached, popupWindow]);
+  }, [whiteboardToolbarAutoHide, isPresentationDetached]);
 
   const hiddenGeoShapes = React.useMemo(() => {
     const bbbMultiUserPenOnly = getFromUserSettings(
