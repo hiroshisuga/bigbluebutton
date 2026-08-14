@@ -115,7 +115,7 @@ const propTypes = {
   handleToggleFullscreen: PropTypes.func.isRequired,
   isFullscreen: PropTypes.bool,
   elementName: PropTypes.string,
-  fullscreenRef: PropTypes.instanceOf(Element),
+  fullscreenRef: PropTypes.object,
   meetingName: PropTypes.string,
   isIphone: PropTypes.bool,
   isMobile: PropTypes.bool,
