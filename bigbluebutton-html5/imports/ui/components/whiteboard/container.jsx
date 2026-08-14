@@ -472,7 +472,7 @@ const WhiteboardContainer = (props) => {
   const {
     colorStyle, dashStyle, fillStyle, fontStyle, sizeStyle,
   } = WHITEBOARD_CONFIG.styles;
- 
+
   // use -0.5 offset to avoid white borders rounding erros
   bgShape.push({
     x: -0.5,
