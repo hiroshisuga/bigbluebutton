@@ -52,7 +52,6 @@ const useCursor = (publishCursorUpdate, whiteboardId) => {
 };
 
 const getPresentationOptionsMenuItem = (targetDoc = document) => {
-  const targetDoc = isDetached && p?.document ? p.document : document;
   return targetDoc.querySelector('li#presentationFullscreen')
       || targetDoc.querySelector('li#presentationSnapshot')
       || targetDoc.querySelector('li#toolVisibility')
