@@ -84,7 +84,6 @@ const useMouseEvents = ({
   setIsWheelZoom,
   setWheelZoomTimeout,
   isInfiniteWhiteboard,
-  isPresentationDetached,
 }) => {
   const timeoutIdRef = React.useRef();
   const fingerCountRef = React.useRef(0);
@@ -155,32 +154,6 @@ const useMouseEvents = ({
     }
 
     return undefined;
-  };
-
-  const handlePointerDownStylePanel = (event) => {
-    const panel = event.currentTarget;
-    const handlePointerUpStylePanel = (e) => {
-      //console.log("pointerup detected inside style panel", e);
-      const pointerUpEvent = new PointerEvent("pointerup", {
-        bubbles: true,
-        cancelable: true,
-        pointerId: e.pointerId || 1,
-        clientX: e.clientX,
-        clientY: e.clientY,
-        button: e.button,
-      });
-      // Inject a generic pointerup event both to the style-panel and to the main window,
-      //  hitting handlePointerUp in tldraw/src/lib/ui/components/primitives/ButtonPicker.tsx,
-      //  which is attached to the main window.
-      
-      //e.target.dispatchEvent(pointerUpEvent); // Removed due to the conflict with the HTMLElement hack.
-                                                // This triggered a infinite loop for measuring text size
-                                                //  when changing the font style from the style panel.
-      window.dispatchEvent(pointerUpEvent);
-
-      panel.removeEventListener("pointerup", handlePointerUpStylePanel);
-    };
-    panel.addEventListener("pointerup", handlePointerUpStylePanel);
   };
 
   const handleMouseEnter = () => {
@@ -418,19 +391,8 @@ const useMouseEvents = ({
     const targetDoc = getWhiteboardDocument();
     const targetWin = targetDoc.defaultView || window;
     const presentationWrapper = targetDoc.getElementById('presentationInnerWrapper');
-    let stylePanelPopup = null;
     
     targetWin.addEventListener('mousedown', handleMouseDownWindow);
-
-    // Solving a problem that the style changer on the popup continues to select every button
-    //  as pointerup event is stolen by the main window to which tldraw attaches the event.
-    if (isPresentationDetached) {
-      stylePanelPopup = targetDoc.getElementsByClassName('tlui-style-panel')[0];
-
-      if (stylePanelPopup) {
-        stylePanelPopup.addEventListener('pointerdown', handlePointerDownStylePanel);
-      }
-    }
 
     if (presentationWrapper) {
       presentationWrapper.addEventListener('mousedown', handleMouseDownWhiteboard);
@@ -456,12 +418,6 @@ const useMouseEvents = ({
         presentationWrapper.removeEventListener('touchend', handleTouchEnd, { capture: true });
         presentationWrapper.removeEventListener('touchmove', handleTouchMove);
       }
-      if (stylePanelPopup) {
-        stylePanelPopup.removeEventListener(
-          'pointerdown',
-          handlePointerDownStylePanel,
-        );
-      }
       targetWin.removeEventListener('mousedown', handleMouseDownWindow);
     };
   }, [
@@ -472,7 +428,6 @@ const useMouseEvents = ({
     handleMouseEnter,
     handleMouseLeave,
     handleMouseWheel,
-    isPresentationDetached,
   ]);
 };
 
