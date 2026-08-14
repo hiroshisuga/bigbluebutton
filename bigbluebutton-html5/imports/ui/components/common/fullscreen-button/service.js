@@ -1,17 +1,15 @@
-function getFullscreenElement(d = document) {
-  if (d.fullscreenElement) return d.fullscreenElement;
-  if (d.webkitFullscreenElement) return d.webkitFullscreenElement;
-  if (d.mozFullScreenElement) return d.mozFullScreenElement;
-  if (d.msFullscreenElement) return d.msFullscreenElement;
+function getFullscreenElement(doc = document) {
+  if (doc.fullscreenElement) return doc.fullscreenElement;
+  if (doc.webkitFullscreenElement) return doc.webkitFullscreenElement;
+  if (doc.mozFullScreenElement) return doc.mozFullScreenElement;
+  if (doc.msFullscreenElement) return doc.msFullscreenElement;
   return null;
 }
 
-const isFullScreen = (element, doc = document) => {
-  if (getFullscreenElement(doc) && getFullscreenElement(doc) === element) {
-    return true;
-  }
-  return false;
-};
+const isFullScreen = (element) => {
+  const doc = element?.ownerDocument || document;
+  return getFullscreenElement(doc) === element;
+}
 
 function cancelFullScreen(doc = document) {
   if (doc.exitFullscreen) {
@@ -35,24 +33,19 @@ function fullscreenRequest(element) {
   } else {
     return;
   }
-  document.activeElement.blur();
+  const doc = element.ownerDocument;
+  doc.activeElement?.blur();
   element.focus();
 }
 
-const toggleFullScreen = (ref = null, isDetached = false, p) => {
-  const element = isDetached ? p.document.documentElement : (ref || document.documentElement);
-  if (isDetached) {
-    if (isFullScreen(element, p.document)) {
-      cancelFullScreen(p.document);
-    } else {
-      fullscreenRequest(element);
-    }
+const toggleFullScreen = (ref = null) => {
+  const element = ref || document.documentElement;
+  const doc = element.ownerDocument;
+
+  if (isFullScreen(element)) {
+    cancelFullScreen(doc);
   } else {
-    if (isFullScreen(element)) {
-      cancelFullScreen();
-    } else {
-      fullscreenRequest(element);
-    }
+    fullscreenRequest(element);
   }
 };
 
