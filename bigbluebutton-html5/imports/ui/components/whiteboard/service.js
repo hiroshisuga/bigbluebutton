@@ -121,9 +121,8 @@ const notifyShapeNumberExceeded = (intl, limit) => {
   if (intl) notify(intl.formatMessage(intlMessages.shapeNumberExceeded, { limit }), 'warning', 'whiteboard');
 };
 
-const toggleToolsAnimations = (activeAnim, anim, time, hasWBAccess = false, isDetached, p) => {
+const toggleToolsAnimations = (activeAnim, anim, time, hasWBAccess = false, targetDoc = document) => {
   const handleOptionsDropdown = () => {
-    const targetDoc = isDetached && p?.document ? p.document : document;
     const optionsDropdown = targetDoc.getElementById('WhiteboardOptionButton');
     if (optionsDropdown) {
       optionsDropdown.classList.remove(activeAnim);
@@ -137,7 +136,6 @@ const toggleToolsAnimations = (activeAnim, anim, time, hasWBAccess = false, isDe
   }
 
   const checkElementsAndRun = () => {
-    const targetDoc = isDetached && p?.document ? p.document : document;
     const tlEls = targetDoc.querySelectorAll('.tlui-menu-zone, .tlui-toolbar__tools, .tlui-toolbar__extras, .tlui-style-panel__wrapper, .tlui-undo, .tlui-redo');
     if (tlEls.length) {
       tlEls?.forEach((el) => {
