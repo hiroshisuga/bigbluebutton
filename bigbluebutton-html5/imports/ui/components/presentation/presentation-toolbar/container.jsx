@@ -97,11 +97,9 @@ const PresentationToolbarContainer = (props) => {
     numberOfSlides,
     currentSlide,
     currentPresentationPage,
-    isPresentationDetached,
-    popupWindow,
   } = props;
 
-  const handleToggleFullScreen = (ref) => FullscreenService.toggleFullScreen(ref, isPresentationDetached, popupWindow);
+  const handleToggleFullScreen = (ref) => FullscreenService.toggleFullScreen(ref);
 
   const [createPoll] = useMutation(POLL_CREATE);
   const [presentationSetZoom] = useMutation(PRESENTATION_SET_ZOOM);
