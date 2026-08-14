@@ -1,8 +1,8 @@
 import React, { useEffect } from 'react';
 import { throttle } from 'radash';
 
-const hasBackgroundImageUrl = (el, isDetached = false, p) => {
-  const targetWin = isDetached && p ? p : window;
+const hasBackgroundImageUrl = (el) => {
+  const targetWin = el?.ownerDocument?.defaultView || window;
   const style = targetWin.getComputedStyle(el);
   const bg = style.backgroundImage || '';
   return bg.includes('url(');
@@ -51,7 +51,7 @@ const useCursor = (publishCursorUpdate, whiteboardId) => {
   return updateCursorPosition;
 };
 
-const getPresentationOptionsMenuItem = (isDetached = false, p) => {
+const getPresentationOptionsMenuItem = (targetDoc = document) => {
   const targetDoc = isDetached && p?.document ? p.document : document;
   return targetDoc.querySelector('li#presentationFullscreen')
       || targetDoc.querySelector('li#presentationSnapshot')
@@ -59,8 +59,7 @@ const getPresentationOptionsMenuItem = (isDetached = false, p) => {
       || null;
 }
 
-const getTldrawOpenMenu = (isDetached = false, p) => {
-  const targetDoc = isDetached && p?.document ? p.document : document;
+const getTldrawOpenMenu = (targetDoc = document) => {
   const tlElement = targetDoc.querySelectorAll('[id^=radix-]');
   const tldrawMenu = Array.from(tlElement).find((el) => {
     const menuClasses = ['tlui-popover__content', 'tlui-menu'];
@@ -87,7 +86,6 @@ const useMouseEvents = ({
   setWheelZoomTimeout,
   isInfiniteWhiteboard,
   isPresentationDetached,
-  popupWindow,
 }) => {
   const timeoutIdRef = React.useRef();
   const fingerCountRef = React.useRef(0);
@@ -95,6 +93,10 @@ const useMouseEvents = ({
   const isPinchingRef = React.useRef(false);
   const mouseLeaveTimeoutRef = React.useRef();
   const PINCH_THRESHOLD = 10;
+
+  const getWhiteboardDocument = () => (
+    whiteboardRef.current?.ownerDocument || document
+  );
 
   const getDistanceBetweenTouches = (touch1, touch2) => {
     const dx = touch2.clientX - touch1.clientX;
@@ -131,7 +133,7 @@ const useMouseEvents = ({
   const handleMouseDownWindow = (event) => {
     const { target } = event;
     const editor = tlEditorRef.current;
-    const targetDoc = isPresentationDetached && popupWindow?.document ? popupWindow.document : document;
+    const targetDoc = getWhiteboardDocument();
     const presentationInnerWrapper = targetDoc.getElementById('presentationInnerWrapper');
 
     if (!(presentationInnerWrapper && presentationInnerWrapper.contains(target))) {
@@ -147,7 +149,7 @@ const useMouseEvents = ({
       && editor?.getCurrentToolId() === 'select'
       && !target.matches('[data-testid*="selection.resize"]')
       && !target.matches('[data-testid*="selection.target"]')
-      && hasBackgroundImageUrl(target, isPresentationDetached, popupWindow)
+      && hasBackgroundImageUrl(target)
     ) {
       editor.selectNone();
       return editor.complete();
@@ -190,8 +192,7 @@ const useMouseEvents = ({
         'fade-in',
         animations ? '.3s' : '0s',
         hasWBAccess || isPresenterRef.current,
-        isPresentationDetached,
-        popupWindow,
+        getWhiteboardDocument(),
       );
     }
   };
@@ -199,8 +200,9 @@ const useMouseEvents = ({
   const handleMouseLeave = () => {
     if (whiteboardToolbarAutoHide) {
       clearTimeout(mouseLeaveTimeoutRef.current);
-      const presentationWBOptionsMenuItem = getPresentationOptionsMenuItem(isPresentationDetached, popupWindow);
-      const tldrawMenu = getTldrawOpenMenu(isPresentationDetached, popupWindow);
+      const targetDoc = getWhiteboardDocument();
+      const presentationWBOptionsMenuItem = getPresentationOptionsMenuItem(targetDoc);
+      const tldrawMenu = getTldrawOpenMenu(targetDoc);
       if (presentationWBOptionsMenuItem || tldrawMenu) {
         if (tldrawMenu) {
           mouseLeaveTimeoutRef.current = setTimeout(() => {
@@ -220,8 +222,7 @@ const useMouseEvents = ({
               'fade-out',
               animations ? '3s' : '0s',
               hasWBAccess || isPresenterRef.current,
-              isPresentationDetached,
-              popupWindow,
+              getWhiteboardDocument(),
             );
           }
         } else {
@@ -230,8 +231,7 @@ const useMouseEvents = ({
             'fade-out',
             animations ? '3s' : '0s',
             hasWBAccess || isPresenterRef.current,
-            isPresentationDetached,
-            popupWindow,
+            getWhiteboardDocument(),
           );
         }
       }
@@ -402,8 +402,7 @@ const useMouseEvents = ({
         'fade-out',
         animations ? '3s' : '0s',
         hasWBAccess || isPresenterRef.current,
-        isPresentationDetached,
-        popupWindow,
+        getWhiteboardDocument(),
       );
     } else {
       toggleToolsAnimations(
@@ -411,23 +410,23 @@ const useMouseEvents = ({
         'fade-in',
         animations ? '.3s' : '0s',
         hasWBAccess || isPresenterRef.current,
-        isPresentationDetached,
-        popupWindow,
+        getWhiteboardDocument(),
       );
     }
   }, [whiteboardToolbarAutoHide]);
 
   React.useEffect(() => {
-    const targetWin = isPresentationDetached && popupWindow ? popupWindow : window;
-    const presentationWrapper = targetWin.document.getElementById('presentationInnerWrapper');
+    const targetDoc = getWhiteboardDocument();
+    const targetWin = targetDoc.defaultView || window;
+    const presentationWrapper = targetDoc.getElementById('presentationInnerWrapper');
     let stylePanelPopup = null;
     
     targetWin.addEventListener('mousedown', handleMouseDownWindow);
 
     // Solving a problem that the style changer on the popup continues to select every button
     //  as pointerup event is stolen by the main window to which tldraw attaches the event.
-    if (isPresentationDetached && popupWindow?.document) {
-      stylePanelPopup = popupWindow.document.getElementsByClassName('tlui-style-panel')[0];
+    if (isPresentationDetached) {
+      stylePanelPopup = targetDoc.getElementsByClassName('tlui-style-panel')[0];
 
       if (stylePanelPopup) {
         stylePanelPopup.addEventListener('pointerdown', handlePointerDownStylePanel);
@@ -475,7 +474,6 @@ const useMouseEvents = ({
     handleMouseLeave,
     handleMouseWheel,
     isPresentationDetached,
-    popupWindow,
   ]);
 };
 
