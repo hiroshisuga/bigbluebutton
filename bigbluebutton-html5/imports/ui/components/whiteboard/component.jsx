@@ -2192,6 +2192,7 @@ const Whiteboard = React.memo((props) => {
     const hintRadius = 3 * (pointerDiameter / 5);
     const newD = `M ${hintRadius},0 A ${hintRadius},${hintRadius} 0 1,0 ${-hintRadius},0 A ${hintRadius},${hintRadius} 0 1,0 ${hintRadius},0`;
     // Fetch the cursor hint element and update its path
+    // Intentionally leave it to use the main document: cursorHint is not used by the detached popup.
     const cursorHint = document.getElementById('cursor_hint');
     if (cursorHint) {
       cursorHint.setAttribute('d', newD);
