@@ -511,10 +511,7 @@ class Presentation extends PureComponent {
 
   componentWillUnmount() {
     Session.setItem('componentPresentationWillUnmount', true);
-    const {
-      fullscreenContext,
-      layoutContextDispatch,
-    } = this.props;
+    const { fullscreenContext, layoutContextDispatch } = this.props;
 
     if (this.resizeWindow) {
       this.resizeWindow.removeEventListener('resize', this.onResize, false);
