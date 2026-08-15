@@ -234,6 +234,7 @@ class Presentation extends PureComponent {
     this.handlePresentationNotesUpdated = this.handlePresentationNotesUpdated.bind(this);
     this.handlePresenterViewChange = this.handlePresenterViewChange.bind(this);
     this.presenterAnnotationsObjectUrl = null;
+    this.resizeWindow = null;
     Session.setItem('componentPresentationWillUnmount', false);
   }
 
@@ -281,7 +282,7 @@ class Presentation extends PureComponent {
       );
     }
     this.updateFullscreenChangeListener();
-    window.addEventListener('resize', this.onResize, false);
+    this.updateResizeListener(window);
 
     const {
       currentSlide,
@@ -513,12 +514,12 @@ class Presentation extends PureComponent {
     const {
       fullscreenContext,
       layoutContextDispatch,
-      isPresentationDetached,
-      popupWindow,
     } = this.props;
 
-    const targetWin = isPresentationDetached && popupWindow ? popupWindow : window;
-    targetWin.removeEventListener('resize', this.onResize, false);
+    if (this.resizeWindow) {
+      this.resizeWindow.removeEventListener('resize', this.onResize, false);
+      this.resizeWindow = null;
+    }
 
     window.removeEventListener(
       'presentationNotesUpdated',
@@ -748,9 +749,7 @@ class Presentation extends PureComponent {
         handlePopupBeforeUnload,
       );
 
-      popup.addEventListener('resize', () => {
-        this.onResize();
-      });
+      this.updateResizeListener(popup);
 
       window.addEventListener( 'darkmodechange',
         handleDarkModeChange,
@@ -859,6 +858,20 @@ class Presentation extends PureComponent {
     }
     if (isFullscreen !== newIsFullscreen) {
       this.setState({ isFullscreen: newIsFullscreen });
+    }
+  }
+
+  updateResizeListener(targetWindow) {
+    if (this.resizeWindow === targetWindow) return;
+
+    if (this.resizeWindow) {
+      this.resizeWindow.removeEventListener('resize', this.onResize, false);
+    }
+
+    this.resizeWindow = targetWindow;
+
+    if (this.resizeWindow) {
+      this.resizeWindow.addEventListener('resize', this.onResize, false);
     }
   }
 
