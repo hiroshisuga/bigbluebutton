@@ -2612,14 +2612,10 @@ const Whiteboard = React.memo((props) => {
       // Intentionally use the main document: tldraw's viewer cursor is created there
       //  and its SVG reference is replaced with BBB's red presenter pointer.
       const useElement = document.querySelector('.tl-cursor use');
-      const cursorHref = !isMultiUserActive && !isPresenter
-        ? '#redPointer'
-        : '#cursor';
-      // The cursor element persists across position updates, so avoid repeatedly
-      //  setting the same href on every otherCursors update.
-      if (useElement && useElement.getAttribute('href') !== cursorHref) {
-        useElement.setAttribute('href', cursorHref);
-      }
+      if (useElement && !isMultiUserActive && !isPresenter) {
+        useElement.setAttribute('href', '#redPointer');
+      } else if (useElement) {
+        useElement.setAttribute('href', '#cursor');
 
       const idsToRemove = [];
 
