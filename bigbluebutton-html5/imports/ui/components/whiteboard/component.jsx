@@ -3056,4 +3056,3 @@ Whiteboard.propTypes = {
   onPresenterViewChange: PropTypes.func,
   onPresenterAnnotationsChange: PropTypes.func,
 };
-
