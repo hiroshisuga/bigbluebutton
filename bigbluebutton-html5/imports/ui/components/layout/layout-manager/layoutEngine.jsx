@@ -360,6 +360,7 @@ const LayoutEngine = ({ isPresetationDetached }) => {
     isMobile,
     isTablet,
     prevLayout,
+    isPresentationDetached,
   };
 
   const layout = document.getElementById('layout');
@@ -370,11 +371,7 @@ const LayoutEngine = ({ isPresetationDetached }) => {
       return <UnifiedLayout {...common} isPresentationEnabled={isPresentationEnabled} />;
     case LAYOUT_TYPE.CUSTOM_LAYOUT:
       layout?.setAttribute('data-layout', LAYOUT_TYPE.CUSTOM_LAYOUT);
-      return <CustomLayout
-               {...common}
-               isPresentationEnabled={isPresentationEnabled}
-               isPresentationDetached={isPresentationDetached}
-             />;
+      return <CustomLayout {...common} isPresentationEnabled={isPresentationEnabled} />;
     case LAYOUT_TYPE.SMART_LAYOUT:
       layout?.setAttribute('data-layout', LAYOUT_TYPE.SMART_LAYOUT);
       return <SmartLayout {...common} isPresentationEnabled={isPresentationEnabled} />;
@@ -401,11 +398,7 @@ const LayoutEngine = ({ isPresetationDetached }) => {
       return <PluginsOnlyLayout {...common} isPresentationEnabled={isPresentationEnabled} />;
     default:
       layout?.setAttribute('data-layout', LAYOUT_TYPE.CUSTOM_LAYOUT);
-      return <CustomLayout
-               {...common}
-               isPresentationEnabled={isPresentationEnabled}
-               isPresentationDetached={isPresentationDetached}
-             />;
+      return <CustomLayout {...common} isPresentationEnabled={isPresentationEnabled} />;
   }
 };
 
