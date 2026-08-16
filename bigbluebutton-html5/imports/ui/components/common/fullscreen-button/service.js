@@ -9,7 +9,7 @@ function getFullscreenElement(doc = document) {
 const isFullScreen = (element) => {
   const doc = element?.ownerDocument || document;
   return getFullscreenElement(doc) === element;
-}
+};
 
 function cancelFullScreen(doc = document) {
   if (doc.exitFullscreen) {
