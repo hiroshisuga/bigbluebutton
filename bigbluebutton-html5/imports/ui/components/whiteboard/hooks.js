@@ -56,7 +56,7 @@ const getPresentationOptionsMenuItem = (targetDoc = document) => {
       || targetDoc.querySelector('li#presentationSnapshot')
       || targetDoc.querySelector('li#toolVisibility')
       || null;
-}
+};
 
 const getTldrawOpenMenu = (targetDoc = document) => {
   const tlElement = targetDoc.querySelectorAll('[id^=radix-]');
