@@ -24,8 +24,11 @@ import org.bigbluebutton.api.MeetingService
 import org.bigbluebutton.api.ParamsProcessorUtil
 import org.bigbluebutton.api.Util
 import org.bigbluebutton.api.domain.UserSession
+import org.bigbluebutton.api.domain.Meeting
+import org.bigbluebutton.api.domain.User
 import org.bigbluebutton.api.messaging.messages.PresentationUploadToken
 import org.bigbluebutton.api.util.ParamsUtil
+import org.bigbluebutton.api.service.ServiceUtils
 import org.bigbluebutton.presentation.SupportedFileTypes
 import org.bigbluebutton.presentation.UploadedPresentation
 import org.bigbluebutton.web.services.PresentationService
@@ -347,6 +350,7 @@ class PresentationController {
       response.outputStream << 'upload-failed'
     }
   }
+
   def uploadNotes = {
     log.info("uploadNotes called")
 
@@ -472,6 +476,17 @@ class PresentationController {
     def slide = params.id
 
     if (conf != userSession.meetingID) {
+      response.setStatus(403)
+      render text: ''
+      return
+    }
+
+	Meeting meeting = ServiceUtils.findMeetingFromMeetingID(conf)
+    User currentUser = meeting?.getUserById(userSession.getInternalUserId())
+
+    if (currentUser == null
+		|| (currentUser.getRole() != Meeting.ROLE_MODERATOR
+			&& !currentUser.isPresenter())) {
       response.setStatus(403)
       render text: ''
       return
