@@ -3052,6 +3052,7 @@ Whiteboard.propTypes = {
   locale: PropTypes.string.isRequired,
   isInfiniteWhiteboard: PropTypes.bool,
   whiteboardWriters: PropTypes.arrayOf(PropTypes.shape).isRequired,
+  isPresentationDetached: PropTypes.bool,
   onPresenterViewChange: PropTypes.func,
   onPresenterAnnotationsChange: PropTypes.func,
 };
