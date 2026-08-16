@@ -18,7 +18,7 @@ import MediaOnlyLayout from './mediaOnlyLayout';
 import { usePrevious } from '../../whiteboard/utils';
 import { getWaitLayout } from '../utils';
 
-const LayoutEngine = () => {
+const LayoutEngine = ({ isPresetationDetached }) => {
   const bannerBarInput = layoutSelectInput((i) => i.bannerBar);
   const notificationsBarInput = layoutSelectInput((i) => i.notificationsBar);
   const cameraDockInput = layoutSelectInput((i) => i.cameraDock);
@@ -370,7 +370,11 @@ const LayoutEngine = () => {
       return <UnifiedLayout {...common} isPresentationEnabled={isPresentationEnabled} />;
     case LAYOUT_TYPE.CUSTOM_LAYOUT:
       layout?.setAttribute('data-layout', LAYOUT_TYPE.CUSTOM_LAYOUT);
-      return <CustomLayout {...common} isPresentationEnabled={isPresentationEnabled} />;
+      return <CustomLayout
+               {...common}
+               isPresentationEnabled={isPresentationEnabled}
+               isPresentationDetached={isPresentationDetached}
+             />;
     case LAYOUT_TYPE.SMART_LAYOUT:
       layout?.setAttribute('data-layout', LAYOUT_TYPE.SMART_LAYOUT);
       return <SmartLayout {...common} isPresentationEnabled={isPresentationEnabled} />;
@@ -397,7 +401,11 @@ const LayoutEngine = () => {
       return <PluginsOnlyLayout {...common} isPresentationEnabled={isPresentationEnabled} />;
     default:
       layout?.setAttribute('data-layout', LAYOUT_TYPE.CUSTOM_LAYOUT);
-      return <CustomLayout {...common} isPresentationEnabled={isPresentationEnabled} />;
+      return <CustomLayout
+               {...common}
+               isPresentationEnabled={isPresentationEnabled}
+               isPresentationDetached={isPresentationDetached}
+             />;
   }
 };
 
