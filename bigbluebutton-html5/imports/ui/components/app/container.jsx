@@ -124,11 +124,10 @@ const AppContainer = (props) => {
     || currentMeeting?.componentsFlags?.hasCameraAsContent) && showScreenshare;
 
   const [popupWindow, setPopupWindow] = useState(null);
-  const [isPresentationDetached, setIsPresentationDetached] = useState(false);
+  const isPresentationDetached = Boolean(popupWindow);
 
   const toggleDetachPresentation = (popup) => {
     setPopupWindow(popup);
-    setIsPresentationDetached(Boolean(popup));
   };
 
   const hasPresentationContent =
