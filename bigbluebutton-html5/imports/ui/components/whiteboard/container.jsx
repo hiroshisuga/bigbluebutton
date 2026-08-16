@@ -61,7 +61,6 @@ const WhiteboardContainer = (props) => {
     refetchInitialPageAnnotations,
     annotationStreamData = [],
     restoreOnUpdate,
-    isPresentationDetached,
   } = props;
 
   const WHITEBOARD_CONFIG = window.meetingClientSettings.public.whiteboard;
