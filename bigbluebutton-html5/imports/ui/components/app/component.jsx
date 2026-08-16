@@ -359,7 +359,7 @@ class App extends Component {
           shouldShowScreenshare={shouldShowScreenshare}
           shouldShowExternalVideo={shouldShowExternalVideo}
         />
-        <LayoutEngine />
+        <LayoutEngine isPresentationDetached={isPresentationDetached} />
         <LayoutObserver />
         <GlobalStyles />
         <Styled.Layout
