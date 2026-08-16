@@ -374,6 +374,18 @@ class PresentationController {
       return
     }
 
+	Meeting meeting = ServiceUtils.findMeetingFromMeetingID(conf)
+    User currentUser = meeting?.getUserById(userSession.getInternalUserId())
+
+    if (currentUser == null
+        || (currentUser.getRole() != Meeting.ROLE_MODERATOR
+            && !currentUser.isPresenter())) {
+      response.setStatus(403)
+      response.contentType = 'text/plain'
+      render 'forbidden'
+      return
+    }
+
     if (!presentationId || file == null || file.empty) {
       response.setStatus(400)
       response.contentType = 'text/plain'
@@ -485,8 +497,8 @@ class PresentationController {
     User currentUser = meeting?.getUserById(userSession.getInternalUserId())
 
     if (currentUser == null
-		|| (currentUser.getRole() != Meeting.ROLE_MODERATOR
-			&& !currentUser.isPresenter())) {
+        || (currentUser.getRole() != Meeting.ROLE_MODERATOR
+            && !currentUser.isPresenter())) {
       response.setStatus(403)
       render text: ''
       return
@@ -555,6 +567,18 @@ class PresentationController {
     def presentationId = params.presentationId
 
     if (conf != userSession.meetingID) {
+      response.setStatus(403)
+      response.contentType = 'text/plain'
+      render 'forbidden'
+      return
+    }
+
+	Meeting meeting = ServiceUtils.findMeetingFromMeetingID(conf)
+    User currentUser = meeting?.getUserById(userSession.getInternalUserId())
+
+    if (currentUser == null
+        || (currentUser.getRole() != Meeting.ROLE_MODERATOR
+            && !currentUser.isPresenter())) {
       response.setStatus(403)
       response.contentType = 'text/plain'
       render 'forbidden'
