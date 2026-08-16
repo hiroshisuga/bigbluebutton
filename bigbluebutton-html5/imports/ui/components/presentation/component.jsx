@@ -343,6 +343,7 @@ class Presentation extends PureComponent {
       layoutContextDispatch,
       userIsPresenter,
       isPresentationDetached,
+      popupWindow,
       presentationBounds,
       numCameras,
       intl,
@@ -398,6 +399,14 @@ class Presentation extends PureComponent {
     }
 
     if (numCameras !== prevNumCameras && !isPresentationDetached) {
+      this.onResize();
+    }
+
+    // Update the resize listener and presentation size
+    //  when moving between main window and the popup.
+    if (popupWindow !== prevProps.popupWindow) {
+      this.updateResizeListener(popupWindow || window);
+      // calling this is necessary for merging the resized popup to the main window.
       this.onResize();
     }
 
@@ -745,8 +754,6 @@ class Presentation extends PureComponent {
         'beforeunload',
         handlePopupBeforeUnload,
       );
-
-      this.updateResizeListener(popup);
 
       window.addEventListener( 'darkmodechange',
         handleDarkModeChange,
