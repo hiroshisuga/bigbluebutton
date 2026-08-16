@@ -461,13 +461,13 @@ const CustomLayout = (props) => {
     }
 
     if (
-      (fullscreenElement === 'Presentation' ||
-       fullscreenElement === 'Screenshare' ||
-       fullscreenElement === 'ExternalVideo' ||
-       fullscreenElement === 'GenericContent')
-       // this is necessary for showing a normal-sized (& operatable) external video 
-       //  or the presenter-tool when popup is fullscreened.
-       && !isPresentationDetached
+      // "&& !isPresentationDetached is necessary"
+      //  for showing a normal-sized operatable external video or the presenter tool
+      //  when popup is fullscreen within the sub-monitor
+      (fullscreenElement === 'Presentation' && !isPresentationDetached) ||
+      fullscreenElement === 'Screenshare' ||
+      fullscreenElement === 'ExternalVideo' ||
+      fullscreenElement === 'GenericContent'
     ) {
       mediaBounds.width = windowWidth();
       mediaBounds.height = windowHeight();
