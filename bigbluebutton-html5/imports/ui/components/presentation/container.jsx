@@ -185,7 +185,6 @@ const PresentationContainer = (props) => {
 
   const nextSlide = nextPresentationPage
     ? {
-        imageUri: Auth.authenticateURL(nextPresentationPage.svgUrl),
         svgUri: Auth.authenticateURL(nextPresentationPage.svgUrl),
         num: currentSlide ? currentSlide.num + 1 : undefined,
         presentationId: currentSlide?.presentationId,
@@ -308,7 +307,6 @@ const PresentationContainer = (props) => {
           presentationAreaSize,
           currentUser,
           currentPresentationPage,
-          nextPresentationPage,
           layoutType: selectedLayout || '',
           annotationStreamData,
           initialPageAnnotations,
