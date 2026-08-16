@@ -148,16 +148,16 @@ const syncDarkReaderStylesToPopup = (sourceDocument, targetDocument) => {
 
   // Copy the non-sync DarkReader styles.
   nonSyncStyles.forEach((sourceStyle) => {
-      const targetStyle = targetDocument.createElement('style');
+    const targetStyle = targetDocument.createElement('style');
 
-      Array.from(sourceStyle.attributes).forEach((attr) => {
-        targetStyle.setAttribute(attr.name, attr.value);
-      });
-
-      targetStyle.textContent = getStyleSheetCssText(sourceStyle);
-
-      targetDocument.head.appendChild(targetStyle);
+    Array.from(sourceStyle.attributes).forEach((attr) => {
+      targetStyle.setAttribute(attr.name, attr.value);
     });
+
+    targetStyle.textContent = getStyleSheetCssText(sourceStyle);
+
+    targetDocument.head.appendChild(targetStyle);
+  });
 
   // Collect all darkreader--sync rules into one stylesheet.
   const syncCssText = syncStyles
