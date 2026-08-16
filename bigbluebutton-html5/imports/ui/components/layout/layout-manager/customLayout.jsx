@@ -16,7 +16,7 @@ const max = (value1, value2) => (value1 >= value2 ? value1 : value2);
 const CustomLayout = (props) => {
   const {
     bannerAreaHeight, calculatesActionbarHeight, calculatesNavbarHeight, isMobile,
-    prevLayout,
+    prevLayout, isPresentationDetached,
   } = props;
 
   function usePrevious(value) {
@@ -464,10 +464,10 @@ const CustomLayout = (props) => {
       (fullscreenElement === 'Presentation' ||
        fullscreenElement === 'Screenshare' ||
        fullscreenElement === 'ExternalVideo' ||
-       fullscreenElement === 'GenericContent') &&
-       // this is indispensable for showing a normal-sized operatable external video
-       //  when popup is fullscreen within the sub-monitor
-       document.getElementById('presentationInnerWrapper')
+       fullscreenElement === 'GenericContent')
+       // this is necessary for showing a normal-sized (& operatable) external video 
+       //  or the presenter-tool when popup is fullscreened.
+       && !isPresentationDetached
     ) {
       mediaBounds.width = windowWidth();
       mediaBounds.height = windowHeight();
