@@ -463,7 +463,7 @@ const CustomLayout = (props) => {
     if (
       // "&& !isPresentationDetached is necessary"
       //  for showing a normal-sized operatable external video or the presenter tool
-      //  when popup is fullscreen within the sub-monitor
+      //  when popup is fullscreened (perhaps on the sub-monitor).
       (fullscreenElement === 'Presentation' && !isPresentationDetached) ||
       fullscreenElement === 'Screenshare' ||
       fullscreenElement === 'ExternalVideo' ||
