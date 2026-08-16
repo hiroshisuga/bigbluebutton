@@ -519,7 +519,7 @@ class Presentation extends PureComponent {
 
   componentWillUnmount() {
     Session.setItem('componentPresentationWillUnmount', true);
-    const { fullscreenContext, layoutContextDispatch } = this.props;
+    const { fullscreenContext, layoutContextDispatch, popupWindow } = this.props;
 
     if (this.resizeWindow) {
       this.resizeWindow.removeEventListener('resize', this.onResize, false);
@@ -564,6 +564,10 @@ class Presentation extends PureComponent {
         },
       });
     }
+
+    if (popupWindow && !popupWindow.closed) {
+      popupWindow.close();
+    } 
   }
 
   detachPresentation() {
