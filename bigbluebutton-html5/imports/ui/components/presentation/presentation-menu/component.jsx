@@ -119,6 +119,8 @@ const propTypes = {
   meetingName: PropTypes.string,
   isIphone: PropTypes.bool,
   isMobile: PropTypes.bool,
+  isPresentationDetached: PropTypes.bool,
+  detachPresentation: PropTypes.func,
   elementId: PropTypes.string,
   elementGroup: PropTypes.string,
   currentElement: PropTypes.string,
