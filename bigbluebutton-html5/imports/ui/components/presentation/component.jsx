@@ -1058,10 +1058,20 @@ class Presentation extends PureComponent {
       return;
     }
 
+    const noteUri = currentSlide.noteUri;
+
+    const isCurrentNote = () => (
+      this.props.isPresentationDetached
+      && this.props.currentSlide?.noteUri === noteUri
+    );
+
     try {
-      const response = await fetch(currentSlide.noteUri, {
+      const response = await fetch(noteUri, {
         cache: 'no-store',
       });
+
+      // The slide may have changed while waiting for the response.
+      if (!isCurrentNote()) return;
 
       if (!response.ok) {
         if (response.status === 404) {
@@ -1073,16 +1083,22 @@ class Presentation extends PureComponent {
             `Failed to load slide note: HTTP ${response.status}`,
           );
         }
+
         this.setState({ currentSlideNote: '' });
         return;
       }
 
       const text = await response.text();
 
+      // The slide may also have changed while reading the response body.
+      if (!isCurrentNote()) return;
+
       this.setState({
         currentSlideNote: text.trim(),
       });
     } catch (e) {
+      if (!isCurrentNote()) return;
+
       console.error('Failed to load slide note', e);
       this.setState({ currentSlideNote: '' });
     }
