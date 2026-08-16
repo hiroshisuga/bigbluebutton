@@ -788,22 +788,24 @@ class Presentation extends PureComponent {
   handleResize() {
     const {
       isPresentationDetached,
-      popupWindow,
     } = this.props;
 
     let presentationSizes;
+
     if (isPresentationDetached) {
-      const toolbarHeight = getToolbarHeight(popupWindow.document);
+      const targetWin = this.resizeWindow;
+      if (!targetWin) return;
+
+      const toolbarHeight = getToolbarHeight(targetWin.document);
+
       presentationSizes = {
-        //popupWindow.document.documentElement.clientHeight could be zero on Firefox!
-        //presentationHeight: popupWindow.document.documentElement.clientHeight - toolbarHeight,
-        //presentationWidth: popupWindow.document.documentElement.clientWidth,
-        presentationHeight: popupWindow.innerHeight - toolbarHeight,
-        presentationWidth: popupWindow.innerWidth,
+        presentationHeight: targetWin.innerHeight - toolbarHeight,
+        presentationWidth: targetWin.innerWidth,
       };
     } else {
       presentationSizes = this.getPresentationSizesAvailable();
     }
+
     if (Object.keys(presentationSizes).length > 0) {
       // updating the size of the space available for the slide
       if (!Session.getItem('componentPresentationWillUnmount')) {
