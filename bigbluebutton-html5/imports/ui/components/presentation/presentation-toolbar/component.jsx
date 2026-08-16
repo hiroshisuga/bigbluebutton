@@ -601,6 +601,7 @@ PresentationToolbar.propTypes = {
   setMultiUserWhiteboardEnabled: PropTypes.func.isRequired,
   fullscreenRef: PropTypes.object,
   handleToggleFullScreen: PropTypes.func.isRequired,
+  isPresentationDetached: PropTypes.bool,
   isPollingEnabled: PropTypes.bool.isRequired,
   amIPresenter: PropTypes.bool.isRequired,
   startPoll: PropTypes.func.isRequired,
