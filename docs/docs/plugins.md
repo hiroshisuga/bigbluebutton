@@ -869,7 +869,6 @@ export const { logger: pluginLogger } = BbbPluginSdk.getPluginApi(uuid);
 - `useMeeting` hook: it gives you information on the current meeting that the user is on.
 - `useMeetingData` hook: provides detailed meeting data with projection support, offering more flexibility than `useMeeting`.
 - `useCustomQuery` hook: similar to `useCustomSubscription`, but for one-time GraphQL queries rather than subscriptions. Note: Make sure that, on BBB version change, the custom queries you make will work as expected.
-- `useTimer` hook: it gives you the state of the meeting timer/stopwatch — whether it is `active` and `running`, whether it is in `stopwatch` mode, the configured `time`, `accumulated` and `timePassed` values, `startedAt`, whether it has `elapsed`, and the selected `songTrack` (requires plugin SDK `0.0.104` or later, shipped with BigBlueButton 3.0.33).
 
 So for these types of hooks, the return will follow the same structure:
 
