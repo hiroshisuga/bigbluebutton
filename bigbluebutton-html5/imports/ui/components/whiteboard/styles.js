@@ -276,10 +276,13 @@ const LaserContextMenu = styled.div`
 `;
 
 const LaserMenuItem = styled.div`
-  padding: 6px 10px;
+  width: 36px;
+  height: 36px;
   cursor: pointer;
   border-radius: 4px;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 
   &:hover {
     background: #333;
