@@ -2064,7 +2064,6 @@ const Whiteboard = React.memo((props) => {
   const svgToDataUrl = (svg) =>
     `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 
-
   const svgToCursor = (svg, x, y) =>
     `url("${svgToDataUrl(svg)}") ${x} ${y}, auto`;
 
@@ -2926,7 +2925,6 @@ const Whiteboard = React.memo((props) => {
                 setLaserMenuVisible(false);
               }}
             >
-              <span style={{ fontSize: size }}>{label}</span>
               <img
                 src={svgToDataUrl(laserSvgs[key])}
                 width={def.cx * 2}
