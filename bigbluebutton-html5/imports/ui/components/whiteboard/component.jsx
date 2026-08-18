@@ -29,6 +29,7 @@ import KEY_CODES from '/imports/utils/keyCodes';
 import { debounce } from '/imports/utils/debounce';
 import logger from '/imports/startup/client/logger';
 import Styled from './styles';
+import Icon from '/imports/ui/components/common/icon/component';
 import {
   mapLanguage,
   isValidShapeType,
@@ -187,8 +188,7 @@ const Whiteboard = React.memo((props) => {
     pointerDiameter = 5,
     laserRadiusSmall,
     laserRadiusLarge,
-    laserRedColor,
-    laserGreenColor,
+    laserColors,
   } = props;
 
   const allowInfiniteWhiteboardPanForViewers = window.meetingClientSettings?.public?.whiteboard?.allowInfiniteWhiteboardPanForViewers;
@@ -262,14 +262,6 @@ const Whiteboard = React.memo((props) => {
 
   currentUserRef.current = currentUser;
 
-  const laserItems = [
-    { key: 'redSmall',   label: '🔴', size: 10 },
-    { key: 'greenSmall', label: '🟢', size: 10 },
-    { key: 'redLarge',   label: '🔴', size: 18 },
-    { key: 'greenLarge', label: '🟢', size: 18 },
-    { key: '',           label: '✋', size: 14 },
-  ];
-  
   const [pageZoomMap, setPageZoomMap] = useState(() => {
     try {
       const saved = localStorage.getItem('pageZoomMap');
@@ -2043,12 +2035,24 @@ const Whiteboard = React.memo((props) => {
     `.replace(/\s+/g, ' ').trim();
   };
 
-  const laserDefs = {
-    redSmall:   { color: laserRedColor,   cx: laserRadiusSmall+2, cy: laserRadiusSmall+2, r: laserRadiusSmall },
-    greenSmall: { color: laserGreenColor, cx: laserRadiusSmall+2, cy: laserRadiusSmall+2, r: laserRadiusSmall },
-    redLarge:   { color: laserRedColor,   cx: laserRadiusLarge+2, cy: laserRadiusLarge+2, r: laserRadiusLarge },
-    greenLarge: { color: laserGreenColor, cx: laserRadiusLarge+2, cy: laserRadiusLarge+2, r: laserRadiusLarge },
-  };
+  const laserSizes = [
+    ['Small', laserRadiusSmall],
+    ['Large', laserRadiusLarge],
+  ];
+
+  const laserDefs = Object.fromEntries(
+    laserSizes.flatMap(([sizeName, radius]) => (
+      laserColors.map((color, index) => [
+        `color${index + 1}${sizeName}`,
+        {
+          color,
+          cx: radius + 2,
+          cy: radius + 2,
+          r: radius,
+        },
+      ])
+    )),
+  );
 
   const laserSvgs = Object.fromEntries(
     Object.entries(laserDefs).map(([key, def]) => [
@@ -2057,8 +2061,12 @@ const Whiteboard = React.memo((props) => {
     ])
   );
 
+  const svgToDataUrl = (svg) =>
+    `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+
+
   const svgToCursor = (svg, x, y) =>
-    `url("data:image/svg+xml;utf8,${encodeURIComponent(svg)}") ${x} ${y}, auto`;
+    `url("${svgToDataUrl(svg)}") ${x} ${y}, auto`;
 
   const cursorLasers = Object.fromEntries(
     Object.entries(laserDefs).map(([key, def]) => [
@@ -2910,7 +2918,7 @@ const Whiteboard = React.memo((props) => {
             top: laserMenuPos.y,
           }}
         >
-          {laserItems.map(({ key, label, size }) => (
+          {Object.entries(laserDefs).map(([key, def]) => (
             <Styled.LaserMenuItem
               key={key}
               onClick={() => {
@@ -2919,8 +2927,23 @@ const Whiteboard = React.memo((props) => {
               }}
             >
               <span style={{ fontSize: size }}>{label}</span>
+              <img
+                src={svgToDataUrl(laserSvgs[key])}
+                width={def.cx * 2}
+                height={def.cy * 2}
+                alt=""
+              />
             </Styled.LaserMenuItem>
           ))}
+          <Styled.LaserMenuItem
+            key="pan"
+            onClick={() => {
+              setLaserMode('');
+              setLaserMenuVisible(false);
+            }}
+          >
+            <Icon iconName="hand" />
+          </Styled.LaserMenuItem>
         </Styled.LaserContextMenu>
       )}
     </div>
@@ -2964,8 +2987,7 @@ Whiteboard.propTypes = {
   pointerDiameter: PropTypes.number,
   laserRadiusSmall: PropTypes.number.isRequired,
   laserRadiusLarge: PropTypes.number.isRequired,
-  laserRedColor: PropTypes.string.isRequired,
-  laserGreenColor: PropTypes.string.isRequired,
+  laserColors: PropTypes.arrayOf(PropTypes.string).isRequired,
   setTldrawIsMounting: PropTypes.func.isRequired,
   presentationId: PropTypes.string,
   setTldrawAPI: PropTypes.func.isRequired,
