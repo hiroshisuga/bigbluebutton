@@ -191,6 +191,12 @@ const TldrawV2GlobalStyle = createGlobalStyle`
     display: flex;
   }
 
+  .tl-container.bbb-laser-active
+    .tl-collaborator__cursor-hint
+    use[href='#cursor_hint'][color='#FF0000'] {
+    display: none;
+  }
+
   ${({ presentationHeight }) => {
     const minRange = { height: 345, top: 14 };
     const maxRange = { height: 1200, top: 384 };
