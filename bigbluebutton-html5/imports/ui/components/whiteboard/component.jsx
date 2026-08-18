@@ -2534,6 +2534,12 @@ const Whiteboard = React.memo((props) => {
     const laserKey = presenterCursor?.laserType;
     const laserDef = laserDefs[laserKey];
 
+    if (laserDef) {
+      tlContainer?.classList.add('bbb-laser-active');
+    } else {
+      tlContainer?.classList.remove('bbb-laser-active');
+    }
+
     const changed = laserKey !== currentLaserTypeRef.current;
     if (changed) {
       currentLaserTypeRef.current = laserKey;
