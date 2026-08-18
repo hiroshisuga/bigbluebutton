@@ -2565,7 +2565,8 @@ const Whiteboard = React.memo((props) => {
     //if (!cursorEl) return;
 
     //const zoom = parseFloat(getComputedStyle(tlContainer).getPropertyValue('--tl-zoom')) || 1;
-    const { z: zoom } = tlEditorRef.current ? tlEditorRef.current.getCamera() : 1;
+    //const { z: zoom } = tlEditorRef.current ? tlEditorRef.current.getCamera() : 1;
+    const zoom = tlEditorRef.current?.getCamera()?.z ?? 1;
 
     //const transform = cursorEl.style.transform;
     //if (!transform) return;
