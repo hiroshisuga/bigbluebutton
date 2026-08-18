@@ -2534,6 +2534,7 @@ const Whiteboard = React.memo((props) => {
     const laserKey = presenterCursor?.laserType;
     const laserDef = laserDefs[laserKey];
 
+    // Hide <svg class="tl-collaborator__cursor-hint">
     if (laserDef) {
       tlContainer?.classList.add('bbb-laser-active');
     } else {
