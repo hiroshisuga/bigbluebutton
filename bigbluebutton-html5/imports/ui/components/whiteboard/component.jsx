@@ -937,10 +937,15 @@ const Whiteboard = React.memo((props) => {
 
   const language = React.useMemo(() => mapLanguage(locale?.toLowerCase() || 'en'), [locale]);
 
+  const getLaserType = React.useCallback(() => {
+    const tool = tlEditorRef.current?.getCurrentToolId?.();
+    return tool === 'hand' ? laserMode : '';
+  }, [laserMode]);
+
   const updateCursorPosition = useCursor(
     publishCursorUpdate,
     whiteboardIdRef.current,
-    laserMode,
+    getLaserType,
   );
 
   const setCamera = (zoom, x = 0, y = 0) => {
