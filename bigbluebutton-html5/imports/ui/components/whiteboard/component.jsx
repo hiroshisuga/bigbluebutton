@@ -214,6 +214,7 @@ const Whiteboard = React.memo((props) => {
   const laserMenuRef = React.useRef(null);
   const [laserMode, setLaserMode] = React.useState('');
   const [presenterCursorPoint, setPresenterCursorPoint] = React.useState( { x: -1, y: -1} );
+  const [viewerLaserZoom, setViewerLaserZoom] = React.useState(1);
   
   if (isMounting) {
     setDefaultEditorAssetUrls(getCustomEditorAssetUrls());
@@ -2511,6 +2512,29 @@ const Whiteboard = React.memo((props) => {
     lasers.forEach(el => el.remove());
   };
 
+  React.useEffect(() => {
+    if (isPresenter) return undefined;
+
+    const editor = tlEditorRef.current;
+    if (!editor) return undefined;
+
+    let previousZoom = editor.getCamera().z;
+    setViewerLaserZoom(previousZoom);
+
+    const unlisten = editor.store.listen(() => {
+      const zoom = editor.getCamera().z;
+
+      if (zoom === previousZoom) return;
+
+      previousZoom = zoom;
+      setViewerLaserZoom(zoom);
+    });
+
+    return () => {
+      unlisten?.();
+    };
+  }, [isPresenter, tlEditorRef.current]);
+  
   // Show viewers Laser SVG
   React.useEffect(() => {
     if (isPresenter) return;
@@ -2578,7 +2602,7 @@ const Whiteboard = React.memo((props) => {
 
     //const zoom = parseFloat(getComputedStyle(tlContainer).getPropertyValue('--tl-zoom')) || 1;
     //const { z: zoom } = tlEditorRef.current ? tlEditorRef.current.getCamera() : 1;
-    const zoom = tlEditorRef.current?.getCamera()?.z ?? 1;
+    //const zoom = tlEditorRef.current?.getCamera()?.z ?? 1;
 
     //const transform = cursorEl.style.transform;
     //if (!transform) return;
@@ -2597,10 +2621,10 @@ const Whiteboard = React.memo((props) => {
     //   similar to the pointer of the presenter (CSS-based) or the one in the real world.
     laserEl.style.transform = `
       translate(${x - laserDef.cx}px, ${y - laserDef.cy}px)
-      scale(${1/zoom})
+      scale(${1/viewerLaserZoom})
     `;
     return;
-  }, [otherCursors, isPresenter]);
+  }, [otherCursors, isPresenter, viewerLaserZoom]);
 
   React.useEffect(() => {
     removeViewerLaser();
