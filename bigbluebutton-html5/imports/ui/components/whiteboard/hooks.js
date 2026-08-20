@@ -8,14 +8,16 @@ const hasBackgroundImageUrl = (el) => {
   return bg.includes('url(');
 };
 
-const useCursor = (publishCursorUpdate, whiteboardId) => {
+const useCursor = (publishCursorUpdate, whiteboardId, getLaserType) => {
   const publishRef = React.useRef(publishCursorUpdate);
   const whiteboardIdRef = React.useRef(whiteboardId);
+  const getLaserTypeRef = React.useRef(getLaserType);
   const pendingRef = React.useRef(null);
   const rafRef = React.useRef(null);
 
   useEffect(() => { publishRef.current = publishCursorUpdate; }, [publishCursorUpdate]);
   useEffect(() => { whiteboardIdRef.current = whiteboardId; }, [whiteboardId]);
+  useEffect(() => { getLaserTypeRef.current = getLaserType; }, [getLaserType]);
 
   useEffect(() => () => {
     if (rafRef.current) {
@@ -25,6 +27,7 @@ const useCursor = (publishCursorUpdate, whiteboardId) => {
         publishRef.current({
           whiteboardId: whiteboardIdRef.current,
           ...pendingRef.current,
+          laserType: getLaserTypeRef.current?.() ?? ''
         });
         pendingRef.current = null;
       }
@@ -41,6 +44,7 @@ const useCursor = (publishCursorUpdate, whiteboardId) => {
           publishRef.current({
             whiteboardId: whiteboardIdRef.current,
             ...pendingRef.current,
+            laserType: getLaserTypeRef.current?.() ?? '' 
           });
           pendingRef.current = null;
         }
