@@ -24,8 +24,11 @@ import org.bigbluebutton.api.MeetingService
 import org.bigbluebutton.api.ParamsProcessorUtil
 import org.bigbluebutton.api.Util
 import org.bigbluebutton.api.domain.UserSession
+import org.bigbluebutton.api.domain.Meeting
+import org.bigbluebutton.api.domain.User
 import org.bigbluebutton.api.messaging.messages.PresentationUploadToken
 import org.bigbluebutton.api.util.ParamsUtil
+import org.bigbluebutton.api.service.ServiceUtils
 import org.bigbluebutton.presentation.SupportedFileTypes
 import org.bigbluebutton.presentation.UploadedPresentation
 import org.bigbluebutton.web.services.PresentationService
@@ -44,7 +47,7 @@ class PresentationController {
   DefaultMimeUtility grailsMimeUtility
 
   private static final Pattern SLIDE_URI_PATTERN = Pattern.compile(
-    '/bigbluebutton/presentation/([A-Za-z0-9\\-]+)/([A-Za-z0-9\\-]+)/([A-Za-z0-9\\-]+)/(svg|thumbnail|textfiles|png)/(\\d+)'
+    '/bigbluebutton/presentation/([A-Za-z0-9\\-]+)/([A-Za-z0-9\\-]+)/([A-Za-z0-9\\-]+)/(svg|thumbnail|textfiles|png|notes)/(\\d+)'
   )
   private static final Pattern DOWNLOAD_URI_PATTERN = Pattern.compile(
     '/bigbluebutton/presentation/download/([A-Za-z0-9\\-]+)/([A-Za-z0-9\\-]+)'
@@ -263,6 +266,7 @@ class PresentationController {
     }
 
     def isDownloadable = params.boolean('is_downloadable') //instead of params.is_downloadable
+	def expandAnimations = params.boolean('expand_animations') ?: false
     def podId = params.pod_id
 
     // Defaults current to false (optional upload parameter)
@@ -327,6 +331,36 @@ class PresentationController {
             uploadFailReasons
     )
     if (isPresentationMimeTypeValid) {
+      if (expandAnimations && filenameExt.equalsIgnoreCase("pptx")) {
+		  File animationExpansionMarker =
+			  new File(pres.absolutePath + ".expand-animations")
+		  
+        try {
+			if (!animationExpansionMarker.createNewFile()
+				&& !animationExpansionMarker.exists()) {
+				throw new IOException(
+					"Unable to create PowerPoint animation expansion marker"
+				)
+			}
+          log.info(
+			  "PowerPoint animation expansion requested for " +
+			  presFilename + " (presId: " + presId + ")"
+		  )
+		} catch (IOException e) {
+			log.error(
+				"Unable to create PowerPoint animation expansion marker for " +
+				presFilename,
+				e
+			)
+			org.bigbluebutton.presentation.Util.deleteDirectoryFromFileHandlingErrors(pres)
+			response.status = 500
+			response.addHeader("Cache-Control", "no-cache")
+			response.contentType = 'text/plain'
+			response.outputStream << 'upload-failed'
+			return
+		}
+	  }
+
       if (isDownloadable) {
         log.debug "@Setting file to be downloadable..."
         uploadedPres.setDownloadable();
@@ -345,6 +379,76 @@ class PresentationController {
       response.addHeader("Cache-Control", "no-cache")
       response.contentType = 'text/plain'
       response.outputStream << 'upload-failed'
+    }
+  }
+
+  def uploadNotes = {
+    log.info("uploadNotes called")
+
+    def userSession = validateSession()
+    if (userSession == null) {
+      response.setStatus(401)
+      response.contentType = 'text/plain'
+      render 'not authorized'
+      return
+    }
+
+    def conf = params.conference
+    def rm = params.room ?: params.conference
+    def presentationId = params.presentationId
+    def file = request.getFile('notesUpload')
+
+    if (conf != userSession.meetingID) {
+      response.setStatus(403)
+      response.contentType = 'text/plain'
+      render 'forbidden'
+      return
+    }
+
+	Meeting meeting = ServiceUtils.findMeetingFromMeetingID(conf)
+    User currentUser = meeting?.getUserById(userSession.getInternalUserId())
+
+    if (currentUser == null
+        || (currentUser.getRole() != Meeting.ROLE_MODERATOR
+            && !currentUser.isPresenter())) {
+      response.setStatus(403)
+      response.contentType = 'text/plain'
+      render 'forbidden'
+      return
+    }
+
+    if (!presentationId || file == null || file.empty) {
+      response.setStatus(400)
+      response.contentType = 'text/plain'
+      render 'missing presentationId or notesUpload'
+      return
+    }
+
+    def originalFilename = file.originalFilename ?: ""
+
+    if (!originalFilename.toLowerCase().endsWith(".pptx")) {
+      response.setStatus(400)
+      response.contentType = 'text/plain'
+      render 'only pptx is allowed'
+      return
+    }
+
+    try {
+      presentationService.uploadNotesPptx(
+        conf,
+        rm,
+        presentationId,
+        file
+      )
+
+      response.status = 200
+      response.contentType = 'application/json'
+      render '{"status":"ok"}'
+    } catch (Exception e) {
+      log.error("Failed to upload notes pptx. meetingId=${conf}, presId=${presentationId}", e)
+      response.setStatus(500)
+      response.contentType = 'text/plain'
+      render 'failed'
     }
   }
 
@@ -396,6 +500,149 @@ class PresentationController {
     } catch (IOException e) {
       log.error("Failed to read SVG file. meetingId=" + conf + ",presId=" + presentationName + ",page=" + slide);
       log.error("Error reading SVG file.\n" + e.getMessage());
+    }
+  }
+
+  def showNote = {
+    log.info("showNote called")
+
+    def userSession = validateSession()
+    if (userSession == null) {
+      response.setStatus(401)
+      render text: ''
+      return
+    }
+
+    def presentationName = params.presentation_name
+    def conf = params.conference
+    def rm = params.room
+    def slide = params.id
+
+    if (conf != userSession.meetingID) {
+      response.setStatus(403)
+      render text: ''
+      return
+    }
+
+	Meeting meeting = ServiceUtils.findMeetingFromMeetingID(conf)
+    User currentUser = meeting?.getUserById(userSession.getInternalUserId())
+
+    if (currentUser == null
+        || (currentUser.getRole() != Meeting.ROLE_MODERATOR
+            && !currentUser.isPresenter())) {
+      response.setStatus(403)
+      render text: ''
+      return
+    }
+
+    if (presentationService.pageTokenSecret) {
+      def pageToken = params.pageToken
+
+      if (!slide?.isInteger()) {
+        response.setStatus(403)
+        render text: ''
+        return
+      }
+
+      def expected = generatePageToken(
+        presentationName,
+        Integer.parseInt(slide),
+        presentationService.pageTokenSecret
+      )
+
+      if (pageToken == null || pageToken != expected) {
+        response.setStatus(403)
+        render text: ''
+        return
+      }
+    }
+
+    try {
+      def note = presentationService.showNote(conf, rm, presentationName, slide)
+
+      if (!note.exists()) {
+        response.setStatus(404)
+        render text: ''
+        return
+      }
+
+      response.addHeader("Cache-Control", "no-cache")
+
+      render(
+        text: note.getText("UTF-8"),
+        contentType: "text/plain",
+        encoding: "UTF-8"
+      )
+      return
+    } catch (Exception e) {
+      log.error("Failed to read note file. meetingId=${conf}, presId=${presentationName}, page=${slide}", e)
+      response.setStatus(500)
+      render text: ''
+      return
+    }
+  }
+
+  def extractNotesFromExistingPptx = {
+    log.info("extractNotesFromExistingPptx called")
+
+    def userSession = validateSession()
+    if (userSession == null) {
+      response.setStatus(401)
+      response.contentType = 'text/plain'
+      render 'not authorized'
+      return
+    }
+
+    def conf = params.conference
+    def rm = params.room ?: params.conference
+    def presentationId = params.presentationId
+
+    if (conf != userSession.meetingID) {
+      response.setStatus(403)
+      response.contentType = 'text/plain'
+      render 'forbidden'
+      return
+    }
+
+	Meeting meeting = ServiceUtils.findMeetingFromMeetingID(conf)
+    User currentUser = meeting?.getUserById(userSession.getInternalUserId())
+
+    if (currentUser == null
+        || (currentUser.getRole() != Meeting.ROLE_MODERATOR
+            && !currentUser.isPresenter())) {
+      response.setStatus(403)
+      response.contentType = 'text/plain'
+      render 'forbidden'
+      return
+    }
+
+    if (!presentationId) {
+      response.setStatus(400)
+      response.contentType = 'text/plain'
+      render 'missing presentationId'
+      return
+    }
+
+    try {
+      presentationService.extractNotesFromExistingPptx(
+        conf,
+        rm,
+        presentationId
+      )
+
+      response.status = 200
+      response.contentType = 'application/json'
+      render '{"status":"ok"}'
+    } catch (FileNotFoundException e) {
+      log.warn("Existing pptx not found for notes extraction. meetingId=${conf}, presId=${presentationId}", e)
+      response.setStatus(404)
+      response.contentType = 'text/plain'
+      render 'existing pptx not found'
+    } catch (Exception e) {
+      log.error("Failed to extract notes from existing pptx. meetingId=${conf}, presId=${presentationId}", e)
+      response.setStatus(500)
+      response.contentType = 'text/plain'
+      render 'failed'
     }
   }
 

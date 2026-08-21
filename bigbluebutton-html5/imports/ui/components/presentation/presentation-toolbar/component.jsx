@@ -112,6 +112,7 @@ class PresentationToolbar extends PureComponent {
   constructor(props) {
     super(props);
 
+    this.toolbarRef = React.createRef();
     this.handleSkipToSlideChange = this.handleSkipToSlideChange.bind(this);
     this.change = this.change.bind(this);
     this.renderAriaDescs = this.renderAriaDescs.bind(this);
@@ -123,11 +124,22 @@ class PresentationToolbar extends PureComponent {
   }
 
   componentDidMount() {
-    document.addEventListener('keydown', this.switchSlide);
+    this.keydownDocument = this.toolbarRef.current?.ownerDocument || document;
+
+    this.keydownDocument.addEventListener(
+      'keydown',
+      this.switchSlide,
+    );
   }
 
   componentWillUnmount() {
-    document.removeEventListener('keydown', this.switchSlide);
+    if (this.keydownDocument) {
+      this.keydownDocument.removeEventListener(
+        'keydown',
+        this.switchSlide,
+      );
+      this.keydownDocument = null;
+    }
   }
 
   handleSkipToSlideChange(event) {
@@ -171,9 +183,15 @@ class PresentationToolbar extends PureComponent {
       fullscreenAction,
       fullscreenRef,
       handleToggleFullScreen,
+      isPresentationDetached,
     } = this.props;
 
-    handleToggleFullScreen(fullscreenRef);
+    if (!fullscreenRef) return;
+    const fullscreenTarget = isPresentationDetached
+      ? fullscreenRef.ownerDocument.documentElement
+      : fullscreenRef;
+    handleToggleFullScreen(fullscreenTarget);
+
     const newElement = isFullscreen ? '' : fullscreenElementId;
 
     layoutContextDispatch({
@@ -252,6 +270,10 @@ class PresentationToolbar extends PureComponent {
               key={ppbId}
               style={{ marginLeft: '2px', ...ppb.style }}
               label={ppb.label}
+              color={ppb.color || 'default'}
+              circle={ppb.circle === true}
+              hideLabel={ppb.hideLabel === true}
+              size={ppb.size || 'md'}
               onClick={ppb.onClick}
               tooltipLabel={ppb.tooltip}
               dataTest={ppb.dataTest}
@@ -343,9 +365,6 @@ class PresentationToolbar extends PureComponent {
       allowInfiniteWhiteboard,
       allowInfiniteWhiteboardInBreakouts,
       infiniteWhiteboardIcon,
-      resetSlide,
-      zoomChanger,
-      tldrawAPI,
       maxNumberOfActiveUsers,
       numberOfJoinedUsers,
     } = this.props;
@@ -387,6 +406,7 @@ class PresentationToolbar extends PureComponent {
     return (
       <Styled.PresentationToolbarWrapper
         id="presentationToolbarWrapper"
+        ref={this.toolbarRef}
       >
         {this.renderAriaDescs()}
         <Styled.QuickPollButtonWrapper>
@@ -579,8 +599,9 @@ PresentationToolbar.propTypes = {
   multiUser: PropTypes.bool.isRequired,
   setMultiUserWhiteboardDisabled: PropTypes.func.isRequired,
   setMultiUserWhiteboardEnabled: PropTypes.func.isRequired,
-  fullscreenRef: PropTypes.instanceOf(Element),
+  fullscreenRef: PropTypes.object,
   handleToggleFullScreen: PropTypes.func.isRequired,
+  isPresentationDetached: PropTypes.bool,
   isPollingEnabled: PropTypes.bool.isRequired,
   amIPresenter: PropTypes.bool.isRequired,
   startPoll: PropTypes.func.isRequired,
