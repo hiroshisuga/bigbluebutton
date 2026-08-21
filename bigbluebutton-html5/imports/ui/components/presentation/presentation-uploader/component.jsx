@@ -273,6 +273,17 @@ const intlMessages = defineMessages({
     id: 'app.presentation.actionsLabel',
     description: 'actions label',
   },
+  expandAnimations: {
+    id: 'app.presentationUploader.expandAnimations',
+    description: 'label for expanding PowerPoint animations',
+  },
+  expandAnimationsYes: {
+    id: 'app.presentationUploader.expandAnimationsYes',
+    description: 'expand PowerPoint animations',
+  },
+  expandAnimationsNo: {
+    id: 'app.presentationUploader.expandAnimationsNo',
+    description: 'do not expand PowerPoint animations',
   uploadingNotes: {
     id: 'app.presentationUploader.uploadingPresenterNotes',
     description: 'uploading notes',
@@ -1013,7 +1024,11 @@ class PresentationUploader extends Component {
     const disableExportDropdown = shouldDisableExportButtonForAllDocuments
     || shouldDisableExportButton;
 
+    const showAnimationExpansionOptions = Boolean(item.file)
+      && /\.pptx$/i.test(item.name);
+
     return (
+      <React.Fragment key={item.presentationId}>
       <Styled.PresentationItem
         key={item.presentationId}
         isNew={item.presentationId.indexOf(item.name) !== -1}
@@ -1089,6 +1104,53 @@ class PresentationUploader extends Component {
           </Styled.TableItemActions>
         )}
       </Styled.PresentationItem>
+
+        {showAnimationExpansionOptions ? (
+          <Styled.AnimationOptionsRow>
+            <td />
+            <td colSpan={4}>
+              <Styled.AnimationOptions
+                role="radiogroup"
+                aria-labelledby={`expand-animations-${item.presentationId}`}
+              >
+                <Styled.AnimationOptionsLabel
+                  id={`expand-animations-${item.presentationId}`}
+                >
+                  {intl.formatMessage(intlMessages.expandAnimations)}
+                </Styled.AnimationOptionsLabel>
+
+                <Radio
+                  animations={animations}
+                  label={intl.formatMessage(intlMessages.expandAnimationsYes)}
+                  ariaLabel={intl.formatMessage(intlMessages.expandAnimationsYes)}
+                  checked={item.expandAnimations === true}
+                  keyValue="expand"
+                  onChange={() => this.updateFileKey(
+                    item.presentationId,
+                    'expandAnimations',
+                    true,
+                  )}
+                  disabled={disableActions}
+                />
+
+                <Radio
+                  animations={animations}
+                  label={intl.formatMessage(intlMessages.expandAnimationsNo)}
+                  ariaLabel={intl.formatMessage(intlMessages.expandAnimationsNo)}
+                  checked={item.expandAnimations !== true}
+                  keyValue="do-not-expand"
+                  onChange={() => this.updateFileKey(
+                    item.presentationId,
+                    'expandAnimations',
+                    false,
+                  )}
+                  disabled={disableActions}
+                />
+              </Styled.AnimationOptions>
+            </td>
+          </Styled.AnimationOptionsRow>
+        ) : null}
+      </React.Fragment>
     );
   }
 
