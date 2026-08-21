@@ -18,7 +18,7 @@ import MediaOnlyLayout from './mediaOnlyLayout';
 import { usePrevious } from '../../whiteboard/utils';
 import { getWaitLayout } from '../utils';
 
-const LayoutEngine = () => {
+const LayoutEngine = ({ isPresentationDetached }) => {
   const bannerBarInput = layoutSelectInput((i) => i.bannerBar);
   const notificationsBarInput = layoutSelectInput((i) => i.notificationsBar);
   const cameraDockInput = layoutSelectInput((i) => i.cameraDock);
@@ -360,6 +360,7 @@ const LayoutEngine = () => {
     isMobile,
     isTablet,
     prevLayout,
+    isPresentationDetached,
   };
 
   const layout = document.getElementById('layout');

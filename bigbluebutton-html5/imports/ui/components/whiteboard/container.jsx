@@ -32,7 +32,6 @@ import {
   layoutDispatch,
 } from '/imports/ui/components/layout/context';
 import logger from '/imports/startup/client/logger';
-import FullscreenService from '/imports/ui/components/common/fullscreen-button/service';
 import deviceInfo from '/imports/utils/deviceInfo';
 import Whiteboard from './component';
 import ErrorBoundaryWithReload from '../common/error-boundary/error-boundary-with-reload/component';
@@ -231,7 +230,7 @@ const WhiteboardContainer = (props) => {
   };
 
   const publishCursorUpdate = useCallback((payload) => {
-    const { whiteboardId, xPercent, yPercent } = payload;
+    const { whiteboardId, xPercent, yPercent, laserType } = payload;
     if (!whiteboardId || xPercent == null || yPercent == null || !(hasWBAccess || isPresenter)) return;
 
     presentationPublishCursor({
@@ -239,6 +238,7 @@ const WhiteboardContainer = (props) => {
         whiteboardId,
         xPercent,
         yPercent,
+        laserType,
       },
     });
   }, [hasWBAccess, isPresenter]);
@@ -320,6 +320,10 @@ const WhiteboardContainer = (props) => {
       }
     }, RECONNECT_SYNC_DELAY_MS);
   }, [
+    // Re-run the synchronization after the tldraw editor becomes available.
+    // This is important to fetch all tldraw drawings when popup/de-popup
+    editor,
+    //
     connectedStatus,
     isMultiUserActive,
     hasWBAccess,
@@ -433,7 +437,7 @@ const WhiteboardContainer = (props) => {
 
   const bgShape = [];
 
-  const { isIphone, isPhone } = deviceInfo;
+  const { isIphone, isPhone, isMobile } = deviceInfo;
 
   const assetId = AssetRecordType.createId(curPageNum);
   const assets = [{
@@ -462,12 +466,13 @@ const WhiteboardContainer = (props) => {
   const sidebarNavigationWidth = layoutSelect(
     (i) => i?.output?.sidebarNavigation?.width,
   );
-  const { maxStickyNoteLength, maxNumberOfAnnotations, lockToolbarTools, pointerDiameter } = WHITEBOARD_CONFIG;
+  const { maxStickyNoteLength, maxNumberOfAnnotations, lockToolbarTools, pointerDiameter,
+    laserRadiusSmall, laserRadiusLarge, laserColors,
+  } = WHITEBOARD_CONFIG;
   const fontFamily = WHITEBOARD_CONFIG.styles.text.family;
   const {
     colorStyle, dashStyle, fillStyle, fontStyle, sizeStyle,
   } = WHITEBOARD_CONFIG.styles;
-  const handleToggleFullScreen = (ref) => FullscreenService.toggleFullScreen(ref);
 
   // use -0.5 offset to avoid white borders rounding erros
   bgShape.push({
@@ -509,13 +514,15 @@ const WhiteboardContainer = (props) => {
           maxNumberOfAnnotations,
           lockToolbarTools,
           pointerDiameter,
+          laserRadiusSmall,
+          laserRadiusLarge,
+          laserColors,
           fontFamily,
           colorStyle,
           dashStyle,
           fillStyle,
           fontStyle,
           sizeStyle,
-          handleToggleFullScreen,
           sidebarNavigationWidth,
           layoutContextDispatch,
           initDefaultPages,
@@ -534,6 +541,7 @@ const WhiteboardContainer = (props) => {
           toggleToolsAnimations,
           isIphone,
           isPhone,
+          isMobile,
           currentPresentationPage,
           numberOfPages: currentPresentationPage?.totalPages,
           presentationId,
@@ -565,6 +573,8 @@ WhiteboardContainer.propTypes = {
   }).isRequired,
   zoomChanger: PropTypes.func.isRequired,
   fitToWidth: PropTypes.bool.isRequired,
+  onPresenterViewChange: PropTypes.func,
+  onPresenterAnnotationsChange: PropTypes.func,
 };
 
 export default WhiteboardContainer;
