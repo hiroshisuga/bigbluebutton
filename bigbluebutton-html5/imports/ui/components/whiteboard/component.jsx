@@ -2322,14 +2322,28 @@ const Whiteboard = React.memo((props) => {
 
     let timer = null;
 
+    const cancel = () => {
+      if (timer !== null) {
+        clearTimeout(timer);
+        timer = null;
+      }
+    };
+
     const handleTouchStart = (e) => {
+      // Cancel any pending long-press timer first.
+      cancel();
+      // Long press is only available for a single touch.
+      // This also prevents pinch gestures from opening the laser menu.
+      if (e.touches.length !== 1) return;
+
       const tool = tlEditorRef.current?.getCurrentToolId?.();
-     if (tool !== 'hand') return;
+      if (tool !== 'hand') return;
       if (!presentationWrapper.contains(e.target)) return;
 
       const touch = e.touches[0];
 
       timer = setTimeout(() => {
+        timer = null;
         setLaserMenuPos({
           x: touch.clientX,
           y: touch.clientY,
@@ -2338,21 +2352,19 @@ const Whiteboard = React.memo((props) => {
       }, 500);
     };
 
-    const cancel = () => {
-      clearTimeout(timer);
-    };
-
     presentationWrapper.addEventListener('contextmenu', handleContextMenu, true);
     presentationWrapper.addEventListener('touchstart', handleTouchStart, true);
     presentationWrapper.addEventListener('touchend', cancel, true);
     presentationWrapper.addEventListener('touchmove', cancel, true);
+    presentationWrapper.addEventListener('touchcancel', cancel, true);
 
     return () => {
-      clearTimeout(timer);
+      clear();
       presentationWrapper.removeEventListener('contextmenu', handleContextMenu, true);
       presentationWrapper.removeEventListener('touchstart', handleTouchStart, true);
       presentationWrapper.removeEventListener('touchend', cancel, true);
       presentationWrapper.removeEventListener('touchmove', cancel, true);
+      presentationWrapper.removeEventListener('touchcancel', cancel, true);
     };
   }, [isPresenter]);
 
