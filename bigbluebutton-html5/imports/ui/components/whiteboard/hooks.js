@@ -8,7 +8,7 @@ const hasBackgroundImageUrl = (el) => {
   return bg.includes('url(');
 };
 
-const useCursor = (publishCursorUpdate, whiteboardId) => {
+const useCursor = (publishCursorUpdate, whiteboardId, whiteboardRef) => {
   const publishRef = React.useRef(publishCursorUpdate);
   const whiteboardIdRef = React.useRef(whiteboardId);
   const pendingRef = React.useRef(null);
@@ -19,7 +19,8 @@ const useCursor = (publishCursorUpdate, whiteboardId) => {
 
   useEffect(() => () => {
     if (rafRef.current) {
-      cancelAnimationFrame(rafRef.current);
+      const { id, win } = rafRef.current;
+      win.cancelAnimationFrame(id);
       rafRef.current = null;
       if (pendingRef.current) {
         publishRef.current({
@@ -35,7 +36,9 @@ const useCursor = (publishCursorUpdate, whiteboardId) => {
     if (newX === undefined || newX === null || newY === undefined || newY === null) return;
     pendingRef.current = { xPercent: newX, yPercent: newY };
     if (!rafRef.current) {
-      rafRef.current = requestAnimationFrame(() => {
+      const targetWin = whiteboardRef.current?.ownerDocument?.defaultView || window;
+      rafRef.current = {
+       id: targetWin.requestAnimationFrame(() => {
         rafRef.current = null;
         if (pendingRef.current) {
           publishRef.current({
@@ -44,9 +47,11 @@ const useCursor = (publishCursorUpdate, whiteboardId) => {
           });
           pendingRef.current = null;
         }
-      });
+       }),
+       win: targetWin,
+      };
     }
-  }, []);
+  }, [whiteboardRef]);
 
   return updateCursorPosition;
 };
