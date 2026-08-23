@@ -245,6 +245,8 @@ const Whiteboard = React.memo((props) => {
   const hasWBAccessRef = React.useRef(hasWBAccess);
   const isModeratorRef = React.useRef(isModerator);
   const currentPresentationPageRef = React.useRef(currentPresentationPage);
+  const suppressLaserAfterPinchRef = React.useRef(false);
+  const postPinchTouchPointRef = React.useRef(null);
   const initialViewBoxWidthRef = React.useRef(null);
   const initialViewBoxHeightRef = React.useRef(null);
   const previousTool = React.useRef(null);
@@ -263,6 +265,8 @@ const Whiteboard = React.memo((props) => {
 
   currentUserRef.current = currentUser;
 
+  const POST_PINCH_LASER_THRESHOLD = 10;
+  
   const getWhiteboardDocument = () => (
     whiteboardRef.current?.ownerDocument || document
   );
@@ -947,8 +951,13 @@ const Whiteboard = React.memo((props) => {
     return tool === 'hand' ? laserMode : '';
   }, [laserMode]);
 
+  const publishCursorUpdateForLaser = React.useCallback((...args) => {
+    if (suppressLaserAfterPinchRef.current) return undefined;
+    return publishCursorUpdate(...args);
+  }, [publishCursorUpdate]);
+
   const updateCursorPosition = useCursor(
-    publishCursorUpdate,
+    publishCursorUpdateForLaser,
     whiteboardIdRef.current,
     getLaserType,
   );
@@ -2443,6 +2452,10 @@ const Whiteboard = React.memo((props) => {
 
       // The first touch pointer is primary.
       if (e.isPrimary) {
+        // A new primary touch starts a new single-touch gesture.
+        suppressLaserAfterPinchRef.current = false;
+        postPinchTouchPointRef.current = null;
+        
         if (!multiTouchGesture) {
           setCanMoveCamera(false);
         }
@@ -2455,13 +2468,52 @@ const Whiteboard = React.memo((props) => {
       setCanMoveCamera(originalCanMoveCamera);
     };
 
+    const handlePointerMove = (e) => {
+      if (e.pointerType !== 'touch') return;
+      if (!suppressLaserAfterPinchRef.current) return;
+
+      const startPoint = postPinchTouchPointRef.current;^
+      if (!startPoint) return;
+      
+      const distance = Math.hypot(
+        e.clientX - startPoint.x,
+        e.clientY - startPoint.y,
+      );
+      
+      if (distance < POST_PINCH_LASER_THRESHOLD) return;
+      
+      // The remaining finger has moved far enough to be considered
+      // an intentional single-touch laser gesture.
+      suppressLaserAfterPinchRef.current = false;
+      postPinchTouchPointRef.current = null;
+      multiTouchGesture = false;
+      
+      // Return to laser mode: one finger moves the laser,
+      // not the camera.
+      setCanMoveCamera(false);
+    };
+    
     const handleTouchEnd = (e) => {
+      // A pinch has just changed from two fingers to one.
+      // Do not immediately treat the remaining finger as a laser gesture.
+      if (multiTouchGesture && e.touches.length === 1) {
+        const touch = e.touches[0];
+        suppressLaserAfterPinchRef.current = true;
+        postPinchTouchPointRef.current = {
+          x: touch.clientX,
+          y: touch.clientY,
+        };
+        return;
+      }
       // Do not change canMoveCamera on a 2 -> 1 transition.
       // Keep the whole multi-touch interaction in camera mode
       // until every finger has been released.
       // Changing it here can interfere with tldraw's pinch gesture state.
       if (e.touches.length === 0) {
         resetGesture();
+        // Keep suppression active until the next primary pointerdown.
+        // This prevents the final touchend from updating the laser.
+        postPinchTouchPointRef.current = null;
       }
     };
 
@@ -2469,16 +2521,23 @@ const Whiteboard = React.memo((props) => {
       // A cancelled touch sequence is no longer reliable.
       // Always return to the original state.
       resetGesture();
+      suppressLaserAfterPinchRef.current = false;
+      postPinchTouchPointRef.current = null;
     };
 
     presentationWrapper.addEventListener('pointerdown', handlePointerDown, true);
+    presentationWrapper.addEventListener('pointermove', handlePointerMove, true);
     presentationWrapper.addEventListener('touchend', handleTouchEnd, true);
     presentationWrapper.addEventListener('touchcancel', handleTouchCancel, true);
 
     return () => {
       resetGesture();
 
+      suppressLaserAfterPinchRef.current = false;
+      postPinchTouchPointRef.current = null;
+
       presentationWrapper.removeEventListener('pointerdown', handlePointerDown, true);
+      presentationWrapper.removeEventListener('pointermove', handlePointerMove, true);
       presentationWrapper.removeEventListener('touchend', handleTouchEnd, true);
       presentationWrapper.removeEventListener('touchcancel', handleTouchCancel, true);
     };
@@ -2584,6 +2643,7 @@ const Whiteboard = React.memo((props) => {
     if (!editor) return undefined;
 
     const unlisten = editor.store.listen(() => {
+      if (suppressLaserAfterPinchRef.current) return
       const p = editor.inputs.currentPagePoint;
       if (!p) return;
       const screenPos = editor.pageToScreen(p);
