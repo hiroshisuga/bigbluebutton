@@ -1096,6 +1096,7 @@ const Whiteboard = React.memo((props) => {
   const updateCursorPosition = useCursor(
     publishCursorUpdate,
     whiteboardIdRef.current,
+    whiteboardRef,
   );
 
   const setCamera = (zoom, x = 0, y = 0) => {
