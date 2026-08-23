@@ -2472,7 +2472,7 @@ const Whiteboard = React.memo((props) => {
       if (e.pointerType !== 'touch') return;
       if (!suppressLaserAfterPinchRef.current) return;
 
-      const startPoint = postPinchTouchPointRef.current;^
+      const startPoint = postPinchTouchPointRef.current;
       if (!startPoint) return;
       
       const distance = Math.hypot(
