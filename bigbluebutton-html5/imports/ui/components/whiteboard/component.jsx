@@ -2411,6 +2411,80 @@ const Whiteboard = React.memo((props) => {
   }, [laserMenuVisible]);
 
   React.useEffect(() => {
+    if (!isPresenter || !laserMode) return undefined;
+
+    const targetDoc = getWhiteboardDocument();
+    const targetWin = targetDoc.defaultView || window;
+    const presentationWrapper = targetDoc.querySelector('#presentationInnerWrapper');
+    const editor = tlEditorRef.current;
+
+    if (!presentationWrapper || !editor) return undefined;
+    if ((targetWin.navigator.maxTouchPoints || 0) < 2) return undefined;
+
+    const originalCanMoveCamera = editor.getInstanceState().canMoveCamera;
+    let multiTouchGesture = false;
+
+    const setCanMoveCamera = (canMoveCamera) => {
+      if (editor.getInstanceState().canMoveCamera === canMoveCamera) return;
+
+      editor.updateInstanceState({
+        canMoveCamera,
+      });
+    };
+
+    const resetGesture = () => {
+      multiTouchGesture = false;
+      setCanMoveCamera(originalCanMoveCamera);
+    };
+
+    const handlePointerDown = (e) => {
+      if (e.pointerType !== 'touch') return;
+      if (editor.getCurrentToolId?.() !== 'hand') return;
+
+      // The first touch pointer is primary.
+      if (e.isPrimary) {
+        if (!multiTouchGesture) {
+          setCanMoveCamera(false);
+        }
+        return;
+      }
+
+      // A non-primary touch means that a second (or later) finger
+      // has arrived. Enable camera movement before tldraw handles it.
+      multiTouchGesture = true;
+      setCanMoveCamera(originalCanMoveCamera);
+    };
+
+    const handleTouchEnd = (e) => {
+      // Do not change canMoveCamera on a 2 -> 1 transition.
+      // Keep the whole multi-touch interaction in camera mode
+      // until every finger has been released.
+      // Changing it here can interfere with tldraw's pinch gesture state.
+      if (e.touches.length === 0) {
+        resetGesture();
+      }
+    };
+
+    const handleTouchCancel = () => {
+      // A cancelled touch sequence is no longer reliable.
+      // Always return to the original state.
+      resetGesture();
+    };
+
+    presentationWrapper.addEventListener('pointerdown', handlePointerDown, true);
+    presentationWrapper.addEventListener('touchend', handleTouchEnd, true);
+    presentationWrapper.addEventListener('touchcancel', handleTouchCancel, true);
+
+    return () => {
+      resetGesture();
+
+      presentationWrapper.removeEventListener('pointerdown', handlePointerDown, true);
+      presentationWrapper.removeEventListener('touchend', handleTouchEnd, true);
+      presentationWrapper.removeEventListener('touchcancel', handleTouchCancel, true);
+    };
+  }, [isPresenter, laserMode]);
+
+  React.useEffect(() => {
     const targetDoc = getWhiteboardDocument();
     if (!isPresenter) return;
     const el = targetDoc.querySelector('.tl-container');
