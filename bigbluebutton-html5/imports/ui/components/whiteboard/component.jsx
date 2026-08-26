@@ -99,6 +99,67 @@ const createLookup = (arr) => arr.reduce((acc, entry) => {
   return acc;
 }, {});
 
+const isPagePointVisibleOnSlide = (editor, pageId, pagePoint) => {
+  if (!editor || !pageId || !pagePoint) return false;
+
+  if (
+    !Number.isFinite(pagePoint.x)
+    || !Number.isFinite(pagePoint.y)
+  ) {
+    return false;
+  }
+
+  // Full slide bounds in page coordinates
+  const slideShape = editor.getShape(
+    `shape:BG-${pageId}`,
+  );
+
+  const slideBounds = slideShape
+    ? editor.getShapePageBounds(slideShape)
+    : null;
+
+  if (!slideBounds) return false;
+
+  const insideSlide = (
+    pagePoint.x >= slideBounds.x
+    && pagePoint.x <= slideBounds.x + slideBounds.w
+    && pagePoint.y >= slideBounds.y
+    && pagePoint.y <= slideBounds.y + slideBounds.h
+  );
+
+  if (!insideSlide) return false;
+
+  // Convert the same point to tldraw screen coordinates.
+  const screenPoint = editor.pageToScreen(pagePoint);
+  const viewportBounds = editor.getViewportScreenBounds();
+
+  if (!screenPoint || !viewportBounds) return false;
+
+  const viewportWidth =
+    viewportBounds.w ?? viewportBounds.width;
+
+  const viewportHeight =
+    viewportBounds.h ?? viewportBounds.height;
+
+  if (
+    !Number.isFinite(viewportBounds.x)
+    || !Number.isFinite(viewportBounds.y)
+    || !Number.isFinite(viewportWidth)
+    || !Number.isFinite(viewportHeight)
+  ) {
+    return false;
+  }
+
+  const insideViewport = (
+    screenPoint.x >= viewportBounds.x
+    && screenPoint.x <= viewportBounds.x + viewportWidth
+    && screenPoint.y >= viewportBounds.y
+    && screenPoint.y <= viewportBounds.y + viewportHeight
+  );
+
+  return insideViewport;
+};
+
 const defaultUser = {
   userId: '',
 };
@@ -3077,8 +3138,18 @@ const Whiteboard = React.memo((props) => {
       { (isPresenter && isMobile) && (() => {
         const svg = laserSvgs[laserMode];
         if (!svg) return null;
+        const editor = tlEditorRef.current;
+        if (!editor) return null;
         const tool = tlEditorRef.current?.getCurrentToolId?.();
         if (tool !== 'hand') return;
+        // Making laser invisible outside of the visible part of the slide
+        // presenterCursorPoint was produced by editor.pageToScreen(),
+        //  so screenToPage() converts it back to the same page coordinate.
+        const cursorPagePoint = editor.screenToPage({ x: presenterCursorPoint.x, y: presenterCursorPoint.y });
+        if ( !isPagePointVisibleOnSlide( editor, curPageIdRef.current, cursorPagePoint)) {
+          return null;
+        }
+ 
         const svgMobilePresenter = svg.replace(
           'bbb-laser-pointer',
           'bbb-laser-pointer-mobile-presenter'
