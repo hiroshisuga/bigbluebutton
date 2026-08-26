@@ -280,6 +280,7 @@ const Whiteboard = React.memo((props) => {
   const [laserMode, setLaserMode] = React.useState('');
   const [presenterCursorPoint, setPresenterCursorPoint] = React.useState( { x: -1, y: -1} );
   const [viewerLaserZoom, setViewerLaserZoom] = React.useState(1);
+  const [mountedTldrawEditor, setMountedTldrawEditor] = React.useState(null);
   
   if (isMounting) {
     setDefaultEditorAssetUrls(getCustomEditorAssetUrls());
@@ -2490,7 +2491,8 @@ const Whiteboard = React.memo((props) => {
     const targetDoc = getWhiteboardDocument();
     const targetWin = targetDoc.defaultView || window;
     const presentationWrapper = targetDoc.querySelector('#presentationInnerWrapper');
-    const editor = tlEditorRef.current;
+    //const editor = tlEditorRef.current;
+    const editor = mountedTldrawEditor;
 
     if (!presentationWrapper || !editor) return undefined;
     if ((targetWin.navigator.maxTouchPoints || 0) < 2) return undefined;
@@ -2606,7 +2608,7 @@ const Whiteboard = React.memo((props) => {
       presentationWrapper.removeEventListener('touchend', handleTouchEnd, true);
       presentationWrapper.removeEventListener('touchcancel', handleTouchCancel, true);
     };
-  }, [isPresenter, laserMode]);
+  }, [isPresenter, laserMode, mountedTldrawEditor]);
 
   React.useEffect(() => {
     const targetDoc = getWhiteboardDocument();
