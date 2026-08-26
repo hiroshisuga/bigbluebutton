@@ -108,6 +108,7 @@ const isPagePointVisibleOnSlide = (editor, pageId, pagePoint, infiniteWhiteboard
   ) {
     return false;
   }
+  
   // On a normal whiteboard, the laser must be inside the slide.
   // On an infinite whiteboard, the area outside the slide is also valid.
   if (!infiniteWhiteboard) {
