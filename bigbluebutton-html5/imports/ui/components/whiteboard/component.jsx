@@ -99,7 +99,7 @@ const createLookup = (arr) => arr.reduce((acc, entry) => {
   return acc;
 }, {});
 
-const isPagePointVisibleOnSlide = (editor, pageId, pagePoint) => {
+const isPagePointVisibleOnSlide = (editor, pageId, pagePoint, infiniteWhiteboard = false) => {
   if (!editor || !pageId || !pagePoint) return false;
 
   if (
@@ -108,26 +108,29 @@ const isPagePointVisibleOnSlide = (editor, pageId, pagePoint) => {
   ) {
     return false;
   }
+  // On a normal whiteboard, the laser must be inside the slide.
+  // On an infinite whiteboard, the area outside the slide is also valid.
+  if (!infiniteWhiteboard) {
+    // Full slide bounds in page coordinates
+    const slideShape = editor.getShape(
+      `shape:BG-${pageId}`,
+    );
 
-  // Full slide bounds in page coordinates
-  const slideShape = editor.getShape(
-    `shape:BG-${pageId}`,
-  );
+    const slideBounds = slideShape
+  　  ? editor.getShapePageBounds(slideShape)
+      : null;
 
-  const slideBounds = slideShape
-    ? editor.getShapePageBounds(slideShape)
-    : null;
+    if (!slideBounds) return false;
 
-  if (!slideBounds) return false;
+    const insideSlide = (
+      pagePoint.x >= slideBounds.x
+      && pagePoint.x <= slideBounds.x + slideBounds.w
+      && pagePoint.y >= slideBounds.y
+      && pagePoint.y <= slideBounds.y + slideBounds.h
+    );
 
-  const insideSlide = (
-    pagePoint.x >= slideBounds.x
-    && pagePoint.x <= slideBounds.x + slideBounds.w
-    && pagePoint.y >= slideBounds.y
-    && pagePoint.y <= slideBounds.y + slideBounds.h
-  );
-
-  if (!insideSlide) return false;
+    if (!insideSlide) return false;
+  }
 
   // Convert the same point to tldraw screen coordinates.
   const screenPoint = editor.pageToScreen(pagePoint);
@@ -3146,7 +3149,7 @@ const Whiteboard = React.memo((props) => {
         // presenterCursorPoint was produced by editor.pageToScreen(),
         //  so screenToPage() converts it back to the same page coordinate.
         const cursorPagePoint = editor.screenToPage({ x: presenterCursorPoint.x, y: presenterCursorPoint.y });
-        if ( !isPagePointVisibleOnSlide( editor, curPageIdRef.current, cursorPagePoint)) {
+        if ( !isPagePointVisibleOnSlide( editor, curPageIdRef.current, cursorPagePoint, isInfiniteWhiteboard)) {
           return null;
         }
  
