@@ -1362,6 +1362,8 @@ const Whiteboard = React.memo((props) => {
     }
 
     tlEditorRef.current = editor;
+    setMountedTldrawEditor(editor);
+
     setTldrawAPI(editor);
     setEditor(editor);
 
