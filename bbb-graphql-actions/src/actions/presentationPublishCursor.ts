@@ -7,7 +7,7 @@ export default function buildRedisMessage(sessionVariables: Record<string, unkno
         {name: 'whiteboardId', type: 'string', required: true},
         {name: 'xPercent', type: 'number', required: true},
         {name: 'yPercent', type: 'number', required: true},
-        {name: 'laserType', type: 'string', required: true},
+        {name: 'laserType', type: 'string', required: false},
       ]
   )
 
