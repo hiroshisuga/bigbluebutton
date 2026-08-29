@@ -29,6 +29,7 @@ import KEY_CODES from '/imports/utils/keyCodes';
 import { debounce } from '/imports/utils/debounce';
 import logger from '/imports/startup/client/logger';
 import Styled from './styles';
+import Icon from '/imports/ui/components/common/icon/component';
 import {
   mapLanguage,
   isValidShapeType,
@@ -97,6 +98,71 @@ const createLookup = (arr) => arr.reduce((acc, entry) => {
   acc[entry.id] = entry;
   return acc;
 }, {});
+
+const isPagePointVisibleOnSlide = (editor, pageId, pagePoint, infiniteWhiteboard = false) => {
+  if (!editor || !pageId || !pagePoint) return false;
+
+  if (
+    !Number.isFinite(pagePoint.x)
+    || !Number.isFinite(pagePoint.y)
+  ) {
+    return false;
+  }
+  
+  // On a normal whiteboard, the laser must be inside the slide.
+  // On an infinite whiteboard, the area outside the slide is also valid.
+  if (!infiniteWhiteboard) {
+    // Full slide bounds in page coordinates
+    const slideShape = editor.getShape(
+      `shape:BG-${pageId}`,
+    );
+
+    const slideBounds = slideShape
+  　  ? editor.getShapePageBounds(slideShape)
+      : null;
+
+    if (!slideBounds) return false;
+
+    const insideSlide = (
+      pagePoint.x >= slideBounds.x
+      && pagePoint.x <= slideBounds.x + slideBounds.w
+      && pagePoint.y >= slideBounds.y
+      && pagePoint.y <= slideBounds.y + slideBounds.h
+    );
+
+    if (!insideSlide) return false;
+  }
+
+  // Convert the same point to tldraw screen coordinates.
+  const screenPoint = editor.pageToScreen(pagePoint);
+  const viewportBounds = editor.getViewportScreenBounds();
+
+  if (!screenPoint || !viewportBounds) return false;
+
+  const viewportWidth =
+    viewportBounds.w ?? viewportBounds.width;
+
+  const viewportHeight =
+    viewportBounds.h ?? viewportBounds.height;
+
+  if (
+    !Number.isFinite(viewportBounds.x)
+    || !Number.isFinite(viewportBounds.y)
+    || !Number.isFinite(viewportWidth)
+    || !Number.isFinite(viewportHeight)
+  ) {
+    return false;
+  }
+
+  const insideViewport = (
+    screenPoint.x >= viewportBounds.x
+    && screenPoint.x <= viewportBounds.x + viewportWidth
+    && screenPoint.y >= viewportBounds.y
+    && screenPoint.y <= viewportBounds.y + viewportHeight
+  );
+
+  return insideViewport;
+};
 
 const defaultUser = {
   userId: '',
@@ -180,10 +246,14 @@ const Whiteboard = React.memo((props) => {
     isInfiniteWhiteboard,
     whiteboardWriters,
     isPhone,
+    isMobile,
     setEditor,
     lockToolbarTools,
     layoutChanged,
     pointerDiameter = 5,
+    laserRadiusSmall,
+    laserRadiusLarge,
+    laserColors,
   } = props;
 
   const allowInfiniteWhiteboardPanForViewers = window.meetingClientSettings?.public?.whiteboard?.allowInfiniteWhiteboardPanForViewers;
@@ -204,7 +274,14 @@ const Whiteboard = React.memo((props) => {
   // the throw happen during render, where the boundary sees it - a bare .catch could not.
   const [, setSwapError] = React.useState();
   const updateCursorZoomRef = React.useRef(null);
-
+  const [laserMenuVisible, setLaserMenuVisible] = React.useState(false);
+  const [laserMenuPos, setLaserMenuPos] = React.useState({ x: 0, y: 0 });
+  const laserMenuRef = React.useRef(null);
+  const [laserMode, setLaserMode] = React.useState('');
+  const [presenterCursorPoint, setPresenterCursorPoint] = React.useState( { x: -1, y: -1} );
+  const [viewerLaserZoom, setViewerLaserZoom] = React.useState(1);
+  const [mountedTldrawEditor, setMountedTldrawEditor] = React.useState(null);
+  
   if (isMounting) {
     setDefaultEditorAssetUrls(getCustomEditorAssetUrls());
     setDefaultUiAssetUrls(getCustomAssetUrls());
@@ -234,6 +311,8 @@ const Whiteboard = React.memo((props) => {
   const hasWBAccessRef = React.useRef(hasWBAccess);
   const isModeratorRef = React.useRef(isModerator);
   const currentPresentationPageRef = React.useRef(currentPresentationPage);
+  const suppressLaserAfterPinchRef = React.useRef(false);
+  const postPinchTouchPointRef = React.useRef(null);
   const initialViewBoxWidthRef = React.useRef(null);
   const initialViewBoxHeightRef = React.useRef(null);
   const previousTool = React.useRef(null);
@@ -246,8 +325,17 @@ const Whiteboard = React.memo((props) => {
   const hasZoomSyncedRef = useRef(false);
   const lastForcedViewRef = useRef(null);
   const currentUserRef = useRef(currentUser);
+  const currentLaserTypeRef = React.useRef(null);
+  const laserLayerRef = React.useRef(null);
+  const laserElRef = React.useRef(null);
 
   currentUserRef.current = currentUser;
+
+  const POST_PINCH_LASER_THRESHOLD = 10;
+  
+  const getWhiteboardDocument = () => (
+    whiteboardRef.current?.ownerDocument || document
+  );
 
   const [pageZoomMap, setPageZoomMap] = useState(() => {
     try {
@@ -924,9 +1012,20 @@ const Whiteboard = React.memo((props) => {
 
   const language = React.useMemo(() => mapLanguage(locale?.toLowerCase() || 'en'), [locale]);
 
+  const getLaserType = React.useCallback(() => {
+    const tool = tlEditorRef.current?.getCurrentToolId?.();
+    return tool === 'hand' ? laserMode : '';
+  }, [laserMode]);
+
+  const publishCursorUpdateForLaser = React.useCallback((...args) => {
+    if (suppressLaserAfterPinchRef.current) return undefined;
+    return publishCursorUpdate(...args);
+  }, [publishCursorUpdate]);
+
   const updateCursorPosition = useCursor(
-    publishCursorUpdate,
+    publishCursorUpdateForLaser,
     whiteboardIdRef.current,
+    getLaserType,
   );
 
   const setCamera = (zoom, x = 0, y = 0) => {
@@ -1263,6 +1362,8 @@ const Whiteboard = React.memo((props) => {
     }
 
     tlEditorRef.current = editor;
+    setMountedTldrawEditor(editor);
+
     setTldrawAPI(editor);
     setEditor(editor);
 
@@ -1471,7 +1572,7 @@ const Whiteboard = React.memo((props) => {
               hasZoomSyncedRef.current = false;
             }
 
-            if (isWheelZoomRef.current) {
+            if (isWheelZoomRef.current || isTouchZoomRef.current) {
               zoomSlide(
                 viewedRegionW, viewedRegionH, nextCam.x, nextCam.y,
                 currentPresentationPageRef.current,
@@ -1976,6 +2077,103 @@ const Whiteboard = React.memo((props) => {
     }
   };
 
+  const makeLaserSvg = ({ color, cx, cy, r }, id) => {
+    const width = cx * 2;
+    const height = cy * 2;
+
+    // On Windows and Linux, it darkens towards the edge
+    /*
+    return `
+      <svg class="bbb-laser-pointer" xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+        <defs>
+          <radialGradient id="g-${id}">
+            <stop offset="0%" stop-color="${color}" stop-opacity="0.95"/>
+            <stop offset="50%" stop-color="${color}" stop-opacity="0.70"/>
+            <stop offset="100%" stop-color="${color}" stop-opacity="0.1"/>
+          </radialGradient>
+        </defs>
+        <circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#g-${id})" />
+      </svg>
+      `.replace(/\s+/g, ' ').trim();
+    */
+      return `
+      <svg class="bbb-laser-pointer" xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+        <defs>
+          <radialGradient id="g-${id}-core" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#ffffff" stop-opacity="1"/>
+            <stop offset="10%" stop-color="#ffffff" stop-opacity="0.95"/>
+            <stop offset="30%" stop-color="${color}" stop-opacity="0.95"/>
+            <stop offset="60%" stop-color="${color}" stop-opacity="0.65"/>
+            <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+          </radialGradient>
+          <radialGradient id="g-${id}-ring" cx="50%" cy="50%" r="50%">
+            <stop offset="60%" stop-color="${color}" stop-opacity="0"/>
+            <stop offset="68%" stop-color="${color}" stop-opacity="0.35"/>
+            <stop offset="74%" stop-color="#ffffff" stop-opacity="0.95"/>
+            <stop offset="84%" stop-color="#ffffff" stop-opacity="0.95"/>
+            <stop offset="90%" stop-color="${color}" stop-opacity="0.65"/>
+            <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+          </radialGradient>
+        </defs>
+        <circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#g-${id}-core)" />
+        <circle cx="${cx}" cy="${cy}" r="${r * 0.72}" fill="url(#g-${id}-ring)" />
+        <circle cx="${cx}" cy="${cy}" r="${Math.max(2, r * 0.13)}" fill="#ffffff" />
+      </svg>
+    `.replace(/\s+/g, ' ').trim();
+  };
+
+  const laserSizes = [
+    ['Small', laserRadiusSmall],
+    ['Large', laserRadiusLarge],
+  ];
+
+  const laserDefs = Object.fromEntries(
+    laserSizes.flatMap(([sizeName, radius]) => (
+      laserColors.map((color, index) => [
+        `color${index + 1}${sizeName}`,
+        {
+          color,
+          cx: radius + 2,
+          cy: radius + 2,
+          r: radius,
+        },
+      ])
+    )),
+  );
+
+  const laserSvgs = Object.fromEntries(
+    Object.entries(laserDefs).map(([key, def]) => [
+      key,
+      makeLaserSvg(def, key),
+    ])
+  );
+
+  const svgToDataUrl = (svg) =>
+    `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+
+  const svgToCursor = (svg, x, y) =>
+    `url("${svgToDataUrl(svg)}") ${x} ${y}, auto`;
+
+  const cursorLasers = Object.fromEntries(
+    Object.entries(laserDefs).map(([key, def]) => [
+      key,
+      svgToCursor(laserSvgs[key], def.cx, def.cy),
+    ])
+  );
+
+  const createLaserElement = (svgString, targetDoc) => {
+    const wrapper = targetDoc.createElement('div');
+    wrapper.className = 'custom-laser';
+    wrapper.innerHTML = svgString;
+    const el = wrapper.firstChild;
+    Object.assign(el.style, {
+      position: 'absolute',
+      pointerEvents: 'none',
+      overflow: 'visible',
+    });
+    return el;
+  };
+
   useMouseEvents(
     {
       whiteboardRef, tlEditorRef, isWheelZoomRef, initialZoomRef, isPresenterRef,
@@ -2182,6 +2380,257 @@ const Whiteboard = React.memo((props) => {
   }, [currentPresentationPage, isPresenter, viewerCanPan]);
 
   React.useEffect(() => {
+    const targetDoc = getWhiteboardDocument();
+    const presentationWrapper = targetDoc.querySelector('#presentationInnerWrapper');
+    if (!presentationWrapper) return;
+    if (!isPresenter) return;
+
+    const handleContextMenu = (e) => {
+      const tool = tlEditorRef.current?.getCurrentToolId?.();
+      if (tool !== 'hand') return;
+      if (!presentationWrapper.contains(e.target)) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      setLaserMenuPos({ x: e.clientX, y: e.clientY });
+      setLaserMenuVisible(true);
+    };
+
+    let timer = null;
+
+    const cancel = () => {
+      if (timer !== null) {
+        clearTimeout(timer);
+        timer = null;
+      }
+    };
+
+    const handleTouchStart = (e) => {
+      // Cancel any pending long-press timer first.
+      cancel();
+      // Long press is only available for a single touch.
+      // This also prevents pinch gestures from opening the laser menu.
+      if (e.touches.length !== 1) return;
+
+      const tool = tlEditorRef.current?.getCurrentToolId?.();
+      if (tool !== 'hand') return;
+      if (!presentationWrapper.contains(e.target)) return;
+
+      const touch = e.touches[0];
+
+      timer = setTimeout(() => {
+        timer = null;
+        setLaserMenuPos({
+          x: touch.clientX,
+          y: touch.clientY,
+        });
+        setLaserMenuVisible(true);
+      }, 500);
+    };
+
+    presentationWrapper.addEventListener('contextmenu', handleContextMenu, true);
+    presentationWrapper.addEventListener('touchstart', handleTouchStart, true);
+    presentationWrapper.addEventListener('touchend', cancel, true);
+    presentationWrapper.addEventListener('touchmove', cancel, true);
+    presentationWrapper.addEventListener('touchcancel', cancel, true);
+
+    return () => {
+      cancel();
+      presentationWrapper.removeEventListener('contextmenu', handleContextMenu, true);
+      presentationWrapper.removeEventListener('touchstart', handleTouchStart, true);
+      presentationWrapper.removeEventListener('touchend', cancel, true);
+      presentationWrapper.removeEventListener('touchmove', cancel, true);
+      presentationWrapper.removeEventListener('touchcancel', cancel, true);
+    };
+  }, [isPresenter]);
+
+  React.useEffect(() => {
+    if (!laserMenuVisible) return;
+    
+    const targetDoc = getWhiteboardDocument();
+    const presentationWrapper = targetDoc.querySelector('#presentationInnerWrapper');
+    if (!presentationWrapper) return;
+
+    const handleOutsideClick = (e) => {
+      if (laserMenuRef.current?.contains(e.target)) return;
+      setLaserMenuVisible(false);
+    };
+
+    presentationWrapper.addEventListener('pointerdown', handleOutsideClick, true);
+
+    return () => {
+      presentationWrapper.removeEventListener('pointerdown', handleOutsideClick, true);
+    };
+  }, [laserMenuVisible]);
+
+  React.useEffect(() => {
+    // compensation at the window edge
+    if (!laserMenuVisible) return;
+    const targetDoc = getWhiteboardDocument();
+
+    const el = laserMenuRef.current;
+    if (!el) return;
+
+    const rect = el.getBoundingClientRect();
+    const vw = targetDoc.defaultView.innerWidth;
+    const vh = targetDoc.defaultView.innerHeight;
+
+    let x = laserMenuPos.x;
+    let y = laserMenuPos.y;
+
+    if (rect.right > vw) x = vw - rect.width - 8;
+    if (rect.bottom > vh) y = vh - rect.height - 50;
+
+    if (x !== laserMenuPos.x || y !== laserMenuPos.y) {
+      setLaserMenuPos({ x, y });
+    }
+  }, [laserMenuVisible]);
+
+  React.useEffect(() => {
+    if (!isPresenter || !laserMode) return undefined;
+
+    const targetDoc = getWhiteboardDocument();
+    const targetWin = targetDoc.defaultView || window;
+    const presentationWrapper = targetDoc.querySelector('#presentationInnerWrapper');
+    //const editor = tlEditorRef.current;
+    const editor = mountedTldrawEditor;
+
+    if (!presentationWrapper || !editor) return undefined;
+    if ((targetWin.navigator.maxTouchPoints || 0) < 2) return undefined;
+
+    const originalCanMoveCamera = editor.getInstanceState().canMoveCamera;
+    let multiTouchGesture = false;
+
+    const setCanMoveCamera = (canMoveCamera) => {
+      if (editor.getInstanceState().canMoveCamera === canMoveCamera) return;
+
+      editor.updateInstanceState({
+        canMoveCamera,
+      });
+    };
+
+    const resetGesture = () => {
+      multiTouchGesture = false;
+      setCanMoveCamera(originalCanMoveCamera);
+    };
+
+    const handlePointerDown = (e) => {
+      if (e.pointerType !== 'touch') return;
+      if (editor.getCurrentToolId?.() !== 'hand') return;
+
+      // The first touch pointer is primary.
+      if (e.isPrimary) {
+        // A new primary touch starts a new single-touch gesture.
+        suppressLaserAfterPinchRef.current = false;
+        postPinchTouchPointRef.current = null;
+        
+        if (!multiTouchGesture) {
+          setCanMoveCamera(false);
+        }
+        return;
+      }
+
+      // A non-primary touch means that a second (or later) finger
+      // has arrived. Enable camera movement before tldraw handles it.
+      multiTouchGesture = true;
+      setCanMoveCamera(originalCanMoveCamera);
+    };
+
+    const handlePointerMove = (e) => {
+      if (e.pointerType !== 'touch') return;
+      if (!suppressLaserAfterPinchRef.current) return;
+
+      const startPoint = postPinchTouchPointRef.current;
+      if (!startPoint) return;
+      
+      const distance = Math.hypot(
+        e.clientX - startPoint.x,
+        e.clientY - startPoint.y,
+      );
+      
+      if (distance < POST_PINCH_LASER_THRESHOLD) return;
+      
+      // The remaining finger has moved far enough to be considered
+      // an intentional single-touch laser gesture.
+      suppressLaserAfterPinchRef.current = false;
+      postPinchTouchPointRef.current = null;
+      multiTouchGesture = false;
+      
+      // Return to laser mode: one finger moves the laser,
+      // not the camera.
+      setCanMoveCamera(false);
+    };
+    
+    const handleTouchEnd = (e) => {
+      // A pinch has just changed from two fingers to one.
+      // Do not immediately treat the remaining finger as a laser gesture.
+      if (multiTouchGesture && e.touches.length === 1) {
+        const touch = e.touches[0];
+        suppressLaserAfterPinchRef.current = true;
+        postPinchTouchPointRef.current = {
+          x: touch.clientX,
+          y: touch.clientY,
+        };
+        return;
+      }
+      // Do not change canMoveCamera on a 2 -> 1 transition.
+      // Keep the whole multi-touch interaction in camera mode
+      // until every finger has been released.
+      // Changing it here can interfere with tldraw's pinch gesture state.
+      if (e.touches.length === 0) {
+        resetGesture();
+        // Keep suppression active until the next primary pointerdown.
+        // This prevents the final touchend from updating the laser.
+        postPinchTouchPointRef.current = null;
+      }
+    };
+
+    const handleTouchCancel = () => {
+      // A cancelled touch sequence is no longer reliable.
+      // Always return to the original state.
+      resetGesture();
+      suppressLaserAfterPinchRef.current = false;
+      postPinchTouchPointRef.current = null;
+    };
+
+    presentationWrapper.addEventListener('pointerdown', handlePointerDown, true);
+    presentationWrapper.addEventListener('pointermove', handlePointerMove, true);
+    presentationWrapper.addEventListener('touchend', handleTouchEnd, true);
+    presentationWrapper.addEventListener('touchcancel', handleTouchCancel, true);
+
+    return () => {
+      resetGesture();
+
+      suppressLaserAfterPinchRef.current = false;
+      postPinchTouchPointRef.current = null;
+
+      presentationWrapper.removeEventListener('pointerdown', handlePointerDown, true);
+      presentationWrapper.removeEventListener('pointermove', handlePointerMove, true);
+      presentationWrapper.removeEventListener('touchend', handleTouchEnd, true);
+      presentationWrapper.removeEventListener('touchcancel', handleTouchCancel, true);
+    };
+  }, [isPresenter, laserMode, mountedTldrawEditor]);
+
+  React.useEffect(() => {
+    const targetDoc = getWhiteboardDocument();
+    if (!isPresenter) return;
+    const el = targetDoc.querySelector('.tl-container');
+    if (!el) return;
+
+    removeViewerLaser();
+    
+    const laser = cursorLasers[laserMode];
+    if (laser) {
+      el.style.setProperty('--tl-cursor-grab', laser);
+      el.style.setProperty('--tl-cursor-grabbing', laser);
+    } else {
+      el.style.removeProperty('--tl-cursor-grab');
+      el.style.removeProperty('--tl-cursor-grabbing');
+    }
+  }, [laserMode, isPresenter]);
+
+  React.useEffect(() => {
     if (tlEditorRef.current) {
       const useElement = document.querySelector('.tl-cursor use');
       if (useElement && !isMultiUserActive && !isPresenter) {
@@ -2208,7 +2657,7 @@ const Whiteboard = React.memo((props) => {
 
       const updatedPresences = otherCursors
         .map(({
-          userId, xPercent, yPercent, presenter, name, isModerator,
+          userId, xPercent, yPercent, laserType, presenter, name, isModerator,
         }) => {
           const id = InstancePresenceRecordType.createId(userId);
           const active = xPercent !== -1 && yPercent !== -1;
@@ -2256,6 +2705,156 @@ const Whiteboard = React.memo((props) => {
       }
     }
   }, [otherCursors, whiteboardWriters]);
+
+  // Store presenter's cursor position to draw laser for mobile presenter
+  React.useEffect(() => {
+    const editor = tlEditorRef.current;
+    if (!editor) return undefined;
+
+    const unlisten = editor.store.listen(() => {
+      if (suppressLaserAfterPinchRef.current) return
+      const p = editor.inputs.currentPagePoint;
+      if (!p) return;
+      const screenPos = editor.pageToScreen(p);
+      setPresenterCursorPoint({ x: screenPos.x, y: screenPos.y });
+    });
+
+    return () => {
+      unlisten?.();
+    };
+  }, [tlEditorRef.current]);
+
+  const removeViewerLaser = () => {
+    laserElRef.current = null;
+    const targetDoc = getWhiteboardDocument();
+    const lasers = targetDoc.querySelectorAll('.bbb-laser-pointer');
+    lasers.forEach(el => el.remove());
+  };
+
+  React.useEffect(() => {
+    if (isPresenter) return undefined;
+
+    const editor = tlEditorRef.current;
+    if (!editor) return undefined;
+
+    let previousZoom = editor.getCamera().z;
+    setViewerLaserZoom(previousZoom);
+
+    const unlisten = editor.store.listen(() => {
+      const zoom = editor.getCamera().z;
+
+      if (zoom === previousZoom) return;
+
+      previousZoom = zoom;
+      setViewerLaserZoom(zoom);
+    });
+
+    return () => {
+      unlisten?.();
+    };
+  }, [isPresenter, tlEditorRef.current]);
+  
+  // Show viewers Laser SVG
+  React.useEffect(() => {
+    if (isPresenter) return;
+    //if (isMultiUserActive) return;
+
+    const targetDoc = getWhiteboardDocument();
+
+    //Comment out below if we do not want to show laser when a presenter uses drawing tools on mobile devices.
+    // Note a problem that the laser remains on the screen after switching to drawing tools.
+    //const tool = tlEditorRef.current?.getCurrentToolId?.();
+    //if (isPresenter && isMobile && tool !== 'hand') return;
+
+    const tlContainer = targetDoc.querySelector('.tl-container');
+
+    let layer = laserLayerRef.current;
+    if (!layer || !targetDoc.contains(layer)) {
+      layer = targetDoc.querySelector('.tl-overlays > .tl-html-layer');
+      laserLayerRef.current = layer;
+    }
+
+    let laserEl = laserElRef.current;
+
+    const presenterCursor = otherCursors.find(c => c.presenter);
+    if (!presenterCursor) return;
+    
+    const laserKey = presenterCursor?.laserType;
+    const laserDef = laserDefs[laserKey];
+
+    // Hide <svg class="tl-collaborator__cursor-hint">
+    if (laserDef) {
+      tlContainer?.classList.add('bbb-laser-active');
+    } else {
+      tlContainer?.classList.remove('bbb-laser-active');
+    }
+
+    const changed = laserKey !== currentLaserTypeRef.current;
+    if (changed) {
+      currentLaserTypeRef.current = laserKey;
+      laserEl?.remove();
+      laserEl = null;
+      laserElRef.current = null;
+      const defaultPointer = document.getElementById('redPointer');
+      if (!laserDef) {
+        // Presenter uses hand tool, so the default red pointer is visible for viewers
+        defaultPointer?.style.setProperty('display', 'block');
+      } else {
+        // Presenter uses laser pointer, so the default red pointer is invisible for viewers
+        defaultPointer?.style.setProperty('display', 'none');
+      }
+    }
+
+    if (!layer) return;
+    if (!laserDef) return; // meaning that hand tool is selected, so we move forward to draw laser pointer
+
+    if (!laserEl && layer) {
+      laserEl = createLaserElement(laserSvgs[laserKey], targetDoc);
+      layer.appendChild(laserEl);
+      laserElRef.current = laserEl;
+    }
+
+    // Now we place the laser SVG at the position of redPointer, which is invisible.
+    
+    //const cursorEl = document.querySelector('.tl-collaborator__cursor');
+    //if (!cursorEl) return;
+
+    //const zoom = parseFloat(getComputedStyle(tlContainer).getPropertyValue('--tl-zoom')) || 1;
+    //const { z: zoom } = tlEditorRef.current ? tlEditorRef.current.getCamera() : 1;
+    //const zoom = tlEditorRef.current?.getCamera()?.z ?? 1;
+
+    //const transform = cursorEl.style.transform;
+    //if (!transform) return;
+    //const match = transform.match(/translate\(([^,]+)px,\s*([^)]+)px\)/);
+    //if (!match) return;
+    //const x = parseFloat(match[1]);
+    //const y = parseFloat(match[2]);
+    const x = presenterCursor.xPercent;
+    const y = presenterCursor.yPercent;
+    if (x === -1 || y === -1) {
+      removeViewerLaser();
+      return;
+    }
+
+    // Keep cursor size regardless of the slide zoom or window size change,
+    //   similar to the pointer of the presenter (CSS-based) or the one in the real world.
+    laserEl.style.transform = `
+      translate(${x - laserDef.cx}px, ${y - laserDef.cy}px)
+      scale(${1/viewerLaserZoom})
+    `;
+    return;
+  }, [otherCursors, isPresenter, viewerLaserZoom]);
+
+  React.useEffect(() => {
+    removeViewerLaser();
+  }, [curPageId]);
+
+  const updateStore = (pages, cameras) => {
+    tlEditorRef.current.store.put(pages);
+    tlEditorRef.current.store.put(cameras);
+    tlEditorRef.current.store.put(assets);
+    tlEditorRef.current.store.put(bgShape);
+  };
 
   const finalizeStore = () => {
     tlEditorRef.current.history.clear();
@@ -2544,6 +3143,73 @@ const Whiteboard = React.memo((props) => {
           viewerCanPan,
         }}
       />
+      { (isPresenter && isMobile) && (() => {
+        const svg = laserSvgs[laserMode];
+        if (!svg) return null;
+        const editor = tlEditorRef.current;
+        if (!editor) return null;
+        const tool = tlEditorRef.current?.getCurrentToolId?.();
+        if (tool !== 'hand') return;
+        // Making laser invisible outside of the visible part of the slide
+        // presenterCursorPoint was produced by editor.pageToScreen(),
+        //  so screenToPage() converts it back to the same page coordinate.
+        const cursorPagePoint = editor.screenToPage({ x: presenterCursorPoint.x, y: presenterCursorPoint.y });
+        if ( !isPagePointVisibleOnSlide( editor, curPageIdRef.current, cursorPagePoint, isInfiniteWhiteboard)) {
+          return null;
+        }
+ 
+        const svgMobilePresenter = svg.replace(
+          'bbb-laser-pointer',
+          'bbb-laser-pointer-mobile-presenter'
+        );
+        return (
+          <div
+            style={{
+              position: 'fixed',
+              left: presenterCursorPoint.x - laserDefs[laserMode].cx,
+              top: presenterCursorPoint.y - laserDefs[laserMode].cy,
+              pointerEvents: 'none',
+              zIndex: 200,
+            }}
+            dangerouslySetInnerHTML={{ __html: svgMobilePresenter}}
+          />
+        );
+      })()}
+      {laserMenuVisible && (
+        <Styled.LaserContextMenu
+          ref={laserMenuRef}
+          style={{
+            left: laserMenuPos.x,
+            top: laserMenuPos.y,
+          }}
+        >
+          {Object.entries(laserDefs).map(([key, def]) => (
+            <Styled.LaserMenuItem
+              key={key}
+              onClick={() => {
+                setLaserMode(key);
+                setLaserMenuVisible(false);
+              }}
+            >
+              <img
+                src={svgToDataUrl(laserSvgs[key])}
+                width={def.cx * 2}
+                height={def.cy * 2}
+                alt=""
+              />
+            </Styled.LaserMenuItem>
+          ))}
+          <Styled.LaserMenuItem
+            key="pan"
+            onClick={() => {
+              setLaserMode('');
+              setLaserMenuVisible(false);
+            }}
+          >
+            <Icon iconName="hand" />
+          </Styled.LaserMenuItem>
+        </Styled.LaserContextMenu>
+      )}
     </div>
   );
 });
@@ -2553,6 +3219,7 @@ export default Whiteboard;
 Whiteboard.propTypes = {
   isPresenter: PropTypes.bool,
   isPhone: PropTypes.bool,
+  isMobile: PropTypes.bool,
   removeShapes: PropTypes.func.isRequired,
   persistShapeWrapper: PropTypes.func.isRequired,
   notifyNotAllowedChange: PropTypes.func.isRequired,
@@ -2582,6 +3249,9 @@ Whiteboard.propTypes = {
   presentationAreaWidth: PropTypes.number.isRequired,
   maxNumberOfAnnotations: PropTypes.number.isRequired,
   pointerDiameter: PropTypes.number,
+  laserRadiusSmall: PropTypes.number.isRequired,
+  laserRadiusLarge: PropTypes.number.isRequired,
+  laserColors: PropTypes.arrayOf(PropTypes.string).isRequired,
   setTldrawIsMounting: PropTypes.func.isRequired,
   presentationId: PropTypes.string,
   setTldrawAPI: PropTypes.func.isRequired,
