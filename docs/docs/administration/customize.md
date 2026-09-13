@@ -1314,6 +1314,21 @@ echo "  - Update TURN server configuration turn-stun-servers.xml"
 HERE
 ```
 
+#### Legacy FreeSWITCH SIP-over-WebSocket endpoint (`/ws`)
+
+Older BigBlueButton releases exposed an nginx location named `/ws` that proxied
+SIP-over-WebSocket traffic to FreeSWITCH (audioBridge=sipjs). 
+It served the in-browser SIP.js audio path, deprecated since BigBlueButton 2.7 
+and superseded by the bbb-webrtc-sfu and LiveKit audio bridges.
+
+**This endpoint is absent on new installs and is removed on upgrade.**
+
+:::warn
+We recommend against reinstating `/ws` on any BBB install. 
+Migrating to any of the newer bridges is the de facto course of action, and
+the sipjs bridge has been removed in the next BBB release.
+:::
+
 ### HTML5 client
 
 #### Change the default welcome message
@@ -1602,7 +1617,7 @@ These configs can be set in `/etc/bigbluebutton/bbb-web.properties`. The table i
 
 #### `/create` parameters without a `bigbluebutton.properties` counterpart
 
-Some `/create` parameters set per-meeting state but have no default in `bigbluebutton.properties`. Examples include `name`, `meetingID`, `parentMeetingID`/`sequence`/`freeJoin`/`isBreakout` (breakout-only), `bannerText`/`bannerColor`, `moderatorOnlyMessage`, `meta_*` metadata, `logo`, `multiUserWhiteboardEnabled`, presentation-upload parameters (`preUploadedPresentation*`, `presentationUploadExternalUrl`, `presentationUploadExternalDescription`), `sharedNotesInitialContentJsonUrl`, `disabledFeaturesExclude`, `clientSettingsOverride` / `clientSettingsOverrideJsonUrl`, and `pluginManifestsFetchUrl`. See [Create API parameters](/development/api/#create) for the complete list and descriptions.
+Some `/create` parameters set per-meeting state but have no default in `bigbluebutton.properties`. Examples include `name`, `meetingID`, `parentMeetingID`/`sequence`/`freeJoin`/`isBreakout` (breakout-only), `bannerText`/`bannerColor`, `moderatorOnlyMessage`, `notifyRecordingAppend`, `meta_*` metadata, `logo`, `multiUserWhiteboardEnabled`, presentation-upload parameters (`preUploadedPresentation*`, `presentationUploadExternalUrl`, `presentationUploadExternalDescription`), `sharedNotesInitialContentJsonUrl`, `disabledFeaturesExclude`, `clientSettingsOverride` / `clientSettingsOverrideJsonUrl`, and `pluginManifestsFetchUrl`. See [Create API parameters](/development/api/#create) for the complete list and descriptions.
 
 
 #### Passing user metadata to the client on join
