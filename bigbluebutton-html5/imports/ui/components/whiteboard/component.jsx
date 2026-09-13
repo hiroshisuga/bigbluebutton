@@ -1193,8 +1193,8 @@ const Whiteboard = React.memo((props) => {
   const updateCursorPosition = useCursor(
     publishCursorUpdateForLaser,
     whiteboardIdRef.current,
-    getLaserType,
     whiteboardRef,
+    getLaserType,
   );
 
   const setCamera = (zoom, x = 0, y = 0) => {
