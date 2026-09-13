@@ -30,6 +30,7 @@ create unlogged table "meeting" (
 	"screenShareBridge" varchar(30),
 	"audioBridge" varchar(30),
 	"notifyRecordingIsOn" boolean,
+	"notifyRecordingAppend" text,
 	"presentationUploadExternalDescription" text,
 	"presentationUploadExternalUrl" text,
 	"learningDashboardAccessToken" varchar(100),
@@ -1685,7 +1686,10 @@ SELECT pres_presentation."meetingId",
     pres_page."infiniteWhiteboard",
     pres_page."fitToWidth",
     (
-        select array_agg("nextPages"."urlsJson"->>'svg')
+		select array_agg(
+			"nextPages"."urlsJson"->>'svg'
+			ORDER BY "nextPages".num
+		)
         from pres_page "nextPages"
         where "nextPages"."presentationId" = pres_page."presentationId"
         and "nextPages".num > pres_page."num"

@@ -47,11 +47,13 @@ class ActionsBar extends PureComponent {
                 buttonProps = {
                   key: `${plugin.type}-${plugin.id}`,
                   onClick: plugin.onClick,
-                  hideLabel: true,
+                  hideLabel: plugin.hideLabel !== false,
                   color: plugin.color || 'primary',
-                  size: 'lg',
-                  circle: true,
-                  label: plugin.tooltip,
+                  size: plugin.size || 'lg',
+                  circle: plugin.circle !== false,
+                  style: plugin.style,
+                  label: plugin.label || plugin.tooltip,
+                  tooltipLabel: plugin.tooltip,
                   dataTest: plugin.dataTest,
                 };
                 if (typeof plugin?.icon === 'string') {
@@ -157,6 +159,7 @@ class ActionsBar extends PureComponent {
       showScreenshareQuickSwapButton,
       isReactionsButtonEnabled,
       isRaiseHandEnabled,
+      isPresentationDetached,
     } = this.props;
 
     const Settings = getSettingsSingletonInstance();
@@ -254,6 +257,7 @@ class ActionsBar extends PureComponent {
                     hasPinnedSharedNotes={isSharedNotesPinned}
                     hasGenericContent={hasGenericContent}
                     hasCameraAsContent={hasCameraAsContent}
+                    isPresentationDetached={isPresentationDetached}
                   />
                 )
                 : null}
