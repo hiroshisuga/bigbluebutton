@@ -18,7 +18,7 @@ func HandleSendCursorPositionEvtMsg(receivedMessage common.RedisMessage, browser
 	receivedCursorIsFromViewer := receivedMessage.Core.Body["userIsViewer"].(bool)
 	xPercent := receivedMessage.Core.Body["xPercent"].(float64)
 	yPercent := receivedMessage.Core.Body["yPercent"].(float64)
-	laserType := receivedMessage.Core.Body["laserType"].(string)
+	laserType, _ := receivedMessage.Core.Body["laserType"].(string)
 
 	item := map[string]any{
 		"xPercent":   xPercent,
