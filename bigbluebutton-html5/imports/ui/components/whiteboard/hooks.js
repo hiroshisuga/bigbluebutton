@@ -76,7 +76,7 @@ const getTldrawOpenMenu = (targetDoc = document) => {
 };
 
 const useMouseEvents = ({
-  whiteboardRef, tlEditorRef, isWheelZoomRef, initialZoomRef, isPresenterRef,
+  whiteboardRef, tlEditorRef, isWheelZoomRef, isTouchZoomRef, initialZoomRef, isPresenterRef,
 }, {
   hasWBAccess,
   whiteboardToolbarAutoHide,
@@ -95,6 +95,7 @@ const useMouseEvents = ({
   const initialPinchDistanceRef = React.useRef(0);
   const isPinchingRef = React.useRef(false);
   const mouseLeaveTimeoutRef = React.useRef();
+  const touchZoomResetTimeoutRef = React.useRef();
   const PINCH_THRESHOLD = 10;
 
   const getWhiteboardDocument = () => (
@@ -105,6 +106,13 @@ const useMouseEvents = ({
     const dx = touch2.clientX - touch1.clientX;
     const dy = touch2.clientY - touch1.clientY;
     return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  const resetTouchZoomAfterCameraSettles = () => {
+    clearTimeout(touchZoomResetTimeoutRef.current);
+    touchZoomResetTimeoutRef.current = setTimeout(() => {
+      isTouchZoomRef.current = false;
+    }, 175);
   };
 
   const handleMouseUp = () => {
@@ -286,6 +294,10 @@ const useMouseEvents = ({
 
   const handleTouchStart = (event) => {
     if (event.touches.length === 2) {
+      clearTimeout(touchZoomResetTimeoutRef.current);
+      if (isPresenterRef.current) {
+        isTouchZoomRef.current = true;
+      }
       if (!isPresenterRef.current) {
         event.preventDefault();
         event.stopPropagation();
@@ -354,6 +366,10 @@ const useMouseEvents = ({
   });
 
   const handleTouchEnd = (event) => {
+    if (event.touches.length < 2) {
+      resetTouchZoomAfterCameraSettles();
+    }
+
     if (event.touches.length === 0) {
       const count = fingerCountRef.current;
 
@@ -370,6 +386,13 @@ const useMouseEvents = ({
       isPinchingRef.current = false;
       initialPinchDistanceRef.current = 0;
     }
+  };
+
+  const handleTouchCancel = () => {
+    fingerCountRef.current = 0;
+    isPinchingRef.current = false;
+    initialPinchDistanceRef.current = 0;
+    resetTouchZoomAfterCameraSettles();
   };
 
   React.useEffect(() => {
@@ -408,6 +431,7 @@ const useMouseEvents = ({
       presentationWrapper.addEventListener('pointerdown', handlePointerDown, { capture: true });
       presentationWrapper.addEventListener('touchstart', handleTouchStart, { passive: false, capture: true });
       presentationWrapper.addEventListener('touchend', handleTouchEnd, { passive: false, capture: true });
+      presentationWrapper.addEventListener('touchcancel', handleTouchCancel, { passive: false, capture: true });
       presentationWrapper.addEventListener('touchmove', handleTouchMove, { passive: false });
     }
 
@@ -421,6 +445,7 @@ const useMouseEvents = ({
         presentationWrapper.removeEventListener('pointerdown', handlePointerDown, { capture: true });
         presentationWrapper.removeEventListener('touchstart', handleTouchStart, { capture: true });
         presentationWrapper.removeEventListener('touchend', handleTouchEnd, { capture: true });
+        presentationWrapper.removeEventListener('touchcancel', handleTouchCancel, { capture: true });
         presentationWrapper.removeEventListener('touchmove', handleTouchMove);
       }
       targetWin.removeEventListener('mousedown', handleMouseDownWindow);
