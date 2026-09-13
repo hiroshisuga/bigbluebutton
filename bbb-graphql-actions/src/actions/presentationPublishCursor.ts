@@ -24,11 +24,15 @@ export default function buildRedisMessage(sessionVariables: Record<string, unkno
     userId: routing.userId
   };
 
+  const laserType = typeof input.laserType === 'string'
+    ? input.laserType
+    : '';
+
   const body = {
     whiteboardId: input.whiteboardId,
     xPercent: input.xPercent,
     yPercent: input.yPercent,
-    laserType: input.laserType,
+    laserType,
   };
 
   return { eventName, routing, header, body };
