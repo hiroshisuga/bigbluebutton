@@ -2797,7 +2797,7 @@ const Whiteboard = React.memo((props) => {
       laserElRef.current = null;
       const defaultPointer = document.getElementById('redPointer');
       if (!laserDef) {
-        // No recognized custom laser (presenter uses hand-tool; show viewers the default red pointer.
+        // No recognized custom laser (hand-tool is used); show viewers the default red pointer.
         defaultPointer?.style.setProperty('display', 'block');
       } else {
         // Presenter uses laser pointer; hide the default red pointer from viewers
