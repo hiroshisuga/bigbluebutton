@@ -32,7 +32,6 @@ import {
   layoutDispatch,
 } from '/imports/ui/components/layout/context';
 import logger from '/imports/startup/client/logger';
-import FullscreenService from '/imports/ui/components/common/fullscreen-button/service';
 import deviceInfo from '/imports/utils/deviceInfo';
 import Whiteboard from './component';
 import ErrorBoundaryWithReload from '../common/error-boundary/error-boundary-with-reload/component';
@@ -321,6 +320,10 @@ const WhiteboardContainer = (props) => {
       }
     }, RECONNECT_SYNC_DELAY_MS);
   }, [
+    // Re-run the synchronization after the tldraw editor becomes available.
+    // This is important to fetch all tldraw drawings when popup/de-popup
+    editor,
+    //
     connectedStatus,
     isMultiUserActive,
     hasWBAccess,
@@ -470,7 +473,6 @@ const WhiteboardContainer = (props) => {
   const {
     colorStyle, dashStyle, fillStyle, fontStyle, sizeStyle,
   } = WHITEBOARD_CONFIG.styles;
-  const handleToggleFullScreen = (ref) => FullscreenService.toggleFullScreen(ref);
 
   // use -0.5 offset to avoid white borders rounding erros
   bgShape.push({
@@ -521,7 +523,6 @@ const WhiteboardContainer = (props) => {
           fillStyle,
           fontStyle,
           sizeStyle,
-          handleToggleFullScreen,
           sidebarNavigationWidth,
           layoutContextDispatch,
           initDefaultPages,
@@ -572,6 +573,8 @@ WhiteboardContainer.propTypes = {
   }).isRequired,
   zoomChanger: PropTypes.func.isRequired,
   fitToWidth: PropTypes.bool.isRequired,
+  onPresenterViewChange: PropTypes.func,
+  onPresenterAnnotationsChange: PropTypes.func,
 };
 
 export default WhiteboardContainer;
