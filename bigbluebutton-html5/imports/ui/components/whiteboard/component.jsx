@@ -2081,7 +2081,7 @@ const Whiteboard = React.memo((props) => {
     const width = cx * 2;
     const height = cy * 2;
 
-    // On Windows and Linux, it darkens towards the edge
+    // Simple laser SVG
     /*
     return `
       <svg class="bbb-laser-pointer" xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
@@ -2096,7 +2096,8 @@ const Whiteboard = React.memo((props) => {
       </svg>
       `.replace(/\s+/g, ' ').trim();
     */
-      return `
+    // Laser with halo
+    return `
       <svg class="bbb-laser-pointer" xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
         <defs>
           <radialGradient id="g-${id}-core" cx="50%" cy="50%" r="50%">
