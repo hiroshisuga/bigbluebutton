@@ -2708,7 +2708,9 @@ const Whiteboard = React.memo((props) => {
 
   // Store presenter's cursor position to draw laser for mobile presenter
   React.useEffect(() => {
-    const editor = tlEditorRef.current;
+    if (!isPresenter || !isMobile) return undefined;
+
+    const editor = mountedTldrawEditor;
     if (!editor) return undefined;
 
     const unlisten = editor.store.listen(() => {
@@ -2722,7 +2724,7 @@ const Whiteboard = React.memo((props) => {
     return () => {
       unlisten?.();
     };
-  }, [tlEditorRef.current]);
+  }, [isPresenter, isMobile, mountedTldrawEditor]);
 
   const removeViewerLaser = () => {
     laserElRef.current = null;
