@@ -57,6 +57,7 @@ public class Meeting {
 	private String learningDashboardAccessToken;
 	private ArrayList<String> disabledFeatures;
 	private Boolean notifyRecordingIsOn;
+	private String notifyRecordingAppend = "";
 	private String welcomeMsgTemplate;
 	private String welcomeMsg;
 	private String welcomeMsgForModerators = "";
@@ -72,6 +73,8 @@ public class Meeting {
 	private String sharedNotesEditor = "etherpad";
 	private String sharedNotesInitialContentJsonUrl = "";
 	private ArrayList<Object> sharedNotesInitialContentJson;
+	private String sharedNotesInitialContentMarkdownUrl = "";
+	private String sharedNotesInitialContentMarkdown = "";
 	private boolean presentationConversionCacheEnabled = false;
 	private boolean recordFullDurationMedia = false;
 	private boolean haveRecordingMarks = false;
@@ -135,6 +138,7 @@ public class Meeting {
 	private String meetingEndedCallbackURL = "";
 
 	private String sharedNotesInitialContentJsonFromPayload;
+	private String sharedNotesInitialContentMarkdownFromPayload = "";
 
 	private String overrideClientSettings = "";
 
@@ -148,6 +152,7 @@ public class Meeting {
 		pluginManifests = builder.pluginManifests;
 		html5PluginSdkVersion = builder.html5PluginSdkVersion;
 		notifyRecordingIsOn = builder.notifyRecordingIsOn;
+		notifyRecordingAppend = builder.notifyRecordingAppend;
 		presentationUploadExternalDescription = builder.presentationUploadExternalDescription;
 		presentationUploadExternalUrl = builder.presentationUploadExternalUrl;
 		if (builder.viewerPass == null){
@@ -176,6 +181,8 @@ public class Meeting {
         allowStartStopRecording = builder.allowStartStopRecording;
         sharedNotesEditor = builder.sharedNotesEditor;
 		sharedNotesInitialContentJsonUrl = builder.sharedNotesInitialContentJsonUrl;
+		sharedNotesInitialContentMarkdownUrl = builder.sharedNotesInitialContentMarkdownUrl;
+		sharedNotesInitialContentMarkdown = builder.sharedNotesInitialContentMarkdown;
 		presentationConversionCacheEnabled = builder.presentationConversionCacheEnabled;
         recordFullDurationMedia = builder.recordFullDurationMedia;
         webcamsOnlyForModerator = builder.webcamsOnlyForModerator;
@@ -492,6 +499,10 @@ public class Meeting {
 		return notifyRecordingIsOn;
 	}
 
+	public String getNotifyRecordingAppend() {
+		return notifyRecordingAppend;
+	}
+
 	public String getPresentationUploadExternalDescription() {
 		return presentationUploadExternalDescription;
 	}
@@ -694,6 +705,18 @@ public class Meeting {
 
 	public void setSharedNotesInitialContentJson(ArrayList<Object> initialContentJson) {
 		sharedNotesInitialContentJson = initialContentJson;
+	}
+
+	public String getSharedNotesInitialContentMarkdownUrl() {
+		return sharedNotesInitialContentMarkdownUrl;
+	}
+
+	public String getSharedNotesInitialContentMarkdown() {
+		return sharedNotesInitialContentMarkdown;
+	}
+
+	public void setSharedNotesInitialContentMarkdown(String initialContentMarkdown) {
+		sharedNotesInitialContentMarkdown = initialContentMarkdown;
 	}
 
 	public boolean isPresentationConversionCacheEnabled() {
@@ -1012,6 +1035,14 @@ public class Meeting {
         this.sharedNotesInitialContentJsonFromPayload = sharedNotesInitialContentJsonFromPayload;
     }
 
+    public String getSharedNotesInitialContentMarkdownFromPayload() {
+        return sharedNotesInitialContentMarkdownFromPayload;
+    }
+
+    public void setSharedNotesInitialContentMarkdownFromPayload(String sharedNotesInitialContentMarkdownFromPayload) {
+        this.sharedNotesInitialContentMarkdownFromPayload = sharedNotesInitialContentMarkdownFromPayload;
+    }
+
     /***
 	 * Meeting Builder
 	 *
@@ -1027,6 +1058,8 @@ public class Meeting {
         private boolean allowStartStopRecording;
         private String sharedNotesEditor;
 		private String sharedNotesInitialContentJsonUrl;
+		private String sharedNotesInitialContentMarkdownUrl;
+		private String sharedNotesInitialContentMarkdown;
         private boolean presentationConversionCacheEnabled;
         private boolean webcamsOnlyForModerator;
         private boolean multiUserWhiteboardEnabled;
@@ -1041,6 +1074,7 @@ public class Meeting {
 		private ArrayList<PluginManifest> pluginManifests;
 		private String html5PluginSdkVersion;
 		private Boolean notifyRecordingIsOn;
+		private String notifyRecordingAppend = "";
 		private String presentationUploadExternalDescription;
 		private String presentationUploadExternalUrl;
     	private int duration;
@@ -1123,6 +1157,16 @@ public class Meeting {
     		this.sharedNotesInitialContentJsonUrl = initialContent;
     		return this;
     	}
+
+		public Builder withSharedNotesInitialContentMarkdownUrl(String initialContent) {
+			this.sharedNotesInitialContentMarkdownUrl = initialContent;
+			return this;
+		}
+
+		public Builder withSharedNotesInitialContentMarkdown(String initialContent) {
+			this.sharedNotesInitialContentMarkdown = initialContent;
+			return this;
+		}
 
 		public Builder withPresentationConversionCacheEnabled(boolean cacheEnabled) {
     		this.presentationConversionCacheEnabled = cacheEnabled;
@@ -1228,6 +1272,11 @@ public class Meeting {
 	    	this.notifyRecordingIsOn = b;
 	    	return this;
 	    }
+
+		public Builder withNotifyRecordingAppend(String message) {
+			this.notifyRecordingAppend = message;
+			return this;
+		}
 
     	public Builder withPresentationUploadExternalDescription(String d) {
 	    	this.presentationUploadExternalDescription = d;

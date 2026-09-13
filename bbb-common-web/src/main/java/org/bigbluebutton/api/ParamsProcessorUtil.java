@@ -659,6 +659,18 @@ public class ParamsProcessorUtil {
             }
         }
 
+        String sharedNotesInitialContentMarkdown = "";
+        if (!StringUtils.isEmpty(params.get(ApiParams.SHARED_NOTES_INITIAL_CONTENT_MARKDOWN))) {
+            sharedNotesInitialContentMarkdown = params
+                    .get(ApiParams.SHARED_NOTES_INITIAL_CONTENT_MARKDOWN);
+        }
+
+        String sharedNotesInitialContentMarkdownUrl = "";
+        if (!StringUtils.isEmpty(params.get(ApiParams.SHARED_NOTES_INITIAL_CONTENT_MARKDOWN_URL))) {
+            sharedNotesInitialContentMarkdownUrl = params
+                    .get(ApiParams.SHARED_NOTES_INITIAL_CONTENT_MARKDOWN_URL);
+        }
+
         String sharedNotesEditor = defaultSharedNotesEditor;
         if (!StringUtils.isEmpty(params.get(ApiParams.SHARED_NOTES_EDITOR))) {
             try {
@@ -797,6 +809,11 @@ public class ParamsProcessorUtil {
         Boolean notifyRecordingIsOn = defaultNotifyRecordingIsOn;
         if (!StringUtils.isEmpty(params.get(ApiParams.NOTIFY_RECORDING_IS_ON))) {
             notifyRecordingIsOn = Boolean.parseBoolean(params.get(ApiParams.NOTIFY_RECORDING_IS_ON));
+        }
+
+        String notifyRecordingAppend = "";
+        if (!StringUtils.isBlank(params.get(ApiParams.NOTIFY_RECORDING_APPEND))) {
+            notifyRecordingAppend = ParamsUtil.stripControlChars(params.get(ApiParams.NOTIFY_RECORDING_APPEND));
         }
 
         boolean multiUserWhiteboardEnabled = false;
@@ -992,6 +1009,8 @@ public class ParamsProcessorUtil {
                 .withAllowStartStopRecording(allowStartStoptRec)
                 .withSharedNotesEditor(sharedNotesEditor)
                 .withSharedNotesInitialContentJsonUrl(sharedNotesInitialContentJsonUrl)
+                .withSharedNotesInitialContentMarkdown(sharedNotesInitialContentMarkdown)
+                .withSharedNotesInitialContentMarkdownUrl(sharedNotesInitialContentMarkdownUrl)
                 .withPresentationConversionCacheEnabled(presentationCacheEnabled)
                 .withRecordFullDurationMedia(_recordFullDurationMedia)
                 .withWebcamsOnlyForModerator(webcamsOnlyForMod)
@@ -1023,6 +1042,7 @@ public class ParamsProcessorUtil {
                 .withHtml5PluginSdkVersion(html5PluginSdkVersion)
                 .withDisabledFeatures(listOfDisabledFeatures)
                 .withNotifyRecordingIsOn(notifyRecordingIsOn)
+                .withNotifyRecordingAppend(notifyRecordingAppend)
                 .withPresentationUploadExternalDescription(presentationUploadExternalDescription)
                 .withPresentationUploadExternalUrl(presentationUploadExternalUrl)
                 .build();
