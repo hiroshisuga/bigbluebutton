@@ -118,7 +118,7 @@ const isPagePointVisibleOnSlide = (editor, pageId, pagePoint, infiniteWhiteboard
     );
 
     const slideBounds = slideShape
-  　  ? editor.getShapePageBounds(slideShape)
+      ? editor.getShapePageBounds(slideShape)
       : null;
 
     if (!slideBounds) return false;
@@ -2797,10 +2797,10 @@ const Whiteboard = React.memo((props) => {
       laserElRef.current = null;
       const defaultPointer = document.getElementById('redPointer');
       if (!laserDef) {
-        // Presenter uses hand tool, so the default red pointer is visible for viewers
+        // No recognized custom laser (presenter uses hand-tool; show viewers the default red pointer.
         defaultPointer?.style.setProperty('display', 'block');
       } else {
-        // Presenter uses laser pointer, so the default red pointer is invisible for viewers
+        // Presenter uses laser pointer; hide the default red pointer from viewers
         defaultPointer?.style.setProperty('display', 'none');
       }
     }
