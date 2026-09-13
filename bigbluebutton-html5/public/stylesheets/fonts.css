@@ -214,3 +214,67 @@
        url('../fonts/SourceSansPro/SourceSansPro-BoldItalic.woff?v=VERSION') format('woff');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2212, U+2215, U+E0FF, U+EFFD, U+F000;
 }
+/* Japanese pop font, compatible to tldraw-draw font */
+@font-face {
+  font-family: 'KosugiMaruSubset';
+  font-style: normal;
+  font-weight: 400;
+  src: url('../fonts/KosugiMaru/KosugiMaru-Regular.woff2') format('woff2');
+  unicode-range:
+    U+4E00-9FFF,   /* Common Chinese character */
+    U+3000-303F,   /* CJK symbols*/
+    U+3040-309F,   /* Hiragana */
+    U+30A0-30FF,   /* Katakana */
+    U+31F0-31FF,   /* Katakana extended */
+    U+FF00-FFEF;   /* 2 byte symbols */
+}
+/* MA fonts */
+@font-face {
+  font-family: 'MRY';
+  font-style: normal;
+  font-weight: 400;
+  src: url('../fonts/MA/MRY-subset.woff2') format('woff2');
+  unicode-range:
+    U+4E00-9FFF,   /* Common Chinese character */
+    U+3000-303F,   /* CJK symbols*/
+    U+3040-309F,   /* Hiragana */
+    U+30A0-30FF,   /* Katakana */
+    U+31F0-31FF,   /* Katakana extended */
+    U+FF00-FFEF;   /* 2 byte symbols */
+}
+/* MA fonts */
+@font-face {
+  font-family: 'AMT';
+  font-style: normal;
+  font-weight: 300;
+  src: url('../fonts/MA/AMT.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2212, U+2215, U+E0FF, U+EFFD, U+F000;
+}
+/* MS fonts */
+@font-face {
+  font-family: 'MG';
+  font-style: normal;
+  font-weight: 400;
+  src: url('../fonts/MS/MG-subset.woff2') format('woff2');
+  unicode-range:
+    U+4E00-9FFF,   /* Common Chinese character */
+    U+3000-303F,   /* CJK symbols*/
+    U+3040-309F,   /* Hiragana */
+    U+30A0-30FF,   /* Katakana */
+    U+31F0-31FF,   /* Katakana extended */
+    U+FF00-FFEF;   /* 2 byte symbols */
+}
+/* MS fonts */
+@font-face {
+  font-family: 'MM';
+  font-style: normal;
+  font-weight: 400;
+  src: url('../fonts/MS/MM-subset.woff2') format('woff2');
+  unicode-range:
+    U+4E00-9FFF,   /* Common Chinese character */
+    U+3000-303F,   /* CJK symbols*/
+    U+3040-309F,   /* Hiragana */
+    U+30A0-30FF,   /* Katakana */
+    U+31F0-31FF,   /* Katakana extended */
+    U+FF00-FFEF;   /* 2 byte symbols */
+}
