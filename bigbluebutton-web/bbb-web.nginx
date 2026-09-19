@@ -40,6 +40,8 @@ location ~ "^\/bigbluebutton\/presentation\/(?<prestoken>[a-zA-Z0-9_-]+)/upload$
 	auth_request_set $file_too_large_header $upstream_http_x_file_too_large;
 }
 
+# To manually upload the presentation note
+#  (not necessary if only the extraction from an uploaded pptx is expected)
 # Currently you needs a manual edit of /usr/share/bigbluebutton/nginx/web
 location = /bigbluebutton/presentation-notes/upload {
 	proxy_pass         http://127.0.0.1:8090;
