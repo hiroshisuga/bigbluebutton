@@ -230,11 +230,9 @@ class Presentation extends PureComponent {
     this.loadCurrentSlideNote = this.loadCurrentSlideNote.bind(this);
     this.handlePresentationNotesUpdated = this.handlePresentationNotesUpdated.bind(this);
     this.handlePresenterViewChange = this.handlePresenterViewChange.bind(this);
-    this.handlePopupViewRestored = this.handlePopupViewRestored.bind(this);
     this.clearPresenterAnnotations = this.clearPresenterAnnotations.bind(this);
     this.handlePresenterAnnotationsChange = this.handlePresenterAnnotationsChange.bind(this);
     this.presenterAnnotationsObjectUrl = null;
-    this.popupViewCenter = null;
     this.resizeWindow = null;
     Session.setItem('componentPresentationWillUnmount', false);
   }
@@ -566,29 +564,6 @@ class Presentation extends PureComponent {
   }
 
   // eslint-disable-next-line react/sort-comp
-  capturePopupViewCenter() {
-    const { currentPresentationId, currentSlide, userIsPresenter } = this.props;
-    const { tldrawAPI } = this.state;
-    const viewport = tldrawAPI?.getViewportPageBounds();
-    if (!userIsPresenter || !currentSlide || !(viewport?.w > 0) || !(viewport?.h > 0)) {
-      return;
-    }
-
-    this.popupViewCenter = {
-      presentationId: currentPresentationId,
-      pageNum: currentSlide.num,
-      x: viewport.x + viewport.w / 2,
-      y: viewport.y + viewport.h / 2,
-    };
-  }
-
-  handlePopupViewRestored(view) {
-    if (this.popupViewCenter === view) {
-      this.popupViewCenter = null;
-    }
-  }
-
-  // eslint-disable-next-line react/sort-comp
   detachPresentation() {
     const {
       slidePosition,
@@ -756,7 +731,6 @@ class Presentation extends PureComponent {
       const handlePopupBeforeUnload = () => {
         window.removeEventListener('beforeunload', closePopup);
         window.removeEventListener('darkmodechange', handleDarkModeChange);
-        this.capturePopupViewCenter();
         toggleDetachPresentation(null);
       };
 
@@ -772,7 +746,6 @@ class Presentation extends PureComponent {
     } else {
       // to explicitely exit fullsreen; we do not need setState "isFullscreen: false".
       //  (in case user directly merge popup when it is fullscreen)
-      this.capturePopupViewCenter();
       const { layoutContextDispatch } = this.props;
       layoutContextDispatch({
         type: ACTIONS.SET_FULLSCREEN_ELEMENT,
@@ -1538,8 +1511,6 @@ class Presentation extends PureComponent {
                     refetchInitialPageAnnotations={refetchInitialPageAnnotations}
                     restoreOnUpdate={restoreOnUpdate}
                     isPresentationDetached={isPresentationDetached}
-                    restoreViewCenter={!isPresentationDetached ? this.popupViewCenter : null}
-                    onRestoreViewCenter={this.handlePopupViewRestored}
                     onPresenterViewChange={this.handlePresenterViewChange}
                     onPresenterAnnotationsChange={this.handlePresenterAnnotationsChange}
                   />
