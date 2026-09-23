@@ -15,7 +15,7 @@ const windowWidth = () => window.document.documentElement.clientWidth;
 const windowHeight = () => window.document.documentElement.clientHeight;
 
 const PresentationOnlyLayout = (props) => {
-  const { bannerAreaHeight, calculatesNavbarHeight, isMobile } = props;
+  const { bannerAreaHeight, calculatesNavbarHeight, isMobile, isPresentationDetached } = props;
 
   function usePrevious(value) {
     const ref = useRef();
@@ -47,7 +47,7 @@ const PresentationOnlyLayout = (props) => {
     const navBarHeight = calculatesNavbarHeight();
 
     if (
-      fullscreenElement === 'Presentation'
+      (fullscreenElement === 'Presentation' && !isPresentationDetached)
       || fullscreenElement === 'Screenshare'
       || fullscreenElement === 'ExternalVideo'
       || fullscreenElement === 'GenericContent'
