@@ -174,6 +174,9 @@ const PresentationMenu = (props) => {
     hasError: false,
     loading: false,
   });
+  const presentationMenuRef = useRef(null);
+
+  const getPresentationDocument = () => presentationMenuRef.current?.ownerDocument || document;
 
   const extractSlideContentToImage = async () => {
     const { isIos } = deviceInfo;
@@ -190,7 +193,7 @@ const PresentationMenu = (props) => {
     svgElem.setAttribute('height', backgroundShape.props.h);
     svgElem.setAttribute('viewBox', `1 1 ${backgroundShape.props.w} ${backgroundShape.props.h}`);
     if (pollShape) {
-      const presentationDocument = fullscreenRef?.ownerDocument || document;
+      const presentationDocument = getPresentationDocument();
       const pollShapeElement = presentationDocument.getElementById(pollShape.id);
       if (!pollShapeElement) {
         throw new Error(`Poll result element ${pollShape.id} was not found`);
@@ -488,7 +491,7 @@ const PresentationMenu = (props) => {
               const fileName = (isIos || isSafari)
                 ? `${elementName}_${meetingName}_${new Date().toISOString()}.svg`
                 : `${elementName}_${meetingName}_${new Date().toISOString()}.png`;
-              const presentationDocument = fullscreenRef?.ownerDocument || document;
+              const presentationDocument = getPresentationDocument();
               const anchor = presentationDocument.createElement('a');
               anchor.href = data;
               anchor.setAttribute(
@@ -623,7 +626,7 @@ const PresentationMenu = (props) => {
 
   return (
     <>
-      <Styled.Right id="WhiteboardOptionButton">
+      <Styled.Right id="WhiteboardOptionButton" ref={presentationMenuRef}>
         <BBBMenu
           trigger={(
             <TooltipContainer title={intl.formatMessage(intlMessages.optionsLabel)}>
