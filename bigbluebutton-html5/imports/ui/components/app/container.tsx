@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useReactiveVar } from '@apollo/client';
 import {
   useIsPresentationEnabled,
@@ -108,9 +108,15 @@ const AppContainer: React.FC<AppContainerProps> = ({ pluginConfig }) => {
   const shouldShowExternalVideo = isExternalVideoEnabled && hasExternalVideo;
   const shouldShowScreenshare = (viewScreenshare || presenter)
     && (hasScreenshare || hasCameraAsContent) && showScreenshare;
-  const shouldShowPresentation = !shouldShowScreenshare && !isSharedNotesPinned
-    && !shouldShowExternalVideo && (presentationIsOpen || presentationRestoreOnUpdate)
+  const [popupWindow, setPopupWindow] = useState<Window | null>(null);
+  const isPresentationDetached = popupWindow !== null;
+  const toggleDetachPresentation = (popup: Window | null) => setPopupWindow(popup);
+
+  const hasPresentationContent = (presentationIsOpen || presentationRestoreOnUpdate)
     && isPresentationEnabled;
+  const shouldShowPresentation = (isPresentationDetached
+    || (!shouldShowScreenshare && !isSharedNotesPinned && !shouldShowExternalVideo))
+    && hasPresentationContent;
 
   const {
     isBreakout = false,
@@ -136,6 +142,9 @@ const AppContainer: React.FC<AppContainerProps> = ({ pluginConfig }) => {
       shouldShowScreenshare={shouldShowScreenshare}
       isSharedNotesPinned={isSharedNotesPinned}
       shouldShowPresentation={shouldShowPresentation}
+      isPresentationDetached={isPresentationDetached}
+      popupWindow={popupWindow}
+      toggleDetachPresentation={toggleDetachPresentation}
       isNotificationEnabled={isNotificationEnabled}
       isRaiseHandEnabled={isRaiseHandEnabled}
       layoutContextDispatch={layoutContextDispatch}
