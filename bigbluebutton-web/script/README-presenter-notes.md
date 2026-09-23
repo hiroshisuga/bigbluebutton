@@ -7,7 +7,7 @@ notes from uploaded PPTX** or uploads a separate notes PPTX.
 On the BBB web server, install the extractor and its Python dependency:
 
 ```sh
-sudo apt install python3-defusedxml
+sudo apt install python3-defusedxml (if not installed)
 sudo install -m 755 bigbluebutton-web/script/extract_pptx_notes.py /usr/local/bin/extract_pptx_notes.py
 ```
 
