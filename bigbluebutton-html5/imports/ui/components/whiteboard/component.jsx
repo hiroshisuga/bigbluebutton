@@ -311,6 +311,8 @@ const Whiteboard = React.memo((props) => {
     layoutChanged,
     pointerDiameter = 5,
     isPresentationDetached,
+    restoreViewCenter,
+    onRestoreViewCenter,
     onPresenterViewChange,
     onPresenterAnnotationsChange,
   } = props;
@@ -380,6 +382,7 @@ const Whiteboard = React.memo((props) => {
   const onPresenterViewChangeRef = React.useRef(onPresenterViewChange);
   const onPresenterAnnotationsChangeRef = React.useRef(onPresenterAnnotationsChange);
   const isPresentationDetachedRef = React.useRef(isPresentationDetached);
+  const restoredViewCenterRef = React.useRef(null);
   const presenterAnnotationsTimerRef = React.useRef(null);
   const presenterAnnotationsExportingRef = React.useRef(false);
   const presenterAnnotationsPendingRef = React.useRef(false);
@@ -2345,6 +2348,30 @@ const Whiteboard = React.memo((props) => {
         tlEditorRef.current.store.put([updatedCurrentCam]);
       });
 
+      // The popup and main window have different viewport sizes. Restoring the
+      // popup's camera offsets alone shifts the visible part of the slide.
+      if (restoreViewCenter && restoredViewCenterRef.current !== restoreViewCenter
+        && !isPresentationDetached) {
+        const samePage = restoreViewCenter.presentationId === presentationIdRef.current
+          && restoreViewCenter.pageNum === Number(curPageIdRef.current);
+        const viewport = tlEditorRef.current.getViewportScreenBounds();
+        const currentCamera = tlEditorRef.current.getCamera();
+        if (!samePage || (viewport?.width > 0 && viewport?.height > 0 && currentCamera?.z > 0)) {
+          restoredViewCenterRef.current = restoreViewCenter;
+          if (samePage) {
+            const centeredCamera = {
+              ...currentCamera,
+              x: viewport.width / (2 * currentCamera.z) - restoreViewCenter.x,
+              y: viewport.height / (2 * currentCamera.z) - restoreViewCenter.y,
+            };
+            tlEditorRef.current.store.mergeRemoteChanges(() => {
+              tlEditorRef.current.store.put([centeredCamera]);
+            });
+          }
+          onRestoreViewCenter?.(restoreViewCenter);
+        }
+      }
+
       // Remote camera updates do not trigger the user-source listener,
       // so publish the final settled presenter view explicitly.
       if (fitToWidthRef.current) {
@@ -3057,6 +3084,13 @@ Whiteboard.propTypes = {
   isInfiniteWhiteboard: PropTypes.bool,
   whiteboardWriters: PropTypes.arrayOf(PropTypes.shape).isRequired,
   isPresentationDetached: PropTypes.bool,
+  restoreViewCenter: PropTypes.shape({
+    presentationId: PropTypes.string,
+    pageNum: PropTypes.number,
+    x: PropTypes.number,
+    y: PropTypes.number,
+  }),
+  onRestoreViewCenter: PropTypes.func,
   onPresenterViewChange: PropTypes.func,
   onPresenterAnnotationsChange: PropTypes.func,
 };
