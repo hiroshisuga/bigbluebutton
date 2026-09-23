@@ -1845,7 +1845,6 @@ const Whiteboard = React.memo((props) => {
           const panned = prevCam.x !== nextCam.x || prevCam.y !== nextCam.y;
 
           const zoomed = prevCam.z !== nextCam.z;
-          const panOnlyInPopup = isPresentationDetachedRef.current && panned && !zoomed;
           if (isPresenterRef.current && (panned || zoomed) && isMountedRef.current) {
             const baseZ = calculateZoomValueRef.current?.(
               currentPresentationPageRef.current?.scaledWidth,
@@ -1883,9 +1882,7 @@ const Whiteboard = React.memo((props) => {
             }
 
             if (
-              // Resizing a detached popup can change the camera's base zoom without
-              // changing the toolbar value. A popup pan at fixed zoom must still reach viewers.
-              (panOnlyInPopup || tlCamPercent === zoomValueRef.current)
+              tlCamPercent === zoomValueRef.current
               && (!hasZoomSyncedRef.current || (hasZoomSyncedRef.current && panned))
               && isMountedRef.current
             ) {
