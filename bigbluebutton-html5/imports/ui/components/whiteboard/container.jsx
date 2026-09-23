@@ -566,8 +566,6 @@ WhiteboardContainer.propTypes = {
   }).isRequired,
   zoomChanger: PropTypes.func.isRequired,
   fitToWidth: PropTypes.bool.isRequired,
-  restoreViewCenter: PropTypes.shape(),
-  onRestoreViewCenter: PropTypes.func,
   onPresenterViewChange: PropTypes.func,
   onPresenterAnnotationsChange: PropTypes.func,
 };
