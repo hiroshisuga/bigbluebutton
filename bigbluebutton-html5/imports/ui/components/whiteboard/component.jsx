@@ -1849,6 +1849,7 @@ const Whiteboard = React.memo((props) => {
           const panned = prevCam.x !== nextCam.x || prevCam.y !== nextCam.y;
 
           const zoomed = prevCam.z !== nextCam.z;
+          const panWithoutZoom = panned && !zoomed;
           if (isPresenterRef.current && (panned || zoomed) && isMountedRef.current) {
             const baseZ = calculateZoomValueRef.current?.(
               currentPresentationPageRef.current?.scaledWidth,
@@ -1886,7 +1887,9 @@ const Whiteboard = React.memo((props) => {
             }
 
             if (
-              tlCamPercent === zoomValueRef.current &&
+              // After resizing, the camera and toolbar zoom percentages can differ.
+              // A pan at unchanged zoom can still be sent using the actual camera.
+              (panWithoutZoom || tlCamPercent === zoomValueRef.current) &&
               (!hasZoomSyncedRef.current || (hasZoomSyncedRef.current && panned)) &&
               isMountedRef.current
             ) {
