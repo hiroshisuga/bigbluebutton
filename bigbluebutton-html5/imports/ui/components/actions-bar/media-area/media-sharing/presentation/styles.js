@@ -84,6 +84,34 @@ const UploaderDropzone = styled(Dropzone)`
   }
 `;
 
+const AnimationOptions = styled.fieldset`
+  margin: 0.5rem 1.5rem 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid ${colorGrayLighter};
+  border-radius: 0.5rem;
+  color: ${appsPanelTextColor};
+  text-align: start;
+`;
+
+const AnimationOptionsLabel = styled.legend`
+  padding: 0 0.25rem;
+  font-size: ${fontSizeSmaller};
+  font-weight: ${textFontWeight};
+`;
+
+const AnimationOption = styled.label`
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-inline-end: 1rem;
+  cursor: pointer;
+
+  input {
+    margin: 0;
+    accent-color: ${colorPrimary};
+  }
+`;
+
 const DropzoneMessage = styled.p`
   color: ${appsPanelTextColor};
   font-weight: ${textFontWeight};
@@ -207,6 +235,9 @@ export default {
   UploadIcon,
   RemoveButton,
   UploaderDropzone,
+  AnimationOptions,
+  AnimationOptionsLabel,
+  AnimationOption,
   DropzoneMessage,
   DropzoneLink,
   ExternalUpload,

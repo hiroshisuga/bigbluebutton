@@ -121,6 +121,18 @@ const intlMessages = defineMessages({
     id: 'app.mediaSharing.modal.share',
     description: 'Label for the share button in the sharing media modal',
   },
+  expandAnimations: {
+    id: 'app.presentationUploader.expandAnimations',
+    description: 'Whether to expand PowerPoint animations before uploading a PPTX',
+  },
+  expandAnimationsYes: {
+    id: 'app.presentationUploader.expandAnimationsYes',
+    description: 'Expand PowerPoint animations',
+  },
+  expandAnimationsNo: {
+    id: 'app.presentationUploader.expandAnimationsNo',
+    description: 'Do not expand PowerPoint animations',
+  },
 });
 
 class PresentationUploader extends Component {
@@ -130,6 +142,7 @@ class PresentationUploader extends Component {
     this.state = {
       presentations: props.presentations,
       activeThumbnailId: null, // Initialize activeThumbnailId
+      expandAnimations: false,
     };
 
     this.hasError = null;
@@ -714,12 +727,38 @@ class PresentationUploader extends Component {
     if (!isPresenter) return null;
     const {
       activeThumbnailId,
+      expandAnimations,
     } = this.state;
 
     return (
       <div id="upload-modal">
         {isMobile ? this.renderPicDropzone() : null}
         {this.renderDropzone()}
+        <Styled.AnimationOptions data-test="pptxAnimationOptions">
+          <Styled.AnimationOptionsLabel>
+            {intl.formatMessage(intlMessages.expandAnimations)}
+          </Styled.AnimationOptionsLabel>
+          <Styled.AnimationOption>
+            <input
+              type="radio"
+              name="expandPptxAnimations"
+              checked={expandAnimations}
+              onChange={() => this.setState({ expandAnimations: true })}
+              data-test="expandPptxAnimationsYes"
+            />
+            {intl.formatMessage(intlMessages.expandAnimationsYes)}
+          </Styled.AnimationOption>
+          <Styled.AnimationOption>
+            <input
+              type="radio"
+              name="expandPptxAnimations"
+              checked={!expandAnimations}
+              onChange={() => this.setState({ expandAnimations: false })}
+              data-test="expandPptxAnimationsNo"
+            />
+            {intl.formatMessage(intlMessages.expandAnimationsNo)}
+          </Styled.AnimationOption>
+        </Styled.AnimationOptions>
         {this.renderExternalUpload()}
         {this.renderPresentationList()}
         <ModalStyled.FooterContainer>
