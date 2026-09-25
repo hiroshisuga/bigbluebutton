@@ -133,6 +133,14 @@ const intlMessages = defineMessages({
     id: 'app.presentationUploader.expandAnimationsNo',
     description: 'Do not expand PowerPoint animations',
   },
+  uploadPptx: {
+    id: 'app.presentationUploder.uploadLabel',
+    description: 'Upload the selected PPTX files',
+  },
+  cancelPptx: {
+    id: 'app.presentationUploder.dismissLabel',
+    description: 'Cancel the selected PPTX files',
+  },
 });
 
 class PresentationUploader extends Component {
@@ -143,6 +151,7 @@ class PresentationUploader extends Component {
       presentations: props.presentations,
       activeThumbnailId: null, // Initialize activeThumbnailId
       expandAnimations: false,
+      pendingPptxFiles: [],
     };
 
     this.hasError = null;
@@ -153,6 +162,9 @@ class PresentationUploader extends Component {
     this.handleRemove = this.handleRemove.bind(this);
     this.handleCurrentChange = this.handleCurrentChange.bind(this);
     this.handleDownloadingOfPresentation = this.handleDownloadingOfPresentation.bind(this);
+    this.handleSelectedFiles = this.handleSelectedFiles.bind(this);
+    this.handlePptxUpload = this.handlePptxUpload.bind(this);
+    this.handlePptxCancel = this.handlePptxCancel.bind(this);
     // renders
     this.renderDropzone = this.renderDropzone.bind(this);
     this.renderPicDropzone = this.renderPicDropzone.bind(this);
@@ -466,6 +478,36 @@ class PresentationUploader extends Component {
     exportPresentation(item.presentationId, fileStateType);
   }
 
+  handleSelectedFiles(files, rejectedFiles) {
+    const { handleFiledrop, intl } = this.props;
+    const pptxFiles = files.filter((file) => /\.pptx$/i.test(file.name));
+    const otherFiles = files.filter((file) => !/\.pptx$/i.test(file.name));
+
+    if (otherFiles.length || rejectedFiles.length) {
+      handleFiledrop(otherFiles, rejectedFiles, this, intl, intlMessages);
+    }
+
+    if (pptxFiles.length) {
+      this.setState(({ pendingPptxFiles }) => ({
+        pendingPptxFiles: pendingPptxFiles.concat(pptxFiles),
+      }));
+    }
+  }
+
+  handlePptxUpload() {
+    const { handleFiledrop, intl } = this.props;
+    const { pendingPptxFiles, expandAnimations } = this.state;
+    if (!pendingPptxFiles.length) return;
+
+    this.setState({ pendingPptxFiles: [], expandAnimations: false }, () => {
+      handleFiledrop(pendingPptxFiles, [], this, intl, intlMessages, expandAnimations);
+    });
+  }
+
+  handlePptxCancel() {
+    this.setState({ pendingPptxFiles: [], expandAnimations: false });
+  }
+
   deepMergeUpdateFileKey(id, key, value) {
     const applyValue = (toUpdate) => update(toUpdate, { $merge: value });
     this.updateFileKey(id, key, applyValue, '$apply');
@@ -637,7 +679,6 @@ class PresentationUploader extends Component {
     const {
       intl,
       fileValidMimeTypes,
-      handleFiledrop,
     } = this.props;
 
     return (
@@ -649,7 +690,7 @@ class PresentationUploader extends Component {
         activeClassName="dropzoneActive"
         accept={fileValidMimeTypes.map((fileValid) => fileValid.extension)}
         disablepreview="true"
-        onDrop={(files, files2) => handleFiledrop(files, files2, this, intl, intlMessages)}
+        onDrop={this.handleSelectedFiles}
       >
         <Styled.UploadIcon />
         <Styled.DropzoneMessage>
@@ -728,37 +769,59 @@ class PresentationUploader extends Component {
     const {
       activeThumbnailId,
       expandAnimations,
+      pendingPptxFiles,
     } = this.state;
 
     return (
       <div id="upload-modal">
         {isMobile ? this.renderPicDropzone() : null}
         {this.renderDropzone()}
-        <Styled.AnimationOptions data-test="pptxAnimationOptions">
-          <Styled.AnimationOptionsLabel>
-            {intl.formatMessage(intlMessages.expandAnimations)}
-          </Styled.AnimationOptionsLabel>
-          <Styled.AnimationOption>
-            <input
-              type="radio"
-              name="expandPptxAnimations"
-              checked={expandAnimations}
-              onChange={() => this.setState({ expandAnimations: true })}
-              data-test="expandPptxAnimationsYes"
-            />
-            {intl.formatMessage(intlMessages.expandAnimationsYes)}
-          </Styled.AnimationOption>
-          <Styled.AnimationOption>
-            <input
-              type="radio"
-              name="expandPptxAnimations"
-              checked={!expandAnimations}
-              onChange={() => this.setState({ expandAnimations: false })}
-              data-test="expandPptxAnimationsNo"
-            />
-            {intl.formatMessage(intlMessages.expandAnimationsNo)}
-          </Styled.AnimationOption>
-        </Styled.AnimationOptions>
+        {pendingPptxFiles.length > 0 && (
+          <Styled.AnimationOptions data-test="pptxAnimationOptions">
+            <Styled.AnimationOptionsLabel>
+              {intl.formatMessage(intlMessages.expandAnimations)}
+            </Styled.AnimationOptionsLabel>
+            <Styled.AnimationFiles>
+              {pendingPptxFiles.map((file, index) => (
+                <li key={`${file.name}-${index}`}>{file.name}</li>
+              ))}
+            </Styled.AnimationFiles>
+            <Styled.AnimationOption>
+              <input
+                type="radio"
+                name="expandPptxAnimations"
+                checked={expandAnimations}
+                onChange={() => this.setState({ expandAnimations: true })}
+                data-test="expandPptxAnimationsYes"
+              />
+              {intl.formatMessage(intlMessages.expandAnimationsYes)}
+            </Styled.AnimationOption>
+            <Styled.AnimationOption>
+              <input
+                type="radio"
+                name="expandPptxAnimations"
+                checked={!expandAnimations}
+                onChange={() => this.setState({ expandAnimations: false })}
+                data-test="expandPptxAnimationsNo"
+              />
+              {intl.formatMessage(intlMessages.expandAnimationsNo)}
+            </Styled.AnimationOption>
+            <Styled.AnimationActions>
+              <BBButton
+                variant="secondary"
+                label={intl.formatMessage(intlMessages.cancelPptx)}
+                onClick={this.handlePptxCancel}
+                dataTest="cancelPptxUpload"
+              />
+              <BBButton
+                variant="primary"
+                label={intl.formatMessage(intlMessages.uploadPptx)}
+                onClick={this.handlePptxUpload}
+                dataTest="confirmPptxUpload"
+              />
+            </Styled.AnimationActions>
+          </Styled.AnimationOptions>
+        )}
         {this.renderExternalUpload()}
         {this.renderPresentationList()}
         <ModalStyled.FooterContainer>

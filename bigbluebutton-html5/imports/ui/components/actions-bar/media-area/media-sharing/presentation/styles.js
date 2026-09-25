@@ -99,6 +99,14 @@ const AnimationOptionsLabel = styled.legend`
   font-weight: ${textFontWeight};
 `;
 
+const AnimationFiles = styled.ul`
+  max-height: 5rem;
+  overflow-y: auto;
+  margin: 0.25rem 0 0.5rem;
+  padding-inline-start: 1.25rem;
+  overflow-wrap: anywhere;
+`;
+
 const AnimationOption = styled.label`
   display: inline-flex;
   align-items: center;
@@ -110,6 +118,13 @@ const AnimationOption = styled.label`
     margin: 0;
     accent-color: ${colorPrimary};
   }
+`;
+
+const AnimationActions = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
 `;
 
 const DropzoneMessage = styled.p`
@@ -237,7 +252,9 @@ export default {
   UploaderDropzone,
   AnimationOptions,
   AnimationOptionsLabel,
+  AnimationFiles,
   AnimationOption,
+  AnimationActions,
   DropzoneMessage,
   DropzoneLink,
   ExternalUpload,

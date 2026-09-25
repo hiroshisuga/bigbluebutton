@@ -242,12 +242,12 @@ const useExternalUploadData = () => {
   };
 };
 
-function handleFiledrop(files, files2, that, intl, intlMessages) {
+function handleFiledrop(files, files2, that, intl, intlMessages, expandAnimations = false) {
   if (that) {
     const {
       fileValidMimeTypes,
     } = that.props;
-    const { toUploadCount, expandAnimations } = that.state;
+    const { toUploadCount } = that.state;
     const validMimes = fileValidMimeTypes.map((fileValid) => fileValid.mime);
     const validExtentions = fileValidMimeTypes.map((fileValid) => fileValid.extension);
     const [accepted, rejected] = partition(
@@ -255,6 +255,11 @@ function handleFiledrop(files, files2, that, intl, intlMessages) {
         validMimes.includes(f.type) || validExtentions.includes(`.${f.name.split('.').pop()}`)
       ),
     );
+
+    if (!accepted.length) {
+      if (rejected.length) notify(intl.formatMessage(intlMessages.rejectedError), 'error');
+      return;
+    }
 
     const presentationsToUpload = accepted.map((file) => {
       const id = uniqueId(uuid());
