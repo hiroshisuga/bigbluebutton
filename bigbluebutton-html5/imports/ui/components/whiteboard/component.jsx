@@ -2101,8 +2101,8 @@ const Whiteboard = React.memo((props) => {
       <svg class="bbb-laser-pointer" xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
         <defs>
           <radialGradient id="g-${id}-core" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stop-color="#ffffff" stop-opacity="1"/>
-            <stop offset="10%" stop-color="#ffffff" stop-opacity="0.95"/>
+            <stop offset="0%" stop-color="#ffffff" stop-opacity="1" style="stop-color: #ffffff !important"/>
+            <stop offset="10%" stop-color="#ffffff" stop-opacity="0.95" style="stop-color: #ffffff !important"/>
             <stop offset="30%" stop-color="${color}" stop-opacity="0.95"/>
             <stop offset="60%" stop-color="${color}" stop-opacity="0.65"/>
             <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
@@ -2110,8 +2110,8 @@ const Whiteboard = React.memo((props) => {
           <radialGradient id="g-${id}-ring" cx="50%" cy="50%" r="50%">
             <stop offset="60%" stop-color="${color}" stop-opacity="0"/>
             <stop offset="68%" stop-color="${color}" stop-opacity="0.35"/>
-            <stop offset="74%" stop-color="#ffffff" stop-opacity="0.95"/>
-            <stop offset="84%" stop-color="#ffffff" stop-opacity="0.95"/>
+            <stop offset="74%" stop-color="#ffffff" stop-opacity="0.95" style="stop-color: #ffffff !important"/>
+            <stop offset="84%" stop-color="#ffffff" stop-opacity="0.95" style="stop-color: #ffffff !important"/>
             <stop offset="90%" stop-color="${color}" stop-opacity="0.65"/>
             <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
           </radialGradient>
