@@ -7,6 +7,7 @@ import logger from '/imports/startup/client/logger';
 import { toast } from 'react-toastify';
 import { unique } from 'radash';
 import { BBButton } from '@bigbluebutton/bbb-ui-components-react';
+import { notify } from '/imports/ui/services/notification';
 import Styled from './styles';
 import PresentationDownloadDropdown from './presentation-download-dropdown/component';
 import { getSettingsSingletonInstance } from '/imports/ui/services/settings';
@@ -42,6 +43,9 @@ const propTypes = {
     presentationUploadExternalDescription: PropTypes.string,
     presentationUploadExternalUrl: PropTypes.string,
   }),
+  uploadPresentationNotes: PropTypes.func.isRequired,
+  extractPresentationNotesFromExistingPptx: PropTypes.func.isRequired,
+  renderNotesUploadToast: PropTypes.func.isRequired,
 };
 
 const defaultProps = {
@@ -121,6 +125,30 @@ const intlMessages = defineMessages({
     id: 'app.mediaSharing.modal.share',
     description: 'Label for the share button in the sharing media modal',
   },
+  uploadingNotes: {
+    id: 'app.presentationUploader.uploadingPresenterNotes',
+    description: 'uploading notes',
+  },
+  uploadedNotes: {
+    id: 'app.presentationUploader.uploadedPresenterNotes',
+    description: 'notes uploaded',
+  },
+  uploadingNotesFailed: {
+    id: 'app.presentationUploader.uploadingPresenterNotesFailed',
+    description: 'uploading notes failed',
+  },
+  extractingPresentationNotes: {
+    id: 'app.presentationUploader.extractingPresentationNotes',
+    description: 'extracting notes',
+  },
+  extractedPresentationNotes: {
+    id: 'app.presentationUploader.extractedPresentationNotes',
+    description: 'notes extracted',
+  },
+  extractingPresentationNotesFailed: {
+    id: 'app.presentationUploader.extractingPresentationNotesFailed',
+    description: 'notes extraction failed',
+  },
 });
 
 class PresentationUploader extends Component {
@@ -150,6 +178,9 @@ class PresentationUploader extends Component {
     this.deepMergeUpdateFileKey = this.deepMergeUpdateFileKey.bind(this);
     this.updateFileKey = this.updateFileKey.bind(this);
     this.handleDownloadableChange = this.handleDownloadableChange.bind(this);
+    this.handleUploadPresentationNotes = this.handleUploadPresentationNotes.bind(this);
+    this.handleExtractPresentationNotesFromExistingPptx = this
+      .handleExtractPresentationNotesFromExistingPptx.bind(this);
   }
 
   componentDidUpdate(prevProps) {
@@ -447,6 +478,100 @@ class PresentationUploader extends Component {
     dispatchChangePresentationDownloadable(item, downloadable, fileStateType);
   }
 
+  handleUploadPresentationNotes(presentationItem, file) {
+    const { intl, uploadPresentationNotes, renderNotesUploadToast } = this.props;
+    const endpoint = '/bigbluebutton/presentation-notes/upload';
+    const toastId = `presentation-notes-upload-${presentationItem.presentationId}`;
+
+    const title = intl.formatMessage(intlMessages.uploadingNotes);
+
+    toast(
+      renderNotesUploadToast({
+        intl,
+        title,
+        fileName: file.name,
+        progress: 0,
+      }),
+      {
+        toastId,
+        autoClose: false,
+        hideProgressBar: true,
+        closeOnClick: true,
+        newestOnTop: true,
+        className: 'presentationUploaderToast toastClass',
+      },
+    );
+
+    return uploadPresentationNotes(
+      presentationItem.presentationId,
+      file,
+      endpoint,
+      (event) => {
+        if (event.lengthComputable) {
+          const progress = Math.min(
+            Math.floor((event.loaded / event.total) * 100),
+            99,
+          );
+
+          toast.update(toastId, {
+            render: renderNotesUploadToast({
+              intl,
+              title,
+              fileName: file.name,
+              progress,
+            }),
+          });
+        }
+      },
+    )
+      .then(() => {
+        toast.dismiss(toastId);
+
+        window.dispatchEvent(new CustomEvent('presentationNotesUpdated', {
+          detail: {
+            presentationId: presentationItem.presentationId,
+          },
+        }));
+
+        notify(intl.formatMessage(intlMessages.uploadedNotes), 'success');
+      })
+      .catch((error) => {
+        toast.dismiss(toastId);
+        notify(intl.formatMessage(intlMessages.uploadingNotesFailed), 'error');
+
+        logger.error({
+          logCode: 'presentation_notes_upload_error',
+          extraInfo: { error },
+        }, 'Presentation notes upload failed');
+      });
+  }
+
+  handleExtractPresentationNotesFromExistingPptx(presentationItem) {
+    const { extractPresentationNotesFromExistingPptx, intl } = this.props;
+
+    notify(intl.formatMessage(intlMessages.extractingPresentationNotes), 'info');
+
+    return extractPresentationNotesFromExistingPptx(
+      presentationItem.presentationId,
+    )
+      .then(() => {
+        window.dispatchEvent(new CustomEvent('presentationNotesUpdated', {
+          detail: {
+            presentationId: presentationItem.presentationId,
+          },
+        }));
+        notify(intl.formatMessage(intlMessages.extractedPresentationNotes), 'success');
+      })
+      .catch((error) => {
+        notify(intl.formatMessage(intlMessages.extractingPresentationNotesFailed), 'error');
+
+        logger.error({
+          logCode: 'presentation_notes_extract_existing_error',
+          extraInfo: { error },
+        }, 'Extract presentation notes from existing pptx failed');
+      });
+  }
+
   handleDownloadingOfPresentation(item, fileStateType) {
     const { exportPresentation } = this.props;
 
@@ -586,23 +711,24 @@ class PresentationUploader extends Component {
           <Styled.PresentationItemName data-test="presentationName">
             {item.name}
           </Styled.PresentationItemName>
-          {allowDownloadOriginal || allowDownloadWithAnnotations || allowDownloadConverted ? (
-            <PresentationDownloadDropdown
-              disabled={disableExportDropdown}
-              data-test="exportPresentation"
-              aria-label={formattedDownloadAriaLabel}
-              color="primary"
-              isDownloadable={downloadable}
-              allowDownloadOriginal={allowDownloadOriginal}
-              allowDownloadConverted={allowDownloadConverted}
-              allowDownloadWithAnnotations={allowDownloadWithAnnotations}
-              handleDownloadableChange={this.handleDownloadableChange}
-              item={item}
-              closeModal={() => onActionCompleted()}
-              handleDownloadingOfPresentation={(fileStateType) => this
-                .handleDownloadingOfPresentation(item, fileStateType)}
-            />
-          ) : null}
+          <PresentationDownloadDropdown
+            disabled={disableExportDropdown}
+            data-test="exportPresentation"
+            aria-label={formattedDownloadAriaLabel}
+            color="primary"
+            isDownloadable={downloadable}
+            allowDownloadOriginal={allowDownloadOriginal}
+            allowDownloadConverted={allowDownloadConverted}
+            allowDownloadWithAnnotations={allowDownloadWithAnnotations}
+            handleDownloadableChange={this.handleDownloadableChange}
+            item={item}
+            closeModal={() => onActionCompleted()}
+            handleDownloadingOfPresentation={(fileStateType) => this
+              .handleDownloadingOfPresentation(item, fileStateType)}
+            handleUploadPresentationNotes={this.handleUploadPresentationNotes}
+            handleExtractPresentationNotesFromExistingPptx={this
+              .handleExtractPresentationNotesFromExistingPptx}
+          />
           {removable ? (
             <Styled.RemoveButton
               label={intl.formatMessage(intlMessages.removePresentation)}

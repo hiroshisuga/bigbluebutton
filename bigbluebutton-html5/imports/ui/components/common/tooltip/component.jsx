@@ -1,4 +1,5 @@
 import React, { Component } from 'react';
+import ReactDOM from 'react-dom';
 import PropTypes from 'prop-types';
 import cx from 'classnames';
 import { ESCAPE } from '/imports/utils/keys';
@@ -64,7 +65,14 @@ class Tooltip extends Component {
     const Settings = getSettingsSingletonInstance();
     const { animations } = Settings.application;
 
-    const overridePlacement = placement ? placement : position;
+    // The wrapped component may not forward refs; the portal also changes its document.
+    // eslint-disable-next-line react/no-find-dom-node
+    const referenceElement = ReactDOM.findDOMNode(this);
+    if (!referenceElement) return;
+    this.referenceElement = referenceElement;
+    const { ownerDocument } = referenceElement;
+
+    const overridePlacement = placement || position;
     let overrideDelay;
     if (animations) {
       overrideDelay = delay ? [delay, ANIMATION_DELAY[1]] : ANIMATION_DELAY;
@@ -76,7 +84,7 @@ class Tooltip extends Component {
       aria: null,
       allowHTML: false,
       animation: animations ? DEFAULT_ANIMATION : ANIMATION_NONE,
-      appendTo: document.body,
+      appendTo: ownerDocument.body,
       arrow: roundArrow,
       popperOptions: {
         modifiers: [
@@ -84,7 +92,7 @@ class Tooltip extends Component {
             name: 'preventOverflow',
             options: {
               altAxis: true,
-              boundary: document.documentElement,
+              boundary: ownerDocument.documentElement,
             },
           },
         ],
@@ -102,14 +110,17 @@ class Tooltip extends Component {
       theme: 'bbbtip',
       maxWidth: 300,
     };
-    this.tooltip = Tippy(`#${this.tippySelectorId}`, options);
+    this.tooltip = Tippy([referenceElement], options);
   }
 
   componentDidUpdate() {
     const Settings = getSettingsSingletonInstance();
     const { animations } = Settings.application;
     const { title } = this.props;
-    const elements = document.querySelectorAll('[id^="tippy-"]');
+
+    const ownerDocument = this.referenceElement?.ownerDocument;
+    if (!ownerDocument) return;
+    const elements = ownerDocument.querySelectorAll('[id^="tippy-"]');
 
     Array.from(elements).filter((e) => {
       const instance = e._tippy;
@@ -128,14 +139,14 @@ class Tooltip extends Component {
           ? DEFAULT_ANIMATION : ANIMATION_NONE,
         duration: animations ? ANIMATION_DURATION : 0,
       };
-      if (!e.getAttribute("delay")) {
-        newProps["delay"] = animations ? ANIMATION_DELAY : [ANIMATION_DELAY[0], 0];
+      if (!e.getAttribute('delay')) {
+        newProps.delay = animations ? ANIMATION_DELAY : [ANIMATION_DELAY[0], 0];
       }
       instance.setProps(newProps);
     });
 
-    const elem = document.getElementById(this.tippySelectorId);
-    const opts = { content: title, appendTo: document.body };
+    const elem = ownerDocument.getElementById(this.tippySelectorId);
+    const opts = { content: title, appendTo: ownerDocument.body };
     if (elem && elem._tippy) elem._tippy.setProps(opts);
   }
 
@@ -146,12 +157,19 @@ class Tooltip extends Component {
     }, 150);
   }
 
+  // eslint-disable-next-line react/sort-comp
   onShow() {
-    document.addEventListener('keyup', this.handleEscapeHide);
+    const ownerDocument = this.referenceElement?.ownerDocument;
+    if (ownerDocument) {
+      ownerDocument.addEventListener('keyup', this.handleEscapeHide);
+    }
   }
 
   onHide() {
-    document.removeEventListener('keyup', this.handleEscapeHide);
+    const ownerDocument = this.referenceElement?.ownerDocument;
+    if (ownerDocument) {
+      ownerDocument.removeEventListener('keyup', this.handleEscapeHide);
+    }
   }
 
   handleEscapeHide(e) {
