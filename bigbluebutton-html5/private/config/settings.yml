@@ -1120,6 +1120,11 @@ public:
     allowInfiniteWhiteboardInBreakouts: false
     allowInfiniteWhiteboardPanForViewers: false
     pointerDiameter: 5
+    laserRadiusSmall: 10
+    laserRadiusLarge: 16
+    laserColors:
+      - '#ff1414'
+      - '#00a080'
     maxStickyNoteLength: 1000
     # limit number of annotations per slide
     maxNumberOfAnnotations: 300
