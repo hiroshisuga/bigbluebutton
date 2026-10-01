@@ -16,7 +16,7 @@ const max = (value1, value2) => (value1 >= value2 ? value1 : value2);
 const UnifiedLayout = (props) => {
   const {
     bannerAreaHeight, calculatesActionbarHeight, calculatesNavbarHeight, isMobile,
-    prevLayout,
+    prevLayout, isPresentationDetached,
   } = props;
 
   function usePrevious(value) {
@@ -461,7 +461,7 @@ const UnifiedLayout = (props) => {
     }
 
     if (
-      fullscreenElement === 'Presentation' ||
+      (fullscreenElement === 'Presentation' && !isPresentationDetached) ||
       fullscreenElement === 'Screenshare' ||
       fullscreenElement === 'ExternalVideo' ||
       fullscreenElement === 'GenericContent'
