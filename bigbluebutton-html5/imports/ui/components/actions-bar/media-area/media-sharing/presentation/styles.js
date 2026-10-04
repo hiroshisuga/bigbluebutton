@@ -84,6 +84,49 @@ const UploaderDropzone = styled(Dropzone)`
   }
 `;
 
+const AnimationOptions = styled.fieldset`
+  margin: 0.5rem 1.5rem 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid ${colorGrayLighter};
+  border-radius: 0.5rem;
+  color: ${appsPanelTextColor};
+  text-align: start;
+`;
+
+const AnimationOptionsLabel = styled.legend`
+  padding: 0 0.25rem;
+  font-size: ${fontSizeSmaller};
+  font-weight: ${textFontWeight};
+`;
+
+const AnimationFiles = styled.ul`
+  max-height: 5rem;
+  overflow-y: auto;
+  margin: 0.25rem 0 0.5rem;
+  padding-inline-start: 1.25rem;
+  overflow-wrap: anywhere;
+`;
+
+const AnimationOption = styled.label`
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-inline-end: 1rem;
+  cursor: pointer;
+
+  input {
+    margin: 0;
+    accent-color: ${colorPrimary};
+  }
+`;
+
+const AnimationActions = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+`;
+
 const DropzoneMessage = styled.p`
   color: ${appsPanelTextColor};
   font-weight: ${textFontWeight};
@@ -207,6 +250,11 @@ export default {
   UploadIcon,
   RemoveButton,
   UploaderDropzone,
+  AnimationOptions,
+  AnimationOptionsLabel,
+  AnimationFiles,
+  AnimationOption,
+  AnimationActions,
   DropzoneMessage,
   DropzoneLink,
   ExternalUpload,
