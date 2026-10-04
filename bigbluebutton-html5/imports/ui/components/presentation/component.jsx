@@ -1,10 +1,12 @@
 import React, { PureComponent } from 'react';
+import ReactDOM from 'react-dom';
 import PropTypes from 'prop-types';
 import WhiteboardContainer from '/imports/ui/components/whiteboard/container';
 import { HUNDRED_PERCENT, MAX_PERCENT, MIN_PERCENT } from '/imports/utils/slideCalcUtils';
 import { SPACE } from '/imports/utils/keys';
 import { defineMessages, injectIntl } from 'react-intl';
 import Session from '/imports/ui/services/storage/in-memory';
+import { StyleSheetManager } from 'styled-components';
 import PresentationToolbarContainer from './presentation-toolbar/container';
 import PresentationMenu from './presentation-menu/container';
 import DownloadPresentationButton from './download-presentation-button/component';
@@ -45,6 +47,26 @@ const intlMessages = defineMessages({
     id: 'app.presentation.emptySlideContent',
     description: 'No content available for slide',
   },
+  currentSlide: {
+    id: 'app.presentation.currentSlide',
+    description: 'Label for current slide',
+  },
+  nextSlide: {
+    id: 'app.presentation.nextSlide',
+    description: 'Label for next slide',
+  },
+  noCurrentSlide: {
+    id: 'app.presentation.noCurrentSlide',
+    description: 'Message shown when current slide is unavailable',
+  },
+  noNextSlide: {
+    id: 'app.presentation.noNextSlide',
+    description: 'Message shown when next slide is unavailable',
+  },
+  noNotes: {
+    id: 'app.presentation.noNotes',
+    description: 'Message shown when slide notes are unavailable',
+  },
   presentationHeader: {
     id: 'playback.player.presentation.wrapper.aria',
     description: 'Aria label for header navigation',
@@ -56,14 +78,109 @@ const FULLSCREEN_CHANGE_EVENT = isSafari
   ? 'webkitfullscreenchange'
   : 'fullscreenchange';
 
-const getToolbarHeight = () => {
+const getToolbarHeight = (doc = document) => {
   let height = 0;
-  const toolbarEl = document.getElementById('presentationToolbarWrapper');
+  const toolbarEl = doc.getElementById('presentationToolbarWrapper');
   if (toolbarEl) {
     const { clientHeight } = toolbarEl;
     height = clientHeight;
   }
   return height;
+};
+
+const getStyleSheetCssText = (style) => {
+  try {
+    const rules = Array.from(style.sheet?.cssRules ?? []);
+
+    if (rules.length > 0) {
+      return rules.map((rule) => rule.cssText).join('\n');
+    }
+  } catch (error) {
+    console.warn(
+      'Failed to read a DarkReader CSS rule for the presentation popup',
+      error,
+    );
+  }
+
+  return style.textContent || '';
+};
+
+const syncDarkReaderStylesToPopup = (sourceDocument, targetDocument) => {
+  // Remove the previous DarkReader styles from the popup.
+  targetDocument
+    .querySelectorAll(
+      'style.darkreader, style[data-popup-darkreader-mirror]',
+    )
+    .forEach((style) => style.remove());
+
+  // Synchronize DarkReader attributes on <html>.
+  Array.from(targetDocument.documentElement.attributes)
+    .filter((attr) => attr.name.startsWith('data-darkreader'))
+    .forEach((attr) => {
+      targetDocument.documentElement.removeAttribute(attr.name);
+    });
+
+  Array.from(sourceDocument.documentElement.attributes)
+    .filter((attr) => attr.name.startsWith('data-darkreader'))
+    .forEach((attr) => {
+      targetDocument.documentElement.setAttribute(
+        attr.name,
+        attr.value,
+      );
+    });
+
+  const darkReaderStyles = Array.from(
+    sourceDocument.querySelectorAll('style.darkreader'),
+  );
+
+  // DarkReader is disabled.
+  if (darkReaderStyles.length === 0) return;
+
+  const syncStyles = darkReaderStyles.filter(
+    (style) => style.classList.contains('darkreader--sync'),
+  );
+
+  const nonSyncStyles = darkReaderStyles.filter(
+    (style) => !style.classList.contains('darkreader--sync'),
+  );
+
+  // Copy the non-sync DarkReader styles.
+  nonSyncStyles.forEach((sourceStyle) => {
+    const targetStyle = targetDocument.createElement('style');
+
+    Array.from(sourceStyle.attributes).forEach((attr) => {
+      targetStyle.setAttribute(attr.name, attr.value);
+    });
+
+    targetStyle.textContent = getStyleSheetCssText(sourceStyle);
+
+    targetDocument.head.appendChild(targetStyle);
+  });
+
+  // Collect all darkreader--sync rules into one stylesheet.
+  const syncCssText = syncStyles
+    .flatMap((style) => {
+      try {
+        return Array.from(style.sheet?.cssRules ?? [])
+          .map((rule) => rule.cssText);
+      } catch (error) {
+        console.warn(
+          'Failed to read a DarkReader sync rule for the presentation popup',
+          error,
+        );
+        return [];
+      }
+    })
+    .join('\n');
+
+  if (syncCssText === '') return;
+
+  const mirror = targetDocument.createElement('style');
+  mirror.setAttribute('data-popup-darkreader-mirror', '');
+  mirror.textContent = syncCssText;
+
+  // Keep DarkReader overrides at the end of <head>.
+  targetDocument.head.appendChild(mirror);
 };
 
 const IGNORE_PRESENTATION_RESTORATION_TIMEOUT = 5000;
@@ -83,6 +200,9 @@ class Presentation extends PureComponent {
       isToolbarVisible: true,
       hadPresentation: false,
       ignorePresentationRestoring: true,
+      currentSlideNote: '',
+      presenterView: null,
+      presenterAnnotations: null,
     };
 
     const PAN_ZOOM_INTERV = window.meetingClientSettings.public.presentation.panZoomInterval || 200;
@@ -93,6 +213,7 @@ class Presentation extends PureComponent {
     this.panAndZoomChanger = throttle(this.panAndZoomChanger.bind(this), PAN_ZOOM_INTERV);
     this.fitToWidthHandler = this.fitToWidthHandler.bind(this);
     this.onFullscreenChange = this.onFullscreenChange.bind(this);
+    this.fullscreenDocument = null;
     this.getPresentationSizesAvailable = this.getPresentationSizesAvailable.bind(this);
     this.handleResize = debounce(this.handleResize.bind(this), 200);
     this.setTldrawAPI = this.setTldrawAPI.bind(this);
@@ -100,10 +221,19 @@ class Presentation extends PureComponent {
     this.setIsToolbarVisible = this.setIsToolbarVisible.bind(this);
     this.handlePanShortcut = this.handlePanShortcut.bind(this);
     this.renderPresentationMenu = this.renderPresentationMenu.bind(this);
+    this.renderPresentationContents = this.renderPresentationContents.bind(this);
+    this.detachPresentation = this.detachPresentation.bind(this);
 
     this.onResize = () => setTimeout(this.handleResize.bind(this), 0);
     this.setPresentationRef = this.setPresentationRef.bind(this);
     this.setTldrawIsMounting = this.setTldrawIsMounting.bind(this);
+    this.loadCurrentSlideNote = this.loadCurrentSlideNote.bind(this);
+    this.handlePresentationNotesUpdated = this.handlePresentationNotesUpdated.bind(this);
+    this.handlePresenterViewChange = this.handlePresenterViewChange.bind(this);
+    this.clearPresenterAnnotations = this.clearPresenterAnnotations.bind(this);
+    this.handlePresenterAnnotationsChange = this.handlePresenterAnnotationsChange.bind(this);
+    this.presenterAnnotationsObjectUrl = null;
+    this.resizeWindow = null;
     Session.setItem('componentPresentationWillUnmount', false);
   }
 
@@ -140,21 +270,9 @@ class Presentation extends PureComponent {
 
   componentDidMount() {
     this.getInitialPresentationSizes();
-    if (this.refPresentationContainer) {
-      this.refPresentationContainer.addEventListener(
-        'keydown',
-        this.handlePanShortcut,
-      );
-      this.refPresentationContainer.addEventListener(
-        'keyup',
-        this.handlePanShortcut,
-      );
-      this.refPresentationContainer.addEventListener(
-        FULLSCREEN_CHANGE_EVENT,
-        this.onFullscreenChange,
-      );
-    }
-    window.addEventListener('resize', this.onResize, false);
+    this.updatePresentationKeyListeners();
+    this.updateFullscreenChangeListener();
+    this.updateResizeListener(window);
 
     const {
       currentSlide,
@@ -193,6 +311,13 @@ class Presentation extends PureComponent {
       });
     }
 
+    window.addEventListener(
+      'presentationNotesUpdated',
+      this.handlePresentationNotesUpdated,
+    );
+
+    this.loadCurrentSlideNote();
+
     setTimeout(() => {
       this.setState({ ignorePresentationRestoring: false });
     }, IGNORE_PRESENTATION_RESTORATION_TIMEOUT);
@@ -207,6 +332,8 @@ class Presentation extends PureComponent {
       restoreOnUpdate,
       layoutContextDispatch,
       userIsPresenter,
+      isPresentationDetached,
+      popupWindow,
       presentationBounds,
       numCameras,
       intl,
@@ -230,7 +357,46 @@ class Presentation extends PureComponent {
       presentationBounds: prevPresentationBounds,
     } = prevProps;
 
-    if (numCameras !== prevNumCameras) {
+    const presenterRoleLost = (
+      prevProps.userIsPresenter
+      && !userIsPresenter
+    );
+
+    const presenterToolClosed = (
+      prevProps.isPresentationDetached
+      && !isPresentationDetached
+    );
+
+    const presenterToolOpened = (
+      !prevProps.isPresentationDetached
+      && isPresentationDetached
+    );
+
+    const presenterAnnotationSlideChanged = (
+      prevProps.currentSlide?.id !== currentSlide?.id
+      || prevProps.currentPresentationId !== currentPresentationId
+    );
+
+    if (
+      presenterToolClosed
+      || presenterAnnotationSlideChanged
+    ) {
+      this.clearPresenterAnnotations();
+    }
+
+    if (presenterToolClosed) {
+      this.setState({ currentSlideNote: '' });
+    }
+
+    if (numCameras !== prevNumCameras && !isPresentationDetached) {
+      this.onResize();
+    }
+
+    // Update the resize listener and presentation size
+    //  when moving between main window and the popup.
+    if (popupWindow !== prevProps.popupWindow) {
+      this.updateResizeListener(popupWindow || window);
+      // calling this is necessary for merging the resized popup to the main window.
       this.onResize();
     }
 
@@ -314,36 +480,72 @@ class Presentation extends PureComponent {
       });
     }
 
+    if (presenterRoleLost && isPresentationDetached) {
+      this.detachPresentation();
+    }
+
     if (
       (zoom <= HUNDRED_PERCENT && isPanning && !fitToWidth)
-      || (!userIsPresenter && prevProps.userIsPresenter)
+      || presenterRoleLost
     ) {
       this.setIsPanning();
     }
 
-    if (!userIsPresenter && prevProps.userIsPresenter && fitToWidth) {
+    if (presenterRoleLost && fitToWidth) {
       setPresentationFitToWidth(false);
     }
+
+    const slideChanged = (
+      currentSlide?.svgUri !== prevProps.currentSlide?.svgUri
+    );
+
+    if (
+      presenterToolOpened
+      || (isPresentationDetached && slideChanged)
+    ) {
+      this.loadCurrentSlideNote();
+    }
+    this.updateFullscreenChangeListener();
+    this.updatePresentationKeyListeners();
   }
 
   componentWillUnmount() {
     Session.setItem('componentPresentationWillUnmount', true);
-    const { fullscreenContext, layoutContextDispatch } = this.props;
+    const { fullscreenContext, layoutContextDispatch, popupWindow } = this.props;
 
-    window.removeEventListener('resize', this.onResize, false);
-    if (this.refPresentationContainer) {
-      this.refPresentationContainer.removeEventListener(
-        FULLSCREEN_CHANGE_EVENT,
-        this.onFullscreenChange,
-      );
-      this.refPresentationContainer.removeEventListener(
+    if (this.resizeWindow) {
+      this.resizeWindow.removeEventListener('resize', this.onResize, false);
+      this.resizeWindow = null;
+    }
+
+    window.removeEventListener(
+      'presentationNotesUpdated',
+      this.handlePresentationNotesUpdated,
+    );
+
+    if (this.keyboardContainer) {
+      this.keyboardContainer.removeEventListener(
         'keydown',
         this.handlePanShortcut,
       );
-      this.refPresentationContainer.removeEventListener(
+      this.keyboardContainer.removeEventListener(
         'keyup',
         this.handlePanShortcut,
       );
+      this.keyboardContainer = null;
+    }
+
+    if (this.fullscreenDocument) {
+      this.fullscreenDocument.removeEventListener(
+        FULLSCREEN_CHANGE_EVENT,
+        this.onFullscreenChange,
+      );
+      this.fullscreenDocument = null;
+    }
+
+    if (this.presenterAnnotationsObjectUrl) {
+      URL.revokeObjectURL(this.presenterAnnotationsObjectUrl);
+      this.presenterAnnotationsObjectUrl = null;
     }
 
     if (fullscreenContext) {
@@ -355,8 +557,207 @@ class Presentation extends PureComponent {
         },
       });
     }
+
+    if (popupWindow && !popupWindow.closed) {
+      popupWindow.close();
+    }
   }
 
+  // eslint-disable-next-line react/sort-comp
+  detachPresentation() {
+    const {
+      slidePosition,
+      isPresentationDetached,
+      popupWindow,
+      toggleDetachPresentation,
+    } = this.props;
+
+    if (!isPresentationDetached) {
+      const svgDimensions = this.calculateSize(slidePosition);
+      const toolbarHeight = getToolbarHeight();
+      const popup = window.open('', '_blank',
+        `innerwidth=${svgDimensions.width},innerheight=${svgDimensions.height + toolbarHeight},resizable,scrollbars`);
+      if (!popup) return;
+      popup.document.title = 'BigBlueButton Portal Window';
+      // The popup content is absolutely positioned, so it does not contribute
+      // to the body width. Keep the body sized to the popup viewport.
+      popup.document.body.style.width = '100%';
+      // Copying the attributes of <html>, so that the bbb-icons font looks a bit smaller
+      const mainHtml = document.documentElement; // メインウィンドウの <html>
+      const popupHtml = popup.document.documentElement;
+      // class
+      popupHtml.className = mainHtml.className;
+      // style, which includes font-size: 14px
+      popupHtml.style.cssText = mainHtml.style.cssText;
+
+      // Copy all attributes (<html> extensions including DarkReader, which may not work anyway)
+      Array.from(mainHtml.attributes).forEach((attr) => {
+        popupHtml.setAttribute(attr.name, attr.value);
+      });
+
+      // headの中身をコピー
+      const headElements = document.head.cloneNode(true).childNodes;
+      headElements.forEach((node) => {
+        // script要素など重複実行したくないものを除外する
+        if (node.nodeName !== 'SCRIPT') {
+          popup.document.head.appendChild(node.cloneNode(true));
+        }
+      });
+
+      // Firefox specific configuration
+      const isFirefox = navigator.userAgent.toLowerCase().includes('firefox');
+      if (isFirefox) {
+        // Add base URL (perhaps only necessary for Firefox to show tldraw icons
+        const base = popup.document.createElement('base');
+        base.href = `${window.location.origin}/`;
+        popup.document.head.appendChild(base);
+
+        // Explicitely copy bbb-icons.css to show bbb-icons
+        fetch('stylesheets/bbb-icons.css')
+          .then((res) => res.text())
+          .then((css) => {
+            const style = popup.document.createElement('style');
+            style.textContent = css;
+            popup.document.head.appendChild(style);
+          });
+        // Explicitly set FontFace to show bbb-icons
+        const fonts = [
+          { name: 'bbb-icons', url: '/html5client/fonts/BbbIcons/bbb-icons.woff2' },
+        ];
+        fonts.forEach(({ name, url }) => {
+          const font = new FontFace(name, `url(${window.location.origin}${url})`);
+          font.load().then((loaded) => popup.document.fonts.add(loaded));
+        });
+      }
+      // Production Emotion styles may be inserted through CSSOM, leaving style tags empty.
+      // Copy their rules so portal elements have the same positioning in the popup.
+      document.querySelectorAll('style[data-emotion]').forEach((style) => {
+        if (style.textContent.trim() !== '') return; // dev mode already has CSS
+        const { sheet } = style;
+        if (!sheet) return;
+        const newStyle = popup.document.createElement('style');
+        popup.document.head.appendChild(newStyle);
+        const newSheet = newStyle.sheet;
+        if (!newSheet) return;
+        Array.from(sheet.cssRules).forEach((rule) => {
+          try {
+            newSheet.insertRule(rule.cssText);
+          } catch (error) {
+            console.warn(
+              'Failed to copy an Emotion CSS rule to the presentation popup',
+              error,
+            );
+          }
+        });
+      });
+
+      // tldraw-original(?) fonts injection,
+      //  this fix the inconsistency of var(--tl-font-draw) between popup and main window.
+      const fonts = [
+        { name: 'tldraw_draw', url: '/html5client/fonts/tldraw/Shantell_Sans-Tldrawish.woff2' },
+        { name: 'tldraw_sans', url: '/html5client/fonts/tldraw/IBMPlexSans-Medium.woff2' },
+        { name: 'tldraw_serif', url: '/html5client/fonts/tldraw/IBMPlexSerif-Medium.woff2' },
+        { name: 'tldraw_mono', url: '/html5client/fonts/tldraw/IBMPlexMono-Medium.woff2' },
+      ];
+      fonts.forEach(({ name, url }) => {
+        const font = new FontFace(name, `url(${window.location.origin}${url})`);
+        font.load().then((loaded) => popup.document.fonts.add(loaded));
+      });
+
+      // Remove cursor style from the class tl-canvas,
+      //  otherwise cursor stays the same when pencil, text, line, note
+      //  tools are selected before popping up.
+      // Remove height from the class tlui-toolbar__tools
+      //  and remove height and width from the class tlui-icon,
+      //  otherwise toolbar shrunken when enlarging the popup window
+      //  that was detached when the toolbar was horizontally arranged.
+      Array.from(popup.document.styleSheets).forEach((styleSheet) => {
+        try {
+          const rules = styleSheet.cssRules || styleSheet.rules;
+          if (!rules) return;
+
+          for (let i = rules.length - 1; i >= 0; i -= 1) {
+            const rule = rules[i];
+            if (rule.selectorText && rule.selectorText.includes('.tl-canvas')) {
+              if (rule.style && rule.style.cursor) {
+                if ((rule.style.cursor.indexOf('pencil.png') > -1)
+                    || (rule.style.cursor.indexOf('text.png') > -1)
+                   || (rule.style.cursor.indexOf('line.png') > -1)
+                    || (rule.style.cursor.indexOf('square.png') > -1)) {
+                  rule.style.removeProperty('cursor');
+                }
+              }
+            } else if
+            (rule.selectorText
+                && rule.selectorText.includes('.tlui-toolbar__tools.tlui-toolbar__tools__mobile')) {
+              if (rule.style && rule.style.height) {
+                rule.style.removeProperty('height');
+              }
+            } else if
+            (rule.selectorText
+                && rule.selectorText.includes('.tlui-layout__mobile .tlui-button__tool > .tlui-icon')) {
+              if (rule.style && rule.style.height) {
+                rule.style.removeProperty('height');
+              }
+              if (rule.style && rule.style.width) {
+                rule.style.removeProperty('width');
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('Failed to copy style sheets:', e);
+        }
+      });
+
+      syncDarkReaderStylesToPopup(document, popup.document);
+
+      toggleDetachPresentation(popup);
+
+      const closePopup = () => {
+        if (popup && !popup.closed) popup.close();
+      };
+
+      const handleDarkModeChange = () => {
+        window.requestAnimationFrame(() => {
+          if (popup.closed) return;
+
+          syncDarkReaderStylesToPopup(
+            document,
+            popup.document,
+          );
+        });
+      };
+
+      const handlePopupBeforeUnload = () => {
+        window.removeEventListener('beforeunload', closePopup);
+        window.removeEventListener('darkmodechange', handleDarkModeChange);
+        toggleDetachPresentation(null);
+      };
+
+      window.addEventListener('beforeunload', closePopup);
+
+      popup.addEventListener(
+        'beforeunload',
+        handlePopupBeforeUnload,
+      );
+
+      window.addEventListener('darkmodechange',
+        handleDarkModeChange);
+    } else {
+      // to explicitely exit fullsreen; we do not need setState "isFullscreen: false".
+      //  (in case user directly merge popup when it is fullscreen)
+      const { layoutContextDispatch } = this.props;
+      layoutContextDispatch({
+        type: ACTIONS.SET_FULLSCREEN_ELEMENT,
+        value: { element: '', group: '' },
+      });
+      // Basically the app does not reach here...
+      popupWindow?.close();
+      toggleDetachPresentation(null);
+    }
+  }
+
+  // eslint-disable-next-line react/sort-comp
   handlePanShortcut(e) {
     const { userIsPresenter } = this.props;
     const { isPanning } = this.state;
@@ -373,7 +774,26 @@ class Presentation extends PureComponent {
   }
 
   handleResize() {
-    const presentationSizes = this.getPresentationSizesAvailable();
+    const {
+      isPresentationDetached,
+    } = this.props;
+
+    let presentationSizes;
+
+    if (isPresentationDetached) {
+      const targetWin = this.resizeWindow;
+      if (!targetWin) return;
+
+      const toolbarHeight = getToolbarHeight(targetWin.document);
+
+      presentationSizes = {
+        presentationHeight: targetWin.innerHeight - toolbarHeight,
+        presentationWidth: targetWin.innerWidth,
+      };
+    } else {
+      presentationSizes = this.getPresentationSizesAvailable();
+    }
+
     if (Object.keys(presentationSizes).length > 0) {
       // updating the size of the space available for the slide
       if (!Session.getItem('componentPresentationWillUnmount')) {
@@ -385,14 +805,90 @@ class Presentation extends PureComponent {
     }
   }
 
+  // eslint-disable-next-line react/sort-comp
   onFullscreenChange() {
-    const { isFullscreen } = this.state;
-    const newIsFullscreen = FullscreenService.isFullScreen(
-      this.refPresentationContainer,
-    );
+    const {
+      isFullscreen,
+    } = this.state;
+
+    const {
+      isPresentationDetached,
+      layoutContextDispatch,
+    } = this.props;
+
+    const presentationContainer = this.refPresentationContainer;
+    if (!presentationContainer) return;
+
+    const fullscreenElement = isPresentationDetached
+      ? presentationContainer.ownerDocument.documentElement
+      : presentationContainer;
+
+    const newIsFullscreen = FullscreenService.isFullScreen(fullscreenElement);
+
+    if (isPresentationDetached && !newIsFullscreen) {
+      layoutContextDispatch({
+        type: ACTIONS.SET_FULLSCREEN_ELEMENT,
+        value: {
+          element: '',
+          group: '',
+        },
+      });
+    }
     if (isFullscreen !== newIsFullscreen) {
       this.setState({ isFullscreen: newIsFullscreen });
     }
+  }
+
+  updateResizeListener(targetWindow) {
+    if (this.resizeWindow === targetWindow) return;
+
+    if (this.resizeWindow) {
+      this.resizeWindow.removeEventListener('resize', this.onResize, false);
+    }
+
+    this.resizeWindow = targetWindow;
+
+    if (this.resizeWindow) {
+      this.resizeWindow.addEventListener('resize', this.onResize, false);
+    }
+  }
+
+  updatePresentationKeyListeners() {
+    const nextContainer = this.refPresentationContainer;
+    if (nextContainer === this.keyboardContainer) return;
+
+    if (this.keyboardContainer) {
+      this.keyboardContainer.removeEventListener('keydown', this.handlePanShortcut);
+      this.keyboardContainer.removeEventListener('keyup', this.handlePanShortcut);
+    }
+
+    this.keyboardContainer = nextContainer;
+    if (nextContainer) {
+      nextContainer.addEventListener('keydown', this.handlePanShortcut);
+      nextContainer.addEventListener('keyup', this.handlePanShortcut);
+    }
+  }
+
+  updateFullscreenChangeListener() {
+    const fullscreenDocument = this.refPresentationContainer?.ownerDocument;
+
+    if (!fullscreenDocument || fullscreenDocument === this.fullscreenDocument) {
+      return;
+    }
+
+    if (this.fullscreenDocument) {
+      this.fullscreenDocument.removeEventListener(
+        FULLSCREEN_CHANGE_EVENT,
+        this.onFullscreenChange,
+      );
+    }
+
+    this.fullscreenDocument = fullscreenDocument;
+
+    this.fullscreenDocument.addEventListener(
+      FULLSCREEN_CHANGE_EVENT,
+      this.onFullscreenChange,
+    );
   }
 
   setTldrawAPI(api) {
@@ -556,6 +1052,162 @@ class Presentation extends PureComponent {
     zoomSlide(w, h, x, y);
   }
 
+  async loadCurrentSlideNote() {
+    const { currentSlide, isPresentationDetached } = this.props;
+
+    if (!isPresentationDetached || !currentSlide?.noteUri) {
+      this.setState({ currentSlideNote: '' });
+      return;
+    }
+
+    const { noteUri } = currentSlide;
+
+    const isCurrentNote = () => {
+      const { isPresentationDetached: detached, currentSlide: slide } = this.props;
+      return detached && slide?.noteUri === noteUri;
+    };
+
+    try {
+      const response = await fetch(noteUri, {
+        cache: 'no-store',
+      });
+
+      // The slide may have changed while waiting for the response.
+      if (!isCurrentNote()) return;
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          console.info(
+            'Slide note is not available yet. Ignore the 404 error above.',
+          );
+        } else {
+          console.error(
+            `Failed to load slide note: HTTP ${response.status}`,
+          );
+        }
+
+        this.setState({ currentSlideNote: '' });
+        return;
+      }
+
+      const text = await response.text();
+
+      // The slide may also have changed while reading the response body.
+      if (!isCurrentNote()) return;
+
+      this.setState({
+        currentSlideNote: text.trim(),
+      });
+    } catch (e) {
+      if (!isCurrentNote()) return;
+
+      console.error('Failed to load slide note', e);
+      this.setState({ currentSlideNote: '' });
+    }
+  }
+
+  handlePresentationNotesUpdated(event) {
+    const { currentSlide } = this.props;
+    const updatedPresentationId = event.detail?.presentationId;
+
+    if (updatedPresentationId !== currentSlide?.presentationId) return;
+
+    this.loadCurrentSlideNote();
+  }
+
+  handlePresenterViewChange(presenterView) {
+    const { currentSlide } = this.props;
+    const currentPageNum = currentSlide?.num;
+    if (
+      presenterView
+      && Number(presenterView.pageId) !== Number(currentPageNum)
+    ) {
+      return;
+    }
+    this.setState({
+      presenterView,
+    });
+  }
+
+  clearPresenterAnnotations() {
+    const previousObjectUrl = this.presenterAnnotationsObjectUrl;
+    const { presenterAnnotations } = this.state;
+
+    this.presenterAnnotationsObjectUrl = null;
+
+    if (!presenterAnnotations) {
+      if (previousObjectUrl) {
+        URL.revokeObjectURL(previousObjectUrl);
+      }
+      return;
+    }
+
+    this.setState(
+      {
+        presenterAnnotations: null,
+      },
+      () => {
+        if (previousObjectUrl) {
+          URL.revokeObjectURL(previousObjectUrl);
+        }
+      },
+    );
+  }
+
+  handlePresenterAnnotationsChange({
+    presentationId,
+    pageId,
+    svgMarkup,
+  }) {
+    const { currentSlide } = this.props;
+
+    // Ignore an asynchronous result belonging to an old slide.
+    if (
+      !currentSlide
+      || Number(pageId) !== Number(currentSlide.num)
+      || (
+        presentationId
+        && currentSlide.presentationId
+        && presentationId !== currentSlide.presentationId
+      )
+    ) {
+      return;
+    }
+
+    if (!svgMarkup) {
+      this.clearPresenterAnnotations();
+      return;
+    }
+
+    const svgBlob = new Blob(
+      [svgMarkup],
+      { type: 'image/svg+xml;charset=utf-8' },
+    );
+
+    const nextObjectUrl = URL.createObjectURL(svgBlob);
+    const previousObjectUrl = this.presenterAnnotationsObjectUrl;
+
+    this.presenterAnnotationsObjectUrl = nextObjectUrl;
+
+    this.setState(
+      {
+        presenterAnnotations: {
+          presentationId,
+          pageId,
+          objectUrl: nextObjectUrl,
+        },
+      },
+      () => {
+        if (
+          previousObjectUrl
+          && previousObjectUrl !== nextObjectUrl
+        ) {
+          URL.revokeObjectURL(previousObjectUrl);
+        }
+      },
+    );
+  }
+
   renderPresentationToolbar() {
     const {
       currentSlide,
@@ -573,6 +1225,7 @@ class Presentation extends PureComponent {
       userIsPresenter,
       hasPoll,
       currentPresentationPage,
+      isPresentationDetached,
     } = this.props;
     const { zoom, isPanning, tldrawAPI } = this.state;
 
@@ -609,6 +1262,7 @@ class Presentation extends PureComponent {
         numberOfSlides={totalPages}
         layoutSwapped={false}
         hasPoll={hasPoll}
+        isPresentationDetached={isPresentationDetached}
       />
     );
   }
@@ -638,6 +1292,7 @@ class Presentation extends PureComponent {
       userIsPresenter,
       currentSlide,
       currentUser,
+      isPresentationDetached,
     } = this.props;
     const { tldrawAPI, isToolbarVisible } = this.state;
 
@@ -654,11 +1309,13 @@ class Presentation extends PureComponent {
         slideNum={currentSlide?.num}
         currentUser={currentUser}
         whiteboardId={currentSlide?.id}
+        detachPresentation={this.detachPresentation}
+        isPresentationDetached={isPresentationDetached}
       />
     );
   }
 
-  render() {
+  renderPresentationContents() {
     const {
       userIsPresenter,
       hasWBAccess,
@@ -679,6 +1336,8 @@ class Presentation extends PureComponent {
       initialPageAnnotations,
       refetchInitialPageAnnotations,
       restoreOnUpdate,
+      isPresentationDetached,
+      popupWindow,
     } = this.props;
 
     const {
@@ -715,7 +1374,9 @@ class Presentation extends PureComponent {
     const svgHeight = svgDimensions.height;
     const svgWidth = svgDimensions.width;
 
-    const toolbarHeight = getToolbarHeight();
+    const toolbarDocument = isPresentationDetached && popupWindow
+      ? popupWindow.document : document;
+    const toolbarHeight = getToolbarHeight(toolbarDocument);
 
     const slideContent = currentSlide?.content
       ? `${intl.formatMessage(intlMessages.slideContentStart)}
@@ -732,9 +1393,11 @@ class Presentation extends PureComponent {
     const presentationIsHidden = !presentationBounds
       || presentationBounds.width === 0
       || presentationBounds.height === 0;
-    if (!presentationIsOpen || presentationIsHidden) return null;
+    if (!presentationIsOpen || (presentationIsHidden && !isPresentationDetached)) return null;
 
-    const toolbarWidth = Math.min(svgWidth || presentationBounds.width, presentationBounds.width);
+    const availableWidth = isPresentationDetached
+      ? popupWindow.innerWidth : presentationBounds.width;
+    const toolbarWidth = Math.min(svgWidth || availableWidth, availableWidth);
 
     return (
       <>
@@ -746,11 +1409,11 @@ class Presentation extends PureComponent {
           }}
           isRTL={isRTL}
           style={{
-            top: presentationBounds.top,
-            left: presentationBounds.left,
-            right: presentationBounds.right,
-            width: presentationBounds.width,
-            height: presentationBounds.height,
+            top: isPresentationDetached ? 0 : presentationBounds.top,
+            left: isPresentationDetached ? 0 : presentationBounds.left,
+            right: isPresentationDetached ? 0 : presentationBounds.right,
+            width: isPresentationDetached ? popupWindow.innerWidth : presentationBounds.width,
+            height: isPresentationDetached ? popupWindow.innerHeight : presentationBounds.height,
             display: !presentationIsOpen ? 'none' : 'flex',
             overflow: 'hidden',
             zIndex: presentationZIndex,
@@ -783,27 +1446,28 @@ class Presentation extends PureComponent {
                 <Styled.VisuallyHidden id="currentSlideText">
                   {slideContent}
                 </Styled.VisuallyHidden>
-                {((userIsPresenter || hasWBAccess) && (!tldrawIsMounting && presentationWidth > 0 && currentSlide)) && (
-                <Styled.ExtraTools {...{ isToolbarVisible }}>
-                  <TooltipContainer title={intl?.messages['app.shortcut-help.undo']}>
-                    <Styled.Button
-                      aria-label={intl?.messages['app.shortcut-help.undo']}
-                      onClick={() => tldrawAPI?.undo()}
-                      className="tlui-undo"
-                    >
-                      <Styled.IconWithMask mask={`${window.meetingClientSettings.public.app.basename}/svgs/tldraw/undo.svg`} />
-                    </Styled.Button>
-                  </TooltipContainer>
-                  <TooltipContainer title={intl?.messages['app.shortcut-help.redo']}>
-                    <Styled.Button
-                      aria-label={intl?.messages['app.shortcut-help.redo']}
-                      onClick={() => tldrawAPI?.redo()}
-                      className="tlui-redo"
-                    >
-                      <Styled.IconWithMask mask={`${window.meetingClientSettings.public.app.basename}/svgs/tldraw/redo.svg`} />
-                    </Styled.Button>
-                  </TooltipContainer>
-                </Styled.ExtraTools>
+                {(userIsPresenter || hasWBAccess)
+                  && !tldrawIsMounting && presentationWidth > 0 && currentSlide && (
+                  <Styled.ExtraTools {...{ isToolbarVisible }}>
+                    <TooltipContainer title={intl?.messages['app.shortcut-help.undo']}>
+                      <Styled.Button
+                        aria-label={intl?.messages['app.shortcut-help.undo']}
+                        onClick={() => tldrawAPI?.undo()}
+                        className="tlui-undo"
+                      >
+                        <Styled.IconWithMask mask={`${window.meetingClientSettings.public.app.basename}/svgs/tldraw/undo.svg`} />
+                      </Styled.Button>
+                    </TooltipContainer>
+                    <TooltipContainer title={intl?.messages['app.shortcut-help.redo']}>
+                      <Styled.Button
+                        aria-label={intl?.messages['app.shortcut-help.redo']}
+                        onClick={() => tldrawAPI?.redo()}
+                        className="tlui-redo"
+                      >
+                        <Styled.IconWithMask mask={`${window.meetingClientSettings.public.app.basename}/svgs/tldraw/redo.svg`} />
+                      </Styled.Button>
+                    </TooltipContainer>
+                  </Styled.ExtraTools>
                 )}
                 {!tldrawIsMounting
                   && presentationWidth > 0
@@ -821,8 +1485,12 @@ class Presentation extends PureComponent {
                     intl={intl}
                     presentationWidth={svgWidth}
                     presentationHeight={svgHeight}
-                    presentationAreaHeight={presentationBounds.height - toolbarHeight}
-                    presentationAreaWidth={presentationBounds.width}
+                    presentationAreaHeight={isPresentationDetached
+                      ? popupWindow.innerHeight - toolbarHeight
+                      : presentationBounds.height - toolbarHeight}
+                    presentationAreaWidth={isPresentationDetached
+                      ? popupWindow.innerWidth
+                      : presentationBounds.width}
                     isPanning={isPanning}
                     zoomChanger={this.zoomChanger}
                     fitToWidth={fitToWidth}
@@ -842,6 +1510,9 @@ class Presentation extends PureComponent {
                     initialPageAnnotations={initialPageAnnotations}
                     refetchInitialPageAnnotations={refetchInitialPageAnnotations}
                     restoreOnUpdate={restoreOnUpdate}
+                    isPresentationDetached={isPresentationDetached}
+                    onPresenterViewChange={this.handlePresenterViewChange}
+                    onPresenterAnnotationsChange={this.handlePresenterAnnotationsChange}
                   />
                 </LocatedErrorBoundary>
                 {isFullscreen && <PollingContainer />}
@@ -854,6 +1525,7 @@ class Presentation extends PureComponent {
                   style={{
                     width: toolbarWidth,
                   }}
+                  isPresentationDetached={isPresentationDetached}
                 >
                   {this.renderPresentationToolbar()}
                 </Styled.PresentationToolbar>
@@ -863,6 +1535,224 @@ class Presentation extends PureComponent {
         </Styled.PresentationContainer>
       </>
     );
+  }
+
+  renderPresenterTool() {
+    const {
+      currentSlide,
+      nextSlide,
+      presentationBounds,
+      intl,
+    } = this.props;
+
+    const {
+      currentSlideNote,
+      presenterView,
+      presenterAnnotations,
+    } = this.state;
+
+    if (
+      !presentationBounds
+      || presentationBounds.width === 0
+      || presentationBounds.height === 0
+    ) {
+      return null;
+    }
+
+    if (!currentSlide && !nextSlide) return null;
+
+    const hasNote = !!currentSlideNote;
+
+    const renderSlideImage = (
+      slide,
+      labelMessage,
+      emptyMessage,
+      reflectPresenterView = false,
+    ) => {
+      if (!slide) {
+        return (
+          <Styled.PresenterToolEmptySlide>
+            {intl.formatMessage(emptyMessage)}
+          </Styled.PresenterToolEmptySlide>
+        );
+      }
+
+      const label = intl.formatMessage(labelMessage);
+
+      const presenterViewMatchesSlide = (
+        reflectPresenterView
+        && presenterView
+        && Number(presenterView.pageId) === Number(slide.num)
+        && (
+          !presenterView.presentationId
+          || presenterView.presentationId === slide.presentationId
+        )
+      );
+
+      const annotationsMatchSlide = (
+        reflectPresenterView
+        && presenterAnnotations?.objectUrl
+        && Number(presenterAnnotations.pageId) === Number(slide.num)
+        && (
+          !presenterAnnotations.presentationId
+          || presenterAnnotations.presentationId === slide.presentationId
+        )
+      );
+
+      return (
+        <Styled.PresenterToolSlideFrame>
+          <Styled.PresenterToolSlideLabel>
+            {label}
+          </Styled.PresenterToolSlideLabel>
+
+          <Styled.PresenterToolSlideContent>
+            {presenterViewMatchesSlide ? (
+              <Styled.PresenterToolSlideViewport
+                $aspectRatio={presenterView.viewportAspectRatio}
+              >
+                <Styled.PresenterToolTransformedSlideLayer
+                  $leftRatio={presenterView.slide.leftRatio}
+                  $topRatio={presenterView.slide.topRatio}
+                  $widthRatio={presenterView.slide.widthRatio}
+                  $heightRatio={presenterView.slide.heightRatio}
+                >
+                  <Styled.PresenterToolTransformedSlide
+                    src={slide.svgUri}
+                    alt={`${label} ${slide.num || ''}`}
+                  />
+
+                  {annotationsMatchSlide && (
+                    <Styled.PresenterToolAnnotationsOverlay
+                      src={presenterAnnotations.objectUrl}
+                      alt=""
+                      aria-hidden="true"
+                    />
+                  )}
+                </Styled.PresenterToolTransformedSlideLayer>
+
+                {presenterView.cursor.visible && (
+                  <Styled.PresenterToolCursorDot
+                    $leftRatio={presenterView.cursor.leftRatio}
+                    $topRatio={presenterView.cursor.topRatio}
+                  />
+                )}
+              </Styled.PresenterToolSlideViewport>
+            ) : (
+              <Styled.PresenterToolSlideImage
+                src={slide.svgUri}
+                alt={`${label} ${slide.num || ''}`}
+                $compact={!reflectPresenterView}
+              />
+            )}
+          </Styled.PresenterToolSlideContent>
+        </Styled.PresenterToolSlideFrame>
+      );
+    };
+
+    return (
+      <Styled.PresenterToolContainer
+        style={{
+          top: presentationBounds.top,
+          left: presentationBounds.left,
+          width: presentationBounds.width,
+          height: presentationBounds.height,
+        }}
+      >
+        <Styled.PresenterToolSlidesResizable
+          defaultSize={{
+            width: '50%',
+            height: '100%',
+          }}
+          minWidth="20%"
+          maxWidth="80%"
+          enable={{
+            top: false,
+            right: true,
+            bottom: false,
+            left: false,
+            topRight: false,
+            bottomRight: false,
+            bottomLeft: false,
+            topLeft: false,
+          }}
+          handleComponent={{
+            right: <Styled.PresenterToolResizeHandle />,
+          }}
+        >
+          <Styled.PresenterToolSlidesColumn>
+            <Styled.PresenterToolCurrentSlideResizable
+              defaultSize={{
+                width: '100%',
+                height: '60%',
+              }}
+              minHeight="20%"
+              maxHeight="85%"
+              enable={{
+                top: false,
+                right: false,
+                bottom: true,
+                left: false,
+                topRight: false,
+                bottomRight: false,
+                bottomLeft: false,
+                topLeft: false,
+              }}
+            >
+              <Styled.PresenterToolSlidePane
+                $withBorder
+              >
+                {renderSlideImage(
+                  currentSlide,
+                  intlMessages.currentSlide,
+                  intlMessages.noCurrentSlide,
+                  true,
+                )}
+              </Styled.PresenterToolSlidePane>
+            </Styled.PresenterToolCurrentSlideResizable>
+
+            <Styled.PresenterToolSlidePane>
+              {renderSlideImage(
+                nextSlide,
+                intlMessages.nextSlide,
+                intlMessages.noNextSlide,
+              )}
+            </Styled.PresenterToolSlidePane>
+          </Styled.PresenterToolSlidesColumn>
+        </Styled.PresenterToolSlidesResizable>
+
+        <Styled.PresenterToolNotesPanel>
+          {hasNote ? currentSlideNote : intl.formatMessage(intlMessages.noNotes)}
+        </Styled.PresenterToolNotesPanel>
+      </Styled.PresenterToolContainer>
+    );
+  }
+
+  render() {
+    const {
+      isPresentationDetached,
+      popupWindow,
+    } = this.props;
+
+    const presentationContent = this.renderPresentationContents();
+
+    if (isPresentationDetached && popupWindow?.document?.head) {
+      return (
+        <>
+          {ReactDOM.createPortal(
+            /* Use StyleSheetManager to inject dynamic stylesheet elements of styled component */
+            /*  such as isToolbarVisible of Styled.TldrawV2GlobalStyle in whiteboard/styles.js */
+            <StyleSheetManager
+              target={popupWindow.document.head}
+            >
+              {presentationContent}
+            </StyleSheetManager>,
+            popupWindow.document.body,
+          )}
+          {this.renderPresenterTool()}
+        </>
+      );
+    }
+    return presentationContent;
   }
 }
 

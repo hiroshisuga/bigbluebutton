@@ -111,6 +111,7 @@ class PresentationToolbar extends PureComponent {
   constructor(props) {
     super(props);
 
+    this.toolbarRef = React.createRef();
     this.handleSkipToSlideChange = this.handleSkipToSlideChange.bind(this);
     this.change = this.change.bind(this);
     this.renderAriaDescs = this.renderAriaDescs.bind(this);
@@ -122,11 +123,31 @@ class PresentationToolbar extends PureComponent {
   }
 
   componentDidMount() {
-    document.addEventListener('keydown', this.switchSlide);
+    this.updateKeydownDocument();
+  }
+
+  componentDidUpdate() {
+    this.updateKeydownDocument();
   }
 
   componentWillUnmount() {
-    document.removeEventListener('keydown', this.switchSlide);
+    if (this.keydownDocument) {
+      this.keydownDocument.removeEventListener(
+        'keydown',
+        this.switchSlide,
+      );
+      this.keydownDocument = null;
+    }
+  }
+
+  // eslint-disable-next-line react/sort-comp
+  updateKeydownDocument() {
+    const nextDocument = this.toolbarRef.current?.ownerDocument || document;
+    if (nextDocument === this.keydownDocument) return;
+
+    this.keydownDocument?.removeEventListener('keydown', this.switchSlide);
+    nextDocument.addEventListener('keydown', this.switchSlide);
+    this.keydownDocument = nextDocument;
   }
 
   handleSkipToSlideChange(event) {
@@ -170,9 +191,15 @@ class PresentationToolbar extends PureComponent {
       fullscreenAction,
       fullscreenRef,
       handleToggleFullScreen,
+      isPresentationDetached,
     } = this.props;
 
-    handleToggleFullScreen(fullscreenRef);
+    if (!fullscreenRef) return;
+    const fullscreenTarget = isPresentationDetached
+      ? fullscreenRef.ownerDocument.documentElement
+      : fullscreenRef;
+    handleToggleFullScreen(fullscreenTarget);
+
     const newElement = isFullscreen ? '' : fullscreenElementId;
 
     layoutContextDispatch({
@@ -387,6 +414,7 @@ class PresentationToolbar extends PureComponent {
     return (
       <Styled.PresentationToolbarWrapper
         id="presentationToolbarWrapper"
+        ref={this.toolbarRef}
       >
         {this.renderAriaDescs()}
         <Styled.QuickPollButtonWrapper>
@@ -580,8 +608,9 @@ PresentationToolbar.propTypes = {
   multiUser: PropTypes.bool.isRequired,
   setMultiUserWhiteboardDisabled: PropTypes.func.isRequired,
   setMultiUserWhiteboardEnabled: PropTypes.func.isRequired,
-  fullscreenRef: PropTypes.instanceOf(Element),
+  fullscreenRef: PropTypes.shape({ nodeType: PropTypes.number }),
   handleToggleFullScreen: PropTypes.func.isRequired,
+  isPresentationDetached: PropTypes.bool,
   isPollingEnabled: PropTypes.bool.isRequired,
   amIPresenter: PropTypes.bool.isRequired,
   startPoll: PropTypes.func.isRequired,
