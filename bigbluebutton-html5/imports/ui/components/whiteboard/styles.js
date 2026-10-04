@@ -182,7 +182,7 @@ const TldrawV2GlobalStyle = createGlobalStyle`
   .tlui-kbd > span {
     font-family: 'Arial', sans-serif !important;
   }
-  
+
   .tl-text-shape__wrapper[data-font='draw'] {
     /* tldraw text */
     /* font-family: 'tldraw_draw', 'KosugiMaruSubset', sans-serif; */
