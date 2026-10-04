@@ -23,9 +23,7 @@ const getPlayingState = (state: number) => {
 
 const calculateCurrentTime = (timeSync: number, externalVideoProps?: ExternalVideo) => {
   const playerCurrentTime = externalVideoProps?.playerCurrentTime ?? 0;
-
   const playerPlaybackRate = externalVideoProps?.playerPlaybackRate ?? 1;
-
   const playerUpdatedAt = externalVideoProps?.updatedAt ?? Date.now();
   const playerUpdatedAtDate = new Date(playerUpdatedAt);
   const currentDate = new Date(Date.now() + (timeSync ?? 0));
