@@ -18,6 +18,7 @@ const windowHeight = () => window.document.documentElement.clientHeight;
 const VideoFocusLayout = (props) => {
   const {
     prevLayout, bannerAreaHeight, isMobile, calculatesNavbarHeight,
+    isPresentationDetached,
   } = props;
 
   function usePrevious(value) {
@@ -242,7 +243,7 @@ const VideoFocusLayout = (props) => {
     const { element: fullscreenElement } = fullscreen;
 
     if (
-      fullscreenElement === 'Presentation'
+      (fullscreenElement === 'Presentation' && !isPresentationDetached)
       || fullscreenElement === 'Screenshare'
       || fullscreenElement === 'ExternalVideo'
       || fullscreenElement === 'GenericContent'
