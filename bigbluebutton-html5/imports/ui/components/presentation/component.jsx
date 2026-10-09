@@ -1523,9 +1523,6 @@ class Presentation extends PureComponent {
                   ref={(ref) => {
                     this.refPresentationToolbar = ref;
                   }}
-                  style={{
-                    width: toolbarWidth,
-                  }}
                   isPresentationDetached={isPresentationDetached}
                 >
                   {this.renderPresentationToolbar(toolbarWidth)}
