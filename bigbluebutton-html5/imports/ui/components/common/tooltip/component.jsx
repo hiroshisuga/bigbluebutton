@@ -20,7 +20,7 @@ const TIP_OFFSET = [0, 10];
 
 // Every tooltip updates on its parent's renders; the animation setting only
 // changes when the user edits it, so the document-wide re-sync runs once per change.
-let syncedAnimationsByDocument = new WeakMap();
+const syncedAnimationsByDocument = new WeakMap();
 
 const propTypes = {
   title: PropTypes.string,
