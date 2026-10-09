@@ -1,4 +1,5 @@
 import React, { Component } from 'react';
+import ReactDOM from 'react-dom';
 import PropTypes from 'prop-types';
 import cx from 'classnames';
 import { ESCAPE } from '/imports/utils/keys';
@@ -19,7 +20,7 @@ const TIP_OFFSET = [0, 10];
 
 // Every tooltip updates on its parent's renders; the animation setting only
 // changes when the user edits it, so the document-wide re-sync runs once per change.
-let syncedAnimations;
+const syncedAnimationsByDocument = new WeakMap();
 
 const propTypes = {
   title: PropTypes.string,
@@ -68,7 +69,14 @@ class Tooltip extends Component {
     const Settings = getSettingsSingletonInstance();
     const { animations } = Settings.application;
 
-    const overridePlacement = placement ? placement : position;
+    // The wrapped component may not forward refs; the portal also changes its document.
+    // eslint-disable-next-line react/no-find-dom-node
+    const referenceElement = ReactDOM.findDOMNode(this);
+    if (!referenceElement) return;
+    this.referenceElement = referenceElement;
+    const { ownerDocument } = referenceElement;
+
+    const overridePlacement = placement || position;
     let overrideDelay;
     if (animations) {
       overrideDelay = delay ? [delay, ANIMATION_DELAY[1]] : ANIMATION_DELAY;
@@ -80,7 +88,7 @@ class Tooltip extends Component {
       aria: null,
       allowHTML: false,
       animation: animations ? DEFAULT_ANIMATION : ANIMATION_NONE,
-      appendTo: document.body,
+      appendTo: ownerDocument.body,
       arrow: roundArrow,
       popperOptions: {
         modifiers: [
@@ -88,7 +96,7 @@ class Tooltip extends Component {
             name: 'preventOverflow',
             options: {
               altAxis: true,
-              boundary: document.documentElement,
+              boundary: ownerDocument.documentElement,
             },
           },
         ],
@@ -106,7 +114,7 @@ class Tooltip extends Component {
       theme: 'bbbtip',
       maxWidth: 300,
     };
-    this.tooltip = Tippy(`#${this.tippySelectorId}`, options);
+    this.tooltip = Tippy([referenceElement], options);
   }
 
   componentDidUpdate(prevProps) {
@@ -114,20 +122,22 @@ class Tooltip extends Component {
     const { animations } = Settings.application;
     const { title } = this.props;
 
-    const elem = document.getElementById(this.tippySelectorId);
+    const ownerDocument = this.referenceElement?.ownerDocument;
+    if (!ownerDocument) return;
+    const elem = ownerDocument.getElementById(this.tippySelectorId);
     const ownTippy = elem && elem._tippy;
     if (ownTippy && title !== prevProps.title) {
-      ownTippy.setProps({ content: title, appendTo: document.body });
+      ownTippy.setProps({ content: title, appendTo: ownerDocument.body });
     } else if (ownTippy && ownTippy.state.isShown && ownTippy.popperInstance) {
       // The parent may have moved the element (e.g. a reordered list) without
       // changing the title; a shown tooltip has to follow it.
       ownTippy.popperInstance.update();
     }
 
-    if (animations === syncedAnimations) return;
-    syncedAnimations = animations;
+    if (animations === syncedAnimationsByDocument.get(ownerDocument)) return;
+    syncedAnimationsByDocument.set(ownerDocument, animations);
 
-    const elements = document.querySelectorAll('[id^="tippy-"]');
+    const elements = ownerDocument.querySelectorAll('[id^="tippy-"]');
 
     Array.from(elements).filter((e) => {
       const instance = e._tippy;
@@ -160,12 +170,19 @@ class Tooltip extends Component {
     }, 150);
   }
 
+  // eslint-disable-next-line react/sort-comp
   onShow() {
-    document.addEventListener('keyup', this.handleEscapeHide);
+    const ownerDocument = this.referenceElement?.ownerDocument;
+    if (ownerDocument) {
+      ownerDocument.addEventListener('keyup', this.handleEscapeHide);
+    }
   }
 
   onHide() {
-    document.removeEventListener('keyup', this.handleEscapeHide);
+    const ownerDocument = this.referenceElement?.ownerDocument;
+    if (ownerDocument) {
+      ownerDocument.removeEventListener('keyup', this.handleEscapeHide);
+    }
   }
 
   handleEscapeHide(e) {
