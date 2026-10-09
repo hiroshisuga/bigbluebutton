@@ -121,7 +121,6 @@ class PresentationToolbar extends PureComponent {
   constructor(props) {
     super(props);
 
-    this.toolbarRef = React.createRef();
     this.handleSkipToSlideChange = this.handleSkipToSlideChange.bind(this);
     this.change = this.change.bind(this);
     this.renderAriaDescs = this.renderAriaDescs.bind(this);
@@ -165,7 +164,7 @@ class PresentationToolbar extends PureComponent {
   
   // eslint-disable-next-line react/sort-comp
   updateKeydownDocument() {
-    const nextDocument = this.toolbarRef.current?.ownerDocument || document;
+    const nextDocument = this.wrapper?.ownerDocument || document;
     if (nextDocument === this.keydownDocument) return;
 
     this.keydownDocument?.removeEventListener('keydown', this.switchSlide);
@@ -225,7 +224,7 @@ class PresentationToolbar extends PureComponent {
   keepFocusOutOfZoomTool() {
     const { zoomToolWrapper, fitToWidthButton } = this;
 
-    if (!zoomToolWrapper?.contains(document.activeElement)) return;
+    if (!zoomToolWrapper?.contains(zoomToolWrapper.ownerDocument.activeElement)) return;
 
     fitToWidthButton?.focus();
   }
