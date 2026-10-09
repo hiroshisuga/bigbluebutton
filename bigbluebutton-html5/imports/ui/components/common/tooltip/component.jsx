@@ -122,10 +122,12 @@ class Tooltip extends Component {
     const { animations } = Settings.application;
     const { title } = this.props;
 
-    const elem = document.getElementById(this.tippySelectorId);
+    const ownerDocument = this.referenceElement?.ownerDocument;
+    if (!ownerDocument) return;
+    const elem = ownerDocument.getElementById(this.tippySelectorId);
     const ownTippy = elem && elem._tippy;
     if (ownTippy && title !== prevProps.title) {
-      ownTippy.setProps({ content: title, appendTo: document.body });
+      ownTippy.setProps({ content: title, appendTo: ownerDocument.body });
     } else if (ownTippy && ownTippy.state.isShown && ownTippy.popperInstance) {
       // The parent may have moved the element (e.g. a reordered list) without
       // changing the title; a shown tooltip has to follow it.
@@ -135,8 +137,6 @@ class Tooltip extends Component {
     if (animations === syncedAnimations) return;
     syncedAnimations = animations;
 
-    const ownerDocument = this.referenceElement?.ownerDocument;
-    if (!ownerDocument) return;
     const elements = ownerDocument.querySelectorAll('[id^="tippy-"]');
 
     Array.from(elements).filter((e) => {
@@ -156,15 +156,11 @@ class Tooltip extends Component {
           ? DEFAULT_ANIMATION : ANIMATION_NONE,
         duration: animations ? ANIMATION_DURATION : 0,
       };
-      if (!e.getAttribute('delay')) {
-        newProps.delay = animations ? ANIMATION_DELAY : [ANIMATION_DELAY[0], 0];
+      if (!e.getAttribute("delay")) {
+        newProps["delay"] = animations ? ANIMATION_DELAY : [ANIMATION_DELAY[0], 0];
       }
       instance.setProps(newProps);
     });
-
-    const elem = ownerDocument.getElementById(this.tippySelectorId);
-    const opts = { content: title, appendTo: ownerDocument.body };
-    if (elem && elem._tippy) elem._tippy.setProps(opts);
   }
 
   componentWillUnmount() {
