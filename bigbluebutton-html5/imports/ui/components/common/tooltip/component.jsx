@@ -20,7 +20,7 @@ const TIP_OFFSET = [0, 10];
 
 // Every tooltip updates on its parent's renders; the animation setting only
 // changes when the user edits it, so the document-wide re-sync runs once per change.
-let syncedAnimations;
+let syncedAnimationsByDocument = new WeakMap();
 
 const propTypes = {
   title: PropTypes.string,
@@ -134,8 +134,8 @@ class Tooltip extends Component {
       ownTippy.popperInstance.update();
     }
 
-    if (animations === syncedAnimations) return;
-    syncedAnimations = animations;
+    if (animations === syncedAnimationsByDocument.get(ownerDocument)) return;
+    syncedAnimationsByDocument.set(ownerDocument, animations);
 
     const elements = ownerDocument.querySelectorAll('[id^="tippy-"]');
 
