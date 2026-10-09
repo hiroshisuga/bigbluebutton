@@ -183,6 +183,13 @@ const syncDarkReaderStylesToPopup = (sourceDocument, targetDocument) => {
   targetDocument.head.appendChild(mirror);
 };
 
+// Keep transparent slide backgrounds white when DarkReader is enabled.
+const setSlidePreviewBackground = (element) => {
+  if (element) {
+    element.style.setProperty('background-color', '#fff', 'important');
+  }
+};
+
 const IGNORE_PRESENTATION_RESTORATION_TIMEOUT = 5000;
 
 class Presentation extends PureComponent {
@@ -1208,7 +1215,7 @@ class Presentation extends PureComponent {
     );
   }
 
-  renderPresentationToolbar() {
+  renderPresentationToolbar(toolbarWidth) {
     const {
       currentSlide,
       fullscreenElementId,
@@ -1238,6 +1245,7 @@ class Presentation extends PureComponent {
           zoom,
           currentSlide,
           slidePosition,
+          toolbarWidth,
           fullscreenElementId,
           layoutContextDispatch,
           presentationIsOpen,
@@ -1522,12 +1530,9 @@ class Presentation extends PureComponent {
                   ref={(ref) => {
                     this.refPresentationToolbar = ref;
                   }}
-                  style={{
-                    width: toolbarWidth,
-                  }}
                   isPresentationDetached={isPresentationDetached}
                 >
-                  {this.renderPresentationToolbar()}
+                  {this.renderPresentationToolbar(toolbarWidth)}
                 </Styled.PresentationToolbar>
               )}
             </Styled.SvgContainer>
@@ -1617,6 +1622,7 @@ class Presentation extends PureComponent {
                   $heightRatio={presenterView.slide.heightRatio}
                 >
                   <Styled.PresenterToolTransformedSlide
+                    ref={setSlidePreviewBackground}
                     src={slide.svgUri}
                     alt={`${label} ${slide.num || ''}`}
                   />
@@ -1639,6 +1645,7 @@ class Presentation extends PureComponent {
               </Styled.PresenterToolSlideViewport>
             ) : (
               <Styled.PresenterToolSlideImage
+                ref={setSlidePreviewBackground}
                 src={slide.svgUri}
                 alt={`${label} ${slide.num || ''}`}
                 $compact={!reflectPresenterView}

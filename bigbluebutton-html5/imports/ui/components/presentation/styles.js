@@ -158,10 +158,14 @@ const WhiteboardSizeAvailable = styled.div`
 
 const PresentationToolbar = styled.div`
   display: flex;
+  justify-content: center;
   overflow-x: visible;
   order: 2;
   position: absolute;
   bottom: 0;
+  left: 0;
+  width: 100%;
+  pointer-events: none;
   // has to be 1 for showing dropdown on the popupWindow,
   //  as both presentationInnerWrapper and presentationToolbarWrapper are 'z-index: 1'.
   z-index: ${({ isPresentationDetached }) => (isPresentationDetached ? 1 : 0)};
