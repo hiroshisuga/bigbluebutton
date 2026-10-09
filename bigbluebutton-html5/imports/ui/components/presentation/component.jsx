@@ -183,6 +183,13 @@ const syncDarkReaderStylesToPopup = (sourceDocument, targetDocument) => {
   targetDocument.head.appendChild(mirror);
 };
 
+// Keep transparent slide backgrounds white when DarkReader is enabled.
+const setSlidePreviewBackground = (element) => {
+  if (element) {
+    element.style.setProperty('background-color', '#fff', 'important');
+  }
+};
+
 const IGNORE_PRESENTATION_RESTORATION_TIMEOUT = 5000;
 
 class Presentation extends PureComponent {
@@ -1615,6 +1622,7 @@ class Presentation extends PureComponent {
                   $heightRatio={presenterView.slide.heightRatio}
                 >
                   <Styled.PresenterToolTransformedSlide
+                    ref={setSlidePreviewBackground}
                     src={slide.svgUri}
                     alt={`${label} ${slide.num || ''}`}
                   />
@@ -1637,6 +1645,7 @@ class Presentation extends PureComponent {
               </Styled.PresenterToolSlideViewport>
             ) : (
               <Styled.PresenterToolSlideImage
+                ref={setSlidePreviewBackground}
                 src={slide.svgUri}
                 alt={`${label} ${slide.num || ''}`}
                 $compact={!reflectPresenterView}
