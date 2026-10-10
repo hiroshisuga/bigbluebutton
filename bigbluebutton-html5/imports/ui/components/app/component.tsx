@@ -69,6 +69,9 @@ interface AppProps {
   shouldShowScreenshare: boolean;
   isSharedNotesPinned: boolean;
   presentationIsOpen: boolean;
+  isPresentationDetached: boolean;
+  popupWindow: Window | null;
+  toggleDetachPresentation: (popup: Window | null) => void;
   pluginConfig: PluginConfigFromGraphql[] | undefined;
   genericMainContentId: string;
   selectedLayout: typeof LAYOUT_TYPE[keyof typeof LAYOUT_TYPE];
@@ -93,6 +96,9 @@ const App: React.FC<AppProps> = ({
   shouldShowScreenshare,
   isSharedNotesPinned,
   presentationIsOpen,
+  isPresentationDetached,
+  popupWindow,
+  toggleDetachPresentation,
   pluginConfig,
   genericMainContentId,
   selectedLayout,
@@ -122,6 +128,7 @@ const App: React.FC<AppProps> = ({
     return (
       <ActionsBarContainer
         presentationIsOpen={presentationIsOpen}
+        isPresentationDetached={isPresentationDetached}
       />
     );
   };
@@ -139,7 +146,7 @@ const App: React.FC<AppProps> = ({
           shouldShowScreenshare={shouldShowScreenshare}
           shouldShowExternalVideo={shouldShowExternalVideo}
         />
-        <LayoutEngine />
+        <LayoutEngine isPresentationDetached={isPresentationDetached} />
         <LayoutObserver />
         <GlobalStyles />
         <Styled.Layout
@@ -168,6 +175,9 @@ const App: React.FC<AppProps> = ({
             <PresentationContainer
               darkTheme={darkTheme}
               presentationIsOpen={presentationIsOpen}
+              popupWindow={popupWindow}
+              isPresentationDetached={isPresentationDetached}
+              toggleDetachPresentation={toggleDetachPresentation}
             />
           ) : null}
           {!isNonMediaLayout && (
@@ -211,7 +221,7 @@ const App: React.FC<AppProps> = ({
       <PluginsEngineManager pluginConfig={pluginConfig} />
       {/* The plugins engine consumes voice state in this layout too. */}
       <LiveKitVoiceActivityAdapter />
-      <LayoutEngine />
+      <LayoutEngine isPresentationDetached={isPresentationDetached} />
       <LayoutObserver />
       <GlobalStyles />
       <Styled.Layout
@@ -225,6 +235,9 @@ const App: React.FC<AppProps> = ({
         <PresentationContainer
           darkTheme={darkTheme}
           presentationIsOpen={presentationIsOpen}
+          popupWindow={popupWindow}
+          isPresentationDetached={isPresentationDetached}
+          toggleDetachPresentation={toggleDetachPresentation}
         />
       </Styled.Layout>
     </>

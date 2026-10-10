@@ -134,7 +134,7 @@ class PresentationToolbar extends PureComponent {
   }
 
   componentDidMount() {
-    document.addEventListener('keydown', this.switchSlide);
+    this.updateKeydownDocument();
     this.updateToolbarFit();
 
     if (this.wrapper && typeof ResizeObserver !== 'undefined') {
@@ -146,13 +146,30 @@ class PresentationToolbar extends PureComponent {
   componentDidUpdate(prevProps) {
     const { toolbarWidth } = this.props;
 
+    this.updateKeydownDocument();
     if (prevProps.toolbarWidth !== toolbarWidth) this.updateToolbarFit();
   }
 
   componentWillUnmount() {
-    document.removeEventListener('keydown', this.switchSlide);
+    if (this.keydownDocument) {
+      this.keydownDocument.removeEventListener(
+        'keydown',
+        this.switchSlide,
+      );
+      this.keydownDocument = null;
+    }
     this.resizeObserver?.disconnect();
     if (this.toolbarFitFrame) window.cancelAnimationFrame(this.toolbarFitFrame);
+  }
+  
+  // eslint-disable-next-line react/sort-comp
+  updateKeydownDocument() {
+    const nextDocument = this.wrapper?.ownerDocument || document;
+    if (nextDocument === this.keydownDocument) return;
+
+    this.keydownDocument?.removeEventListener('keydown', this.switchSlide);
+    nextDocument.addEventListener('keydown', this.switchSlide);
+    this.keydownDocument = nextDocument;
   }
 
   handleSkipToSlideChange(event) {
@@ -207,7 +224,7 @@ class PresentationToolbar extends PureComponent {
   keepFocusOutOfZoomTool() {
     const { zoomToolWrapper, fitToWidthButton } = this;
 
-    if (!zoomToolWrapper?.contains(document.activeElement)) return;
+    if (!zoomToolWrapper?.contains(zoomToolWrapper.ownerDocument.activeElement)) return;
 
     fitToWidthButton?.focus();
   }
@@ -231,9 +248,15 @@ class PresentationToolbar extends PureComponent {
       fullscreenAction,
       fullscreenRef,
       handleToggleFullScreen,
+      isPresentationDetached,
     } = this.props;
 
-    handleToggleFullScreen(fullscreenRef);
+    if (!fullscreenRef) return;
+    const fullscreenTarget = isPresentationDetached
+      ? fullscreenRef.ownerDocument.documentElement
+      : fullscreenRef;
+    handleToggleFullScreen(fullscreenTarget);
+
     const newElement = isFullscreen ? '' : fullscreenElementId;
 
     layoutContextDispatch({
@@ -649,8 +672,9 @@ PresentationToolbar.propTypes = {
   multiUser: PropTypes.bool.isRequired,
   setMultiUserWhiteboardDisabled: PropTypes.func.isRequired,
   setMultiUserWhiteboardEnabled: PropTypes.func.isRequired,
-  fullscreenRef: PropTypes.instanceOf(Element),
+  fullscreenRef: PropTypes.shape({ nodeType: PropTypes.number }),
   handleToggleFullScreen: PropTypes.func.isRequired,
+  isPresentationDetached: PropTypes.bool,
   isPollingEnabled: PropTypes.bool.isRequired,
   amIPresenter: PropTypes.bool.isRequired,
   startPoll: PropTypes.func.isRequired,
