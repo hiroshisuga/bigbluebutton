@@ -13,7 +13,7 @@
 | bbb-graphql-server | SQLスキーマ・ビューとHasura metadataを反映。次スライド配列の順序と`laserType`の両方を含む |
 | bbb-web | PPTX展開マーカー、ノート用ルート・コントローラー・サービスをビルドして反映 |
 | bbb-libreoffice | 下記スクリプト、依存パッケージ、sudoers、対応コンテナーを反映 |
-| record-and-playback | 外部動画用イベント処理・publish処理・設定を反映 |
+| record-and-playback | 外部動画用イベント処理・publish処理を反映 |
 
 フロントエンドだけを更新すると、レーザーのメッセージ形式・GraphQLとの整合が取れない。対象サービスを揃えて反映し、再起動・新しい会議で確認する。具体的なビルドコマンドは利用中のv4.0ビルド手順に従う。
 
@@ -94,17 +94,16 @@ HTML5のビルド・配信に、`public/fonts/KosugiMaru`、`public/fonts/MA`、
 
 ## 外部動画の録画
 
-#254のコメントで手動反映対象とされているファイルは以下。
+#308の外部動画録画JSON拡張を反映する。手動反映対象は以下の2ファイル。
 
 | ソース | サーバー上の配置先 |
 |---|---|
 | `record-and-playback/core/lib/recordandplayback/generators/events.rb` | `/usr/local/bigbluebutton/core/lib/recordandplayback/generators/events.rb` |
 | `record-and-playback/presentation/scripts/publish/presentation.rb` | `/usr/local/bigbluebutton/core/scripts/publish/presentation.rb` |
-| `record-and-playback/presentation/scripts/presentation.yml` | `/usr/local/bigbluebutton/core/scripts/presentation.yml` |
 
-設定は`include_external_videos: true`。v4.0のpublishスクリプトに`/etc/bigbluebutton/recording/presentation.yml`をマージする処理があることを確認したので、設定の上書き先として使用できる。ただし録画での実動作は未検証。
+既存の`external_videos.json`に、小数秒の`start_timestamp`・`stop_timestamp`と再生・停止・seek・速度変更の`events`を追加する。従来の`timestamp`・`external_video_url`は保持する。
 
-再生側には別リポジトリの対応が必要：<https://github.com/hiroshisuga/bbb-playback/pull/39>。本統合ではbbb-playbackを変更していない。#254に記載された外部動画イベントの初期再生・seek・同期に関する制約は、この統合だけで解消したとは扱わない。既存録画が自動で更新されるわけではなく、まず新規録画で確認する。
+#254のXML生成と専用サムネイル処理は除去した。#254向けの`include_external_videos`設定は不要。再生側で追加情報を利用するには、このJSON形式に対応したプレーヤーが必要。本統合ではbbb-playbackを変更していない。既存録画は自動で更新されないため、新規録画で確認する。Rubyの実行・BBB実機での録画動作は未検証。
 
 ## 実機確認項目
 
@@ -116,5 +115,5 @@ HTML5のビルド・配信に、`public/fonts/KosugiMaru`、`public/fonts/MA`、
 6. PDFのみ、PPTXのみ、混在選択、展開する／しない、アップロード／キャンセルを試す。
 7. アニメーションと非表示スライドを含むPPTXで、表示ページ・次ページ・ノート番号が一致するか確認する。
 8. 補正対象のPPTXで、折り返し、箇条書きインデント、和欧文間隔、末尾空白のPDF描画を確認する。元PPTXのダウンロードも確認する。
-9. 外部動画を共有した会議を録画し、`external_videos.xml`・サムネイルの生成、対応プレーヤーでの再生・停止・seek・速度変更を確認する。
+9. 外部動画を共有した会議を録画し、`external_videos.json`の開始・終了時刻と再生イベント、録画の一時停止・再開、同じ秒内の別動画共有、対応プレーヤーでの再生・停止・seek・速度変更を確認する。
 10. レーザー種別は録画イベントへ保存されるが、録画プレーヤーでのレーザー描画は本統合の対象外。

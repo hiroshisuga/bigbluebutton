@@ -2,7 +2,7 @@
 
 ## 概要
 
-BBB 4.0向けのポップアップ・発表者ノート、レーザーポインター、PPTXアニメーション展開に、フォント変更、PPTXテキスト補正、ピンチズーム制限、外部動画の録画XML生成を統合する。
+BBB 4.0向けのポップアップ・発表者ノート、レーザーポインター、PPTXアニメーション展開に、フォント変更、PPTXテキスト補正、ピンチズーム制限、外部動画の録画JSON拡張を統合する。
 
 投稿先は `hiroshisuga/bigbluebutton`、ベースは `v4.0.x-release`。利用者のローカルカスタマイズをまとめたPRであり、サーバーへのデプロイは行っていない。
 
@@ -19,7 +19,7 @@ BBB 4.0向けのポップアップ・発表者ノート、レーザーポイン�
 | [#304](https://github.com/hiroshisuga/bigbluebutton/pull/304) | レーザーポインター | `eac58f227c75dad6495a640591837f6b94b928ff` |
 | [#303](https://github.com/hiroshisuga/bigbluebutton/pull/303) | v4.0のPPTXアニメーション展開UI・変換 | `e5841166e2e3481c4b747f87cb36101bdd51a326` |
 | [#250](https://github.com/hiroshisuga/bigbluebutton/pull/250) | ホワイトボードの日本語・欧文フォント | `2800e401b78db3d59fd0c34897041c00bc1cc58a` |
-| [#254](https://github.com/hiroshisuga/bigbluebutton/pull/254) | `external_videos.xml`生成 | `1187551c3945fe2ebecdaeb8f741478d615b38b2` |
+| [#308](https://github.com/hiroshisuga/bigbluebutton/pull/308) | 外部動画の録画JSON拡張 | `915101088a627b927521c1473d2da8b0db34a1e3` |
 | [#267](https://github.com/hiroshisuga/bigbluebutton/pull/267) | PPTXテキスト補正 | `cb550d5debca059c6ba4799cce14f79c23bed2c7` |
 | [upstream #25671](https://github.com/bigbluebutton/bigbluebutton/pull/25671) | タッチ操作判定とピンチズーム範囲制限 | `94f4170a2b81a3ff5989341713d691635108431c` |
 | [#269](https://github.com/hiroshisuga/bigbluebutton/pull/269) | #303と#267を組み合わせる変換スクリプトの参照元 | `1206f8e1fdfccfd50d469f315d6bfb0dd1d13ed0` |
@@ -60,7 +60,7 @@ v3.0のブランチ全体は取り込まず、各PR固有の差分をv4.0へ適�
 
 ### その他
 
-フォントのバイナリ資産とアイコンも含めて#250を移植した。#254の録画処理はv4.0へ適用できた。追加行の空白のみの2行から末尾空白を除去し、動作は変更していない。
+フォントのバイナリ資産とアイコンも含めて#250を移植した。外部動画録画は#254のXML生成から#308のJSON拡張へ置き換えた。#308の固有差分のみを各releaseのコードに適用し、developブランチ全体は取り込んでいない。
 
 ## 検証結果
 
