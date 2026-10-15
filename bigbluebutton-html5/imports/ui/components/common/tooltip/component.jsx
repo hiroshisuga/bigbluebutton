@@ -172,10 +172,14 @@ class Tooltip extends Component {
 
   // eslint-disable-next-line react/sort-comp
   onShow() {
+    const { title } = this.props;
+    if (!title) return false;
+
     const ownerDocument = this.referenceElement?.ownerDocument;
     if (ownerDocument) {
       ownerDocument.addEventListener('keyup', this.handleEscapeHide);
     }
+    return true;
   }
 
   onHide() {
