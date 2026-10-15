@@ -23,6 +23,7 @@ fi
 cp assets/convert-local.sh  staging/usr/share/bbb-libreoffice-conversion/convert-cool.sh
 cp assets/convert-local.sh  staging/usr/share/bbb-libreoffice-conversion/convert-local.sh
 cp assets/convert-remote.sh staging/usr/share/bbb-libreoffice-conversion/convert-remote.sh
+cp assets/expand_pptx_animations.py staging/usr/share/bbb-libreoffice-conversion/expand_pptx_animations.py
 
 chmod +x staging/usr/share/bbb-libreoffice-conversion/convert-cool.sh
 chmod +x staging/usr/share/bbb-libreoffice-conversion/convert-local.sh
