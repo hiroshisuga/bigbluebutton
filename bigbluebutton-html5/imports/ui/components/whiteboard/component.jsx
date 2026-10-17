@@ -1028,17 +1028,6 @@ const Whiteboard = React.memo((props) => {
     getLaserType,
   );
 
-  // Compatibility with bigbluebutton/bigbluebutton#26085:
-  // https://github.com/bigbluebutton/bigbluebutton/pull/26085
-  // That PR intercepts secondary touch pointers and handles pinch/pan in BBB.
-  // Native tldraw touchscreen pinch no longer updates currentPagePoint to the
-  // two-finger midpoint, so that input point may still follow the first finger.
-  // The BBB touch handler supplies its calculated midpoint to this callback.
-  // Use that same page point for the mobile presenter laser and cursor publication.
-  // The old separate store listener was removed because reading currentPagePoint
-  // could overwrite the local laser with the first finger after pointer/camera
-  // updates, even while viewers correctly saw the midpoint.
-  // Update the local overlay before queued publication; no server round trip is needed.
   const updateCursorPosition = React.useCallback((x, y) => {
     if (suppressLaserAfterPinchRef.current) return;
 
@@ -1050,8 +1039,7 @@ const Whiteboard = React.memo((props) => {
       && Number.isFinite(x)
       && Number.isFinite(y)
     ) {
-      // Only the local overlay needs client coordinates; publication stays in page space.
-      // Preserve (-1, -1), the hidden-cursor sentinel, without applying pageToScreen.
+      // Use the same page point for the mobile laser and cursor publication.
       const screenPos = x === -1 && y === -1
         ? { x: -1, y: -1 }
         : editor.pageToScreen({ x, y });
