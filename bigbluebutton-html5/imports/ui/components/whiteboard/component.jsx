@@ -1023,11 +1023,32 @@ const Whiteboard = React.memo((props) => {
     return publishCursorUpdate(...args);
   }, [publishCursorUpdate]);
 
-  const updateCursorPosition = useCursor(
+  const publishCursorPosition = useCursor(
     publishCursorUpdateForLaser,
     whiteboardIdRef.current,
     getLaserType,
   );
+
+  const updateCursorPosition = React.useCallback((x, y) => {
+    if (suppressLaserAfterPinchRef.current) return;
+
+    const editor = tlEditorRef.current;
+    if (
+      isPresenterRef.current
+      && isMobile
+      && editor
+      && Number.isFinite(x)
+      && Number.isFinite(y)
+    ) {
+      // Use the same page point for the mobile laser and cursor publication.
+      const screenPos = x === -1 && y === -1
+        ? { x: -1, y: -1 }
+        : editor.pageToScreen({ x, y });
+      setPresenterCursorPoint({ x: screenPos.x, y: screenPos.y });
+    }
+
+    publishCursorPosition(x, y);
+  }, [isMobile, publishCursorPosition]);
 
   React.useEffect(() => {
     if (!isPresenter || !mountedTldrawEditor) return undefined;
@@ -2712,26 +2733,6 @@ const Whiteboard = React.memo((props) => {
       }
     }
   }, [otherCursors, whiteboardWriters]);
-
-  // Store presenter's cursor position to draw laser for mobile presenter
-  React.useEffect(() => {
-    if (!isPresenter || !isMobile) return undefined;
-
-    const editor = mountedTldrawEditor;
-    if (!editor) return undefined;
-
-    const unlisten = editor.store.listen(() => {
-      if (suppressLaserAfterPinchRef.current) return;
-      const p = editor.inputs.currentPagePoint;
-      if (!p) return;
-      const screenPos = editor.pageToScreen(p);
-      setPresenterCursorPoint({ x: screenPos.x, y: screenPos.y });
-    });
-
-    return () => {
-      unlisten?.();
-    };
-  }, [isPresenter, isMobile, mountedTldrawEditor]);
 
   React.useEffect(() => {
     if (isPresenter) return undefined;
