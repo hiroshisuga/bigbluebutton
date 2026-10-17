@@ -4,6 +4,7 @@ import { gql } from '@apollo/client';
 export interface CursorCoordinates {
   xPercent: number;
   yPercent: number;
+  laserType: string;
   userId: string;
 }
 
@@ -59,7 +60,7 @@ export interface PresentationPage {
   presentationName: string;
   isDefaultPresentation: boolean;
   infiniteWhiteboard: boolean;
-  nextPagesSvg: string;
+  nextPagesSvg: string[] | null;
   fitToWidth: boolean;
 }
 
@@ -229,6 +230,7 @@ export const CURRENT_PAGE_CURSORS_COORDINATES_STREAM = gql`
                             batch_size: 100) {
       xPercent
       yPercent
+      laserType
       userId
     }
   }
