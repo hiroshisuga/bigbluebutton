@@ -18,7 +18,7 @@ const min = (value1, value2) => (value1 <= value2 ? value1 : value2);
 const max = (value1, value2) => (value1 >= value2 ? value1 : value2);
 
 const PresentationFocusLayout = (props) => {
-  const { bannerAreaHeight, isMobile } = props;
+  const { bannerAreaHeight, isMobile, isPresentationDetached } = props;
 
   function usePrevious(value) {
     const ref = useRef();
@@ -255,7 +255,7 @@ const PresentationFocusLayout = (props) => {
     const { element: fullscreenElement } = fullscreen;
 
     if (
-      fullscreenElement === 'Presentation' ||
+      (fullscreenElement === 'Presentation' && !isPresentationDetached) ||
       fullscreenElement === 'Screenshare' ||
       fullscreenElement === 'ExternalVideo' ||
       fullscreenElement === 'GenericContent'
