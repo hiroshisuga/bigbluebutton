@@ -191,6 +191,12 @@ const TldrawV2GlobalStyle = createGlobalStyle`
     display: flex;
   }
 
+  .tl-container.bbb-laser-active
+    .tl-collaborator__cursor-hint
+    use[href='#cursor_hint'][color='#FF0000'] {
+    display: none;
+  }
+
   ${({ presentationHeight }) => {
     const minRange = { height: 345, top: 14 };
     const maxRange = { height: 1200, top: 384 };
@@ -264,7 +270,34 @@ const EditableWBWrapper = styled.div`
   }
 `;
 
+const LaserContextMenu = styled.div`
+  position: fixed !important;
+  height: auto !important;
+  background: #1e1e1e;
+  color: #fff;
+  padding: 6px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  z-index: 99999;
+`;
+
+const LaserMenuItem = styled.div`
+  width: 36px;
+  height: 36px;
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  &:hover {
+    background: #333;
+  }
+`;
+
 export default {
   TldrawV2GlobalStyle,
   EditableWBWrapper,
+  LaserContextMenu,
+  LaserMenuItem,
 };
