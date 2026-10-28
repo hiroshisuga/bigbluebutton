@@ -94,6 +94,16 @@ const intlMessages = defineMessages({
     id: 'app.presentation.modal.clearAnnotationsConfirmLabel',
     description: 'Label for the confirm button',
   },
+  detachPopupDesc: {
+    id: 'app.presentation.options.detachPopup',
+    description: 'Popup the presentation area label',
+    defaultMessage: 'Popup presentation',
+  },
+  mergePopupDesc: {
+    id: 'app.presentation.options.mergePopup',
+    description: 'Merge the detached presentation area label',
+    defaultMessage: 'Merge presentation popup',
+  },
 });
 
 const propTypes = {
@@ -101,12 +111,16 @@ const propTypes = {
     formatMessage: PropTypes.func.isRequired,
   }).isRequired,
   allowSnapshotOfCurrentSlide: PropTypes.bool,
+  allowPopupPresentation: PropTypes.bool,
   handleToggleFullscreen: PropTypes.func.isRequired,
   isFullscreen: PropTypes.bool,
   elementName: PropTypes.string,
-  fullscreenRef: PropTypes.instanceOf(Element),
+  fullscreenRef: PropTypes.object,
   meetingName: PropTypes.string,
   isIphone: PropTypes.bool,
+  isMobile: PropTypes.bool,
+  isPresentationDetached: PropTypes.bool,
+  detachPresentation: PropTypes.func,
   elementId: PropTypes.string,
   elementGroup: PropTypes.string,
   currentElement: PropTypes.string,
@@ -139,22 +153,28 @@ const PresentationMenu = (props) => {
     layoutContextDispatch,
     meetingName = '',
     isIphone = false,
+    isMobile = false,
     isRTL = Settings.application.isRTL,
     isToolbarVisible,
     setIsToolbarVisible,
     allowSnapshotOfCurrentSlide = false,
+    allowPopupPresentation = false,
     presentationDropdownItems,
     slideNum,
     currentUser,
     whiteboardId,
     persistShape,
     hasWBAccess,
+    isPresentationDetached,
   } = props;
 
   const [state, setState] = useState({
     hasError: false,
     loading: false,
   });
+  const presentationMenuRef = useRef(null);
+
+  const getPresentationDocument = () => presentationMenuRef.current?.ownerDocument || document;
 
   const extractSlideContentToImage = async () => {
     const { isIos } = deviceInfo;
@@ -171,9 +191,13 @@ const PresentationMenu = (props) => {
     svgElem.setAttribute('height', backgroundShape.props.h);
     svgElem.setAttribute('viewBox', `1 1 ${backgroundShape.props.w} ${backgroundShape.props.h}`);
     if (pollShape) {
-      const pollShapeElement = document.getElementById(pollShape.id);
+      const presentationDocument = getPresentationDocument();
+      const pollShapeElement = presentationDocument.getElementById(pollShape.id);
+      if (!pollShapeElement) {
+        throw new Error(`Poll result element ${pollShape.id} was not found`);
+      }
       const pollShapeSvg = await toSvg(pollShapeElement);
-      const pollShapeImage = document.createElementNS('http://www.w3.org/2000/svg', 'image');
+      const pollShapeImage = presentationDocument.createElementNS('http://www.w3.org/2000/svg', 'image');
       pollShapeImage.setAttribute('href', pollShapeSvg);
       pollShapeImage.setAttribute('width', pollShape.props.w);
       pollShapeImage.setAttribute('height', pollShape.props.h);
@@ -304,6 +328,11 @@ const PresentationMenu = (props) => {
     : intl.formatMessage(intlMessages.showToolsDesc)
   );
 
+  const formattedDetachedLabel = (detached) => (detached
+    ? intl.formatMessage(intlMessages.mergePopupDesc)
+    : intl.formatMessage(intlMessages.detachPopupDesc)
+  );
+
   const extractShapes = (savedState) => {
     let data;
 
@@ -412,7 +441,11 @@ const PresentationMenu = (props) => {
           label: formattedLabel(isFullscreen),
           icon: isFullscreen ? 'exit_fullscreen' : 'fullscreen',
           onClick: () => {
-            handleToggleFullscreen(fullscreenRef);
+            if (!fullscreenRef) return;
+            const fullscreenTarget = isPresentationDetached
+              ? fullscreenRef.ownerDocument.documentElement
+              : fullscreenRef;
+            handleToggleFullscreen(fullscreenTarget);
             const newElement = (elementId === currentElement) ? '' : elementId;
             const newGroup = (elementGroup === currentGroup) ? '' : elementGroup;
 
@@ -456,7 +489,8 @@ const PresentationMenu = (props) => {
               const fileName = (isIos || isSafari)
                 ? `${elementName}_${meetingName}_${new Date().toISOString()}.svg`
                 : `${elementName}_${meetingName}_${new Date().toISOString()}.png`;
-              const anchor = document.createElement('a');
+              const presentationDocument = getPresentationDocument();
+              const anchor = presentationDocument.createElement('a');
               anchor.href = data;
               anchor.setAttribute(
                 'download',
@@ -510,6 +544,15 @@ const PresentationMenu = (props) => {
           },
         },
       );
+    }
+
+    if (props.amIPresenter && allowPopupPresentation && !isMobile) {
+      menuItems.push({
+        key: 'list-item-detach-presentation',
+        label: formattedDetachedLabel(isPresentationDetached),
+        icon: isPresentationDetached ? 'minus' : 'popout_window',
+        onClick: props.detachPresentation,
+      });
     }
 
     // if (props.amIPresenter) {
@@ -581,7 +624,7 @@ const PresentationMenu = (props) => {
 
   return (
     <>
-      <Styled.Right id="WhiteboardOptionButton">
+      <Styled.Right id="WhiteboardOptionButton" ref={presentationMenuRef}>
         <BBBMenu
           trigger={(
             <TooltipContainer title={intl.formatMessage(intlMessages.optionsLabel)}>

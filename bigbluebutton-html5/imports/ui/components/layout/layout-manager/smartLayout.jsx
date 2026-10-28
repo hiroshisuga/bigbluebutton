@@ -11,7 +11,10 @@ const windowWidth = () => window.document.documentElement.clientWidth;
 const windowHeight = () => window.document.documentElement.clientHeight;
 
 const SmartLayout = (props) => {
-  const { prevLayout, bannerAreaHeight, isMobile, calculatesNavbarHeight } = props;
+  const {
+    prevLayout, bannerAreaHeight, isMobile, calculatesNavbarHeight,
+    isPresentationDetached
+  } = props;
 
   function usePrevious(value) {
     const ref = useRef();
@@ -280,7 +283,7 @@ const SmartLayout = (props) => {
     }
 
     if (
-      fullscreenElement === 'Presentation' ||
+      (fullscreenElement === 'Presentation' && !isPresentationDetached) ||
       fullscreenElement === 'Screenshare' ||
       fullscreenElement === 'ExternalVideo' ||
       fullscreenElement === 'GenericContent'
