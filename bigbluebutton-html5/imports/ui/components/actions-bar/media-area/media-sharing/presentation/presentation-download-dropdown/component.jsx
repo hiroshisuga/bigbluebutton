@@ -35,6 +35,14 @@ const intlMessages = defineMessages({
     id: 'app.presentationUploader.dropdownExportOptionsUncomplete',
     description: 'Chat Options',
   },
+  uploadPresenterNotes: {
+    id: 'app.presentationUploader.uploadPresenterNotes',
+    description: 'Upload note',
+  },
+  extractPresentationNotesFromExistingPptx: {
+    id: 'app.presentationUploader.extractPresentationNotesFromExistingPptx',
+    description: 'Extract notes from uploaded pptx',
+  },
 });
 
 const propTypes = {
@@ -74,6 +82,8 @@ const propTypes = {
   }),
   closeModal: PropTypes.func.isRequired,
   disabled: PropTypes.bool.isRequired,
+  handleUploadPresentationNotes: PropTypes.func.isRequired,
+  handleExtractPresentationNotesFromExistingPptx: PropTypes.func.isRequired,
 };
 
 const defaultProps = {
@@ -88,7 +98,11 @@ class PresentationDownloadDropdown extends PureComponent {
       uniqueId('action-item-'),
       uniqueId('action-item-'),
       uniqueId('action-item-'),
+      uniqueId('action-item-'),
+      uniqueId('action-item-'),
     ];
+
+    this.notesFileInputRef = React.createRef();
   }
 
   getAvailableActions() {
@@ -102,9 +116,14 @@ class PresentationDownloadDropdown extends PureComponent {
       allowDownloadWithAnnotations,
       item,
       closeModal,
+      handleExtractPresentationNotesFromExistingPptx,
     } = this.props;
 
     this.menuItems = [];
+
+    const isPptxPresentation = item?.name
+      ?.toLowerCase()
+      .endsWith('.pptx');
 
     const { filenameConverted, name, downloadFileUri } = item;
     const convertedFileExtension = filenameConverted?.split('.').slice(-1)[0];
@@ -173,11 +192,33 @@ class PresentationDownloadDropdown extends PureComponent {
         },
       });
     }
+    this.menuItems.push({
+      key: this.actionsKey[3],
+      id: 'uploadPresenterNotes',
+      dataTest: 'uploadPresenterNotes',
+      label: intl.formatMessage(intlMessages.uploadPresenterNotes),
+      onClick: () => {
+        this.notesFileInputRef.current?.click();
+      },
+    });
+    if (isPptxPresentation) {
+      this.menuItems.push({
+        key: this.actionsKey[4],
+        id: 'extractPresentationNotesFromExistingPptx',
+        dataTest: 'extractPresentationNotesFromExistingPptx',
+        label: intl.formatMessage(intlMessages.extractPresentationNotesFromExistingPptx),
+        onClick: () => {
+          handleExtractPresentationNotesFromExistingPptx(item);
+        },
+      });
+    }
     return this.menuItems;
   }
 
   render() {
-    const { intl, disabled } = this.props;
+    const {
+      intl, disabled, item, handleUploadPresentationNotes,
+    } = this.props;
 
     const customStyles = { zIndex: 9999 };
     let tooltipLabelForDropdown = intl.formatMessage(intlMessages.options);
@@ -211,6 +252,23 @@ class PresentationDownloadDropdown extends PureComponent {
             transformOrigin: { vertical: 'top', horizontal: 'left' },
           }}
           actions={this.getAvailableActions()}
+        />
+        <input
+          ref={this.notesFileInputRef}
+          type="file"
+          accept=".pptx"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            e.stopPropagation();
+            const file = e.target.files?.[0];
+            if (file) {
+              const isPptx = file.name.toLowerCase().endsWith('.pptx');
+              if (isPptx) {
+                handleUploadPresentationNotes(item, file);
+              }
+            }
+            e.target.value = '';
+          }}
         />
       </PresentationDownloadDropdownWrapper>
     );

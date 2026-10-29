@@ -43,6 +43,9 @@ const FORCE_RESTORE_PRESENTATION_ON_NEW_EVENTS = 'bbb_force_restore_presentation
 const PresentationContainer = ({
   presentationIsOpen = true,
   darkTheme,
+  popupWindow,
+  isPresentationDetached,
+  toggleDetachPresentation,
 }) => {
   const [annotationStreamData, setAnnotationStreamData] = useState([]);
   const layoutContextDispatch = layoutDispatch();
@@ -56,6 +59,11 @@ const PresentationContainer = ({
 
   const { pres_page_curr: presentationPageArray } = (presentationPageData || {});
   const currentPresentationPage = presentationPageArray?.[0];
+  const nextPresentationPage = currentPresentationPage?.nextPagesSvg?.length > 0
+    ? {
+      svgUrl: currentPresentationPage.nextPagesSvg[0],
+    }
+    : null;
   const slideSvgUrl = currentPresentationPage?.svgUrl
     ? Auth.authenticateURL(currentPresentationPage.svgUrl) : undefined;
   const currentPageId = currentPresentationPage?.pageId;
@@ -207,8 +215,20 @@ const PresentationContainer = ({
     num: currentPresentationPage?.num,
     presentationId: currentPresentationPage?.presentationId,
     svgUri: slideSvgUrl,
+    noteUri: slideSvgUrl?.replace(
+      /\/svg\/(\d+)(\?.*)?$/,
+      '/notes/$1$2',
+    ),
     infiniteWhiteboard: currentPresentationPage.infiniteWhiteboard,
   } : null;
+
+  const nextSlide = nextPresentationPage
+    ? {
+      svgUri: Auth.authenticateURL(nextPresentationPage.svgUrl),
+      num: currentSlide ? currentSlide.num + 1 : undefined,
+      presentationId: currentSlide?.presentationId,
+    }
+    : null;
 
   let slidePosition;
   if (currentSlide) {
@@ -297,6 +317,9 @@ const PresentationContainer = ({
           layoutContextDispatch,
           numCameras,
           presentationIsOpen,
+          popupWindow,
+          isPresentationDetached,
+          toggleDetachPresentation,
           setPresentationFitToWidth,
           fitToWidth,
           darkTheme,
@@ -308,6 +331,7 @@ const PresentationContainer = ({
           isTabledLandscape: deviceType === DEVICE_TYPE.TABLET_LANDSCAPE,
           isIphone,
           currentSlide,
+          nextSlide,
           slidePosition,
           hasWBAccess: currentUser?.whiteboardWriteAccess,
           downloadPresentationUri: currentPresentationPage?.downloadFileUri
@@ -345,4 +369,7 @@ export default memo(PresentationContainer);
 PresentationContainer.propTypes = {
   presentationIsOpen: PropTypes.bool,
   darkTheme: PropTypes.bool.isRequired,
+  popupWindow: PropTypes.shape({ closed: PropTypes.bool }),
+  isPresentationDetached: PropTypes.bool,
+  toggleDetachPresentation: PropTypes.func,
 };
