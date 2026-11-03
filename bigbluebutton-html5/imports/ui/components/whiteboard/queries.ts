@@ -70,6 +70,7 @@ export interface PresentationsSubscriptionResponse {
 
 export interface Presentation {
   uploadTemporaryId: string | null;
+  uploadUserId: string | null;
   uploadInProgress: boolean;
   current: boolean;
   downloadFileUri: string | null;
@@ -141,6 +142,7 @@ export const PRESENTATIONS_SUBSCRIPTION = gql`
   subscription PresentationsSubscription {
     pres_presentation {
       uploadTemporaryId
+      uploadUserId
       uploadInProgress
       current
       downloadFileUri

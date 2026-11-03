@@ -43,6 +43,7 @@ import {
 } from './service';
 import NoopTool from './custom-tools/noop-tool/component';
 import DeleteSelectedItemsTool from './custom-tools/delete-selected-items/component';
+import selectInitialTool from './initial-tool';
 import SessionStorage from '/imports/ui/services/storage/session';
 
 setupColorThemePaletteOverrides();
@@ -696,34 +697,50 @@ const Whiteboard = React.memo((props) => {
     presentationIdRef.current = presentationId;
   }, [presentationId]);
 
-  React.useEffect(() => {
-    hasWBAccessRef.current = hasWBAccess;
+  const setInitialWhiteboardTool = (editor, toolbarSavedState) => {
+    if (!editor) return;
+    if (!isPresenterRef.current && !hasWBAccessRef.current) {
+      editor.setCurrentTool('noop');
+      return;
+    }
+    if (!isPresenterRef.current
+      && allowInfiniteWhiteboardPanForViewers
+      && currentPresentationPageRef.current?.infiniteWhiteboard
+      && !isModeratorRef.current) {
+      editor.setCurrentTool('hand');
+      return;
+    }
 
-    const toolbarSavedState = SessionStorage.getItem('whiteboardToolbarSavedState');
-
-    if (!hasWBAccess && !isPresenter) {
-      tlEditorRef?.current?.setCurrentTool('noop');
-    } else if (hasWBAccess && !isPresenter) {
-      const {
-        initialSelectedTool: initialSelectedToolFromConfig,
-        multiUserTools,
-      } = window.meetingClientSettings.public.whiteboard.toolbar;
-      let initialSelectedTool = getFromUserSettings(
-        'bbb_initial_selected_tool',
-        initialSelectedToolFromConfig,
-      );
-
-      if (toolbarSavedState) {
-        const {
-          selectedTool: savedSelectedTool,
-        } = toolbarSavedState;
-
-        if (savedSelectedTool && multiUserTools.includes(savedSelectedTool)) {
-          initialSelectedTool = savedSelectedTool;
+    const { toolbar } = window.meetingClientSettings.public.whiteboard;
+    let allowedTools = [];
+    if (isPresenterRef.current) {
+      allowedTools = getFromUserSettings('bbb_presenter_tools', toolbar.presenterTools);
+    } else if (!isModeratorRef.current) {
+      if (getFromUserSettings('bbb_multi_user_pen_only', toolbar.multiUserPenOnly)) {
+        allowedTools = viewerCanPanRef.current ? ['draw', 'hand'] : ['draw'];
+      } else {
+        allowedTools = getFromUserSettings('bbb_multi_user_tools', toolbar.multiUserTools);
+        if (viewerCanPanRef.current && Array.isArray(allowedTools) && allowedTools.length > 0) {
+          allowedTools = [...allowedTools, 'hand'];
         }
       }
+    }
 
-      tlEditorRef?.current?.setCurrentTool(initialSelectedTool);
+    selectInitialTool(editor, {
+      savedTool: toolbarSavedState?.selectedTool,
+      initialTool: getFromUserSettings('bbb_initial_selected_tool', toolbar.initialSelectedTool),
+      defaultTool: toolbar.initialSelectedTool,
+      allowedTools,
+    });
+  };
+
+  React.useEffect(() => {
+    hasWBAccessRef.current = hasWBAccess;
+    if (!isPresenter) {
+      setInitialWhiteboardTool(
+        tlEditorRef.current,
+        SessionStorage.getItem('whiteboardToolbarSavedState'),
+      );
     }
   }, [hasWBAccess]);
 
@@ -1871,7 +1888,6 @@ const Whiteboard = React.memo((props) => {
         fillStyle: savedFillStyle,
         fontStyle: savedFontStyle,
         sizeStyle: savedSizeStyle,
-        selectedTool: savedSelectedTool,
       } = toolbarSavedState;
 
       if (savedColorStyle) {
@@ -1897,12 +1913,6 @@ const Whiteboard = React.memo((props) => {
       if (savedSizeStyle) {
         if (sizeStyles.includes(savedSizeStyle)) {
           initialSizeStyle = savedSizeStyle;
-        }
-      }
-      if (savedSelectedTool) {
-        const { multiUserTools } = window.meetingClientSettings.public.whiteboard.toolbar;
-        if (multiUserTools.includes(savedSelectedTool)) {
-          editor.setCurrentTool(savedSelectedTool);
         }
       }
     }
@@ -2006,6 +2016,11 @@ const Whiteboard = React.memo((props) => {
         // Handle removed shapes immediately (not batched)
         const idsToRemove = Object.keys(removed);
         if (idsToRemove.length > 0) {
+          // A shape removed before it was persisted (e.g. a dot bailed by a second finger)
+          // must not be sent afterwards.
+          idsToRemove.forEach((id) => {
+            delete shapeBatchRef.current[id];
+          });
           removeShapes(idsToRemove);
         }
       },
@@ -2020,7 +2035,12 @@ const Whiteboard = React.memo((props) => {
 
         const path = editor.getPath();
 
-        if ((isPresenterRef.current || hasWBAccessRef.current) && pointers) {
+        // During a two-finger touch the handler publishes the point between the fingers.
+        if (
+          (isPresenterRef.current || hasWBAccessRef.current)
+          && pointers
+          && !isTouchZoomRef.current
+        ) {
           const [, nextPointer] = pointers;
           updateCursorPosition(nextPointer?.x, nextPointer?.y);
         }
@@ -2065,6 +2085,7 @@ const Whiteboard = React.memo((props) => {
               hasZoomSyncedRef.current = false;
             }
 
+            // Wheel and touch gestures move the camera directly; zoomChanger follows it.
             if (isWheelZoomRef.current || isTouchZoomRef.current) {
               zoomSlide(
                 viewedRegionW, viewedRegionH, nextCam.x, nextCam.y,
@@ -2194,7 +2215,7 @@ const Whiteboard = React.memo((props) => {
       schedulePresenterAnnotationsUpdate();
 
       // eslint-disable-next-line no-param-reassign
-      editor.store.onBeforeChange = (prev, next) => {
+      editor.store.onBeforeChange = (prev, next, source) => {
         if (isPhone) {
           const path = editor.getPath();
           const activePaths = [
@@ -2287,9 +2308,12 @@ const Whiteboard = React.memo((props) => {
         let viewportHeight;
 
         if (isPresenterRef.current) {
-          const viewportPageBounds = editor?.getViewportPageBounds();
-          viewportWidth = viewportPageBounds?.w;
-          viewportHeight = viewportPageBounds?.h;
+          // The viewport of the camera being written, not of the current one: with the
+          // current zoom, a zoom step that starts at 100% would be pushed back to (0, 0).
+          const { w, h } = editor.getViewportScreenBounds();
+          const zoom = next?.typeName === CAMERA_TYPE && next.z > 0 ? next.z : editor.getCamera().z;
+          viewportWidth = w / zoom;
+          viewportHeight = h / zoom;
         } else {
           viewportWidth = currentPresentationPageRef.current?.scaledViewBoxWidth;
           viewportHeight = currentPresentationPageRef.current?.scaledViewBoxHeight;
@@ -2301,6 +2325,7 @@ const Whiteboard = React.memo((props) => {
         // Prevent pinch zoom outside allowed range
         if (
           zoomed
+          && source === 'user'
           && isPresenterRef.current
           && isTouchZoomRef.current
           && currentPage
@@ -2309,19 +2334,25 @@ const Whiteboard = React.memo((props) => {
           && Number.isFinite(currentPage.scaledHeight)
           && currentPage.scaledHeight > 0
         ) {
-          const { widthGap } = getContainerDimensions();
+          // The same 100 % as the touch handler and the wheel, or the gate would reject
+          // their writes at the bounds.
+          let baseZoom = initialZoomRef.current;
 
-          let baseZoom = calculateZoomValueRef.current(
-            currentPage.scaledWidth,
-            currentPage.scaledHeight,
-          );
+          if (!(baseZoom > 0)) {
+            const { widthGap } = getContainerDimensions();
 
-          if (widthGap > 0) {
-            baseZoom = calculateZoomWithGapValueRef.current(
+            baseZoom = calculateZoomValueRef.current(
               currentPage.scaledWidth,
               currentPage.scaledHeight,
-              widthGap,
             );
+
+            if (widthGap > 0) {
+              baseZoom = calculateZoomWithGapValueRef.current(
+                currentPage.scaledWidth,
+                currentPage.scaledHeight,
+                widthGap,
+              );
+            }
           }
 
           if (Number.isFinite(baseZoom) && baseZoom > 0) {
@@ -2370,43 +2401,7 @@ const Whiteboard = React.memo((props) => {
         }
       };
 
-      if (!isPresenterRef.current && !hasWBAccessRef.current) {
-        editor?.setCurrentTool('noop');
-      } else {
-        const {
-          initialSelectedTool: initialSelectedToolFromConfig,
-          presenterTools,
-          multiUserTools,
-        } = window.meetingClientSettings.public.whiteboard.toolbar;
-        let initialSelectedTool = getFromUserSettings(
-          'bbb_initial_selected_tool',
-          initialSelectedToolFromConfig,
-        );
-
-        if (toolbarSavedState) {
-          const {
-            selectedTool: savedSelectedTool,
-          } = toolbarSavedState;
-
-          if (savedSelectedTool && multiUserTools.includes(savedSelectedTool)) {
-            initialSelectedTool = savedSelectedTool;
-          }
-        }
-
-        if (isPresenterRef.current) {
-          const initialPresenterTool = presenterTools.includes(initialSelectedTool) ? initialSelectedTool : 'noop';
-          editor?.setCurrentTool(initialPresenterTool);
-        } else if (
-          allowInfiniteWhiteboardPanForViewers
-          && currentPresentationPageRef.current?.infiniteWhiteboard
-          && !isModeratorRef.current
-        ) {
-          editor?.setCurrentTool('hand');
-        } else {
-          const initialTool = multiUserTools.includes(initialSelectedTool) ? initialSelectedTool : 'noop';
-          editor?.setCurrentTool(initialTool);
-        }
-      }
+      setInitialWhiteboardTool(editor, toolbarSavedState);
     }
 
     pollInnerWrapperDimensionsUntilStable(() => {
@@ -2862,6 +2857,7 @@ const Whiteboard = React.memo((props) => {
       && currentPresentationPage
       && isPresenter
       && !isWheelZoomRef.current
+      && !isTouchZoomRef.current
     ) {
       if (!isMounting && prevZoomValueRef.current !== zoomValue) {
         // The presenter zoomed before the remounted editor restored the page: that zoom
@@ -3106,7 +3102,7 @@ const Whiteboard = React.memo((props) => {
       }
 
       // A non-primary touch means that a second (or later) finger
-      // has arrived. Enable camera movement before tldraw handles it.
+      // has arrived. Restore camera movement for BBB's touch gesture handler.
       multiTouchGesture = true;
       setCanMoveCamera(originalCanMoveCamera);
     };
@@ -3151,7 +3147,7 @@ const Whiteboard = React.memo((props) => {
       // Do not change canMoveCamera on a 2 -> 1 transition.
       // Keep the whole multi-touch interaction in camera mode
       // until every finger has been released.
-      // Changing it here can interfere with tldraw's pinch gesture state.
+      // Keep this permission stable while BBB finishes the touch gesture.
       if (e.touches.length === 0) {
         resetGesture();
         // Keep suppression active until the next primary pointerdown.
@@ -3621,7 +3617,9 @@ const Whiteboard = React.memo((props) => {
     fillStyle: tlEditorRef.current?.getInstanceState().stylesForNextShape[DefaultFillStyle.id],
     fontStyle: tlEditorRef.current?.getInstanceState().stylesForNextShape[DefaultFontStyle.id],
     sizeStyle: tlEditorRef.current?.getInstanceState().stylesForNextShape[DefaultSizeStyle.id],
-    selectedTool: tlEditorRef.current?.getCurrentToolId(),
+    selectedTool: tlEditorRef.current?.getCurrentToolId() === 'geo'
+      ? tlEditorRef.current.getStyleForNextShape(GeoShapeGeoStyle)
+      : tlEditorRef.current?.getCurrentToolId(),
   }), [
     tlEditorRef.current?.getInstanceState().stylesForNextShape,
     tlEditorRef.current?.getCurrentToolId(),

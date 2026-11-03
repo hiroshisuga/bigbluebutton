@@ -969,7 +969,7 @@ class Presentation extends PureComponent {
 
   zoomChanger(zoom) {
     const { currentSlide } = this.props;
-    let boundZoom = parseInt(zoom, 10);
+    let boundZoom = Math.round(zoom);
     const min = currentSlide?.infiniteWhiteboard ? MIN_PERCENT : HUNDRED_PERCENT;
     if (boundZoom < min) {
       boundZoom = min;
@@ -1410,6 +1410,7 @@ class Presentation extends PureComponent {
     return (
       <>
         <Styled.PresentationContainer
+          className="bbb-presentation"
           role="region"
           data-test="presentationContainer"
           ref={(ref) => {
@@ -1430,6 +1431,7 @@ class Presentation extends PureComponent {
         >
           <h2 className="sr-only">{intl.formatMessage(intlMessages.presentationHeader)}</h2>
           <Styled.Presentation
+            className="bbb-presentation__content"
             ref={(ref) => {
               this.refPresentation = ref;
             }}
