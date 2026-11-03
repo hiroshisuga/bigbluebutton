@@ -6,6 +6,7 @@ import org.bigbluebutton.core.apps.screenshare.ScreenshareApp2x
 import org.bigbluebutton.core.db.ScreenshareDAO
 import org.bigbluebutton.core.models.{ Users2x, VoiceUsers }
 import org.bigbluebutton.core.running.{ BaseMeetingActor, LiveMeeting, OutMsgRouter }
+import org.bigbluebutton.core2.MeetingStatus2x
 import org.bigbluebutton.core2.message.senders.MsgBuilder
 
 trait LiveKitParticipantLeftEvtMsgHdlr {
@@ -21,7 +22,7 @@ trait LiveKitParticipantLeftEvtMsgHdlr {
     val isPrimaryRoom = roomName == meetingId
 
     // Media cleanup below is primary-room-only; non-primary leaves are ignored
-    // as they should not affect the user's voice state, webcam state, or presenter state.
+    // as they should not affect the user's voice state or screen share.
     if (isPrimaryRoom) {
       val isPresenter = Users2x.isPresenter(userId, liveMeeting.users2x)
 
@@ -49,12 +50,15 @@ trait LiveKitParticipantLeftEvtMsgHdlr {
           liveMeeting.props.voiceProp.voiceConf,
           userId,
           None,
-          leftVoiceConf = true
+          leftVoiceConf = true,
+          hideUserList = MeetingStatus2x.getPermissions(liveMeeting.status).hideUserList
         )
         outGW.send(eventUserVoiceStatus)
       }
 
-      if (isPresenter && ScreenshareModel.isBroadcastingRTMP(liveMeeting.screenshareModel)) {
+      val isLiveKitScreenShare = liveMeeting.props.meetingProp.screenShareBridge == "livekit"
+
+      if (isPresenter && isLiveKitScreenShare && ScreenshareModel.isBroadcastingRTMP(liveMeeting.screenshareModel)) {
         ScreenshareDAO.updateStopped(
           meetingId,
           ScreenshareModel.getRTMPBroadcastingUrl(liveMeeting.screenshareModel)

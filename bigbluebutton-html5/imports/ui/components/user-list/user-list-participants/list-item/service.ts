@@ -139,7 +139,6 @@ export const generateActionsPermissions = (
   lockSettings: LockSettings,
   usersPolicies: UsersPolicies,
   isBreakout: boolean,
-  isMuted: boolean,
   isChatEnabled: boolean,
   isPrivateChatEnabled: boolean,
   type: string,
@@ -158,20 +157,23 @@ export const generateActionsPermissions = (
   const preventSelfChat = !amISubjectUser;
   const moderatorOverride = currentUserIsModerator
     && !amISubjectUser && !isDialInUser && isPrivateChatEnabled;
+  // the server lets private chats with a moderator through while privateChat is disabled
   const viewerToModeratorOverride = isSubjectUserModerator
-    && isChatEnabled && isPrivateChatEnabled && !isDialInUser && !isSubjectUserBot;
+    && isChatEnabled && !isDialInUser && !isSubjectUserBot;
   const regularUserCondition = (isPrivateChatEnabled
     && isChatEnabled
     && !lockSettings?.disablePrivateChat
     && !isDialInUser)
     || currentUserIsModerator;
+  const unlockedUserCondition = !userChatIsLocked
+    && isPrivateChatEnabled && isChatEnabled && !isDialInUser;
   const allowedToChatPrivately = preventSelfChat
-    && (moderatorOverride || viewerToModeratorOverride || regularUserCondition || !userChatIsLocked)
+    && (moderatorOverride || viewerToModeratorOverride || regularUserCondition || unlockedUserCondition)
     && type === 'participant';
 
+  // Neither checks the mute state; the audio entry consults the one that applies.
   const allowedToMuteAudio = hasAuthority
     && subjectUserInAudio
-    && !isMuted
     && !subjectUserVoice?.listenOnly
     && !isSubjectUserBot
     && (type === 'participant' || type === 'raised-hand');
@@ -179,7 +181,6 @@ export const generateActionsPermissions = (
   const allowedToUnmuteAudio = hasAuthority
     && subjectUserInAudio
     && !subjectUserVoice?.listenOnly
-    && isMuted
     && (amISubjectUser || usersPolicies?.allowModsToUnmuteUsers)
     && !lockSettings?.disableMic
     && (type === 'participant' || type === 'raised-hand');
@@ -297,6 +298,13 @@ export const handleWhiteboardAccessChange = async (
     const { userId, whiteboardWriteAccess } = user;
 
     if (newWhiteboardWriteAccess !== whiteboardWriteAccess) {
+      logger.info({
+        logCode: 'usermenu_option_whiteboard_access_toggle',
+        extraInfo: { logType: 'moderator_action', userId, granted: newWhiteboardWriteAccess },
+      }, newWhiteboardWriteAccess
+        ? 'moderator granted whiteboard access to user'
+        : 'moderator removed whiteboard access from user');
+
       // Update user whiteboardWriteAccess
       await userSetWhiteboardWriteAccess({
         variables: {
@@ -332,7 +340,6 @@ export const toggleVoice = (
 export const createToolbarOptions = (
   intl: IntlShape,
   user: User,
-  isMuted: boolean,
   whiteboardAccess: boolean,
   actionsPermitions: UserActionPermissions,
   lockSettings: LockSettings,
@@ -372,9 +379,7 @@ export const createToolbarOptions = (
     && !user.isModerator;
   const userChatLocked = !!user.userLockSettings?.disablePublicChat;
 
-  const getAudioStateOption = () => {
-    if (!subjectUserInAudio) return null;
-
+  const getAudioStateOption = (isMuted: boolean) => {
     const isListenOnly = user.voice?.listenOnly || user.voice?.listenOnlyInputDevice;
 
     if (isListenOnly) {
@@ -419,7 +424,6 @@ export const createToolbarOptions = (
       dataTest: hasPermissionToMute ? 'muteUser' : 'audioStateUnmuted',
     };
   };
-  const audioStateOption = getAudioStateOption();
 
   return {
     pinnedToolbarOptions: [
@@ -449,7 +453,7 @@ export const createToolbarOptions = (
         icon: 'group_chat',
         dataTest: 'startPrivateChat',
       },
-      ...(audioStateOption ? [{ ...audioStateOption, allowed: true }] : []),
+      ...(subjectUserInAudio ? [{ key: 'audio', allowed: true, resolve: getAudioStateOption }] : []),
       {
         allowed: allowedToChangeWhiteboardAccess && !!pageId,
         key: 'changeWhiteboardAccess',

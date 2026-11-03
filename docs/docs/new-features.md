@@ -64,6 +64,8 @@ Audio settings moved into a dedicated **Audio** tab in the Settings modal, where
 
 The mode pre-selected for a new user is controlled by `public.app.defaultSettings.audio.processingMode` (default `standard`); if it is set to `advanced` while WASM processing is unsupported by the browser or disabled server-side, the client falls back to `standard`. The browser-level constraints applied in the standard mode are configurable under `public.media.audio.microphoneConstraints`.
 
+Since BigBlueButton 4.0.1 a user's own pick is kept for the browser session and the current meeting only, so a new meeting or browser session starts again from the configured default (Advanced Filtering is still experimental). Set `public.app.audioFilterStorage` to `local` to have the pick follow `public.app.userSettingsStorage` like the other settings.
+
 <!-- TODO add screenshot of the Audio settings tab -->
 
 #### Wrong-microphone alert for live captions
@@ -72,9 +74,21 @@ When browser-based (WebSpeech) live captions are enabled and a user holds the au
 
 <!-- TODO add screenshot of the wrong-microphone caption alert -->
 
+#### Live captions transcribed on the user's device
+
+With browser-based (WebSpeech) live captions, where the speech is transcribed is up to the browser: Chrome sends the audio to Google's speech recognition servers unless the language pack is already installed on the computer. Since BigBlueButton 4.0.1, `public.app.audioCaptions.speechProcessing` lets the administrator decide instead:
+
+- `cloud` (default) - the browser decides, as before.
+- `local` - the browser always transcribes on the user's device and never sends the audio to a speech recognition service. The language pack (a few hundred MB) is downloaded when the user confirms joining audio with that transcription language, and the audio settings stay open until it finishes. Only the languages the browser can transcribe on the device are offered, and browsers without on-device speech recognition (Chrome has it from version 139, on desktop) show live captions as unsupported.
+- `auto` - as `local`, but a language the browser cannot transcribe on the device is still offered and transcribed as with `cloud`; a line under the transcription language tells the user that the audio may be sent to the browser's speech recognition service.
+
+Only the transcribed text reaches BigBlueButton, whatever the setting. See [Where the speech is transcribed](/administration/customize#where-the-speech-is-transcribed).
+
 #### Whiteboard: scroll to pan, Ctrl+scroll to zoom
 
 Scrolling the mouse wheel over the whiteboard now pans the presentation, and holding `Ctrl` (`Cmd` on macOS) while scrolling zooms in and out - matching the navigation model of most design tools.
+
+This is configurable: set `public.whiteboard.wheelZoomRequiresCtrl` to `false` to restore the BigBlueButton 3.0 behavior, where the wheel zooms directly and no modifier key is involved.
 
 ### Engagement
 
@@ -169,7 +183,7 @@ rtc:
 Each media type defaults to `livekit` and can be pointed at the legacy stack
 instead, per meeting or server-wide:
 - Per meeting: set any of the following meeting `/create` parameters
-  - `audioBridge=bbb-webrtc-sfu` (or `freeswitch`)
+  - `audioBridge=bbb-webrtc-sfu`
   - `cameraBridge=bbb-webrtc-sfu`
   - `screenShareBridge=bbb-webrtc-sfu`
 - Server-wide: set any of the following properties in `/etc/bigbluebutton/bbb-web.properties`
@@ -197,22 +211,33 @@ brings automatic token refresh for long-running sessions.
 We encourage users to provide feedback via our GitHub issue tracker or the mailing
 lists.
 
+#### Last-N audio for the LiveKit bridge (experimental)
+
+Added in BigBlueButton 4.0.1 and off by default. On the LiveKit audio bridge every client receives the microphone of every unmuted user, so a meeting with many open microphones means as many audio tracks per client and a renegotiation for each one. With `public.media.livekit.selectiveSubscription.lastN.enabled: true`, each client instead ranks the microphones by who is speaking, the presenter, pinned users, recent speech and moderators, plays at most `audibleSize` of them (default `3`) and keeps `standbySize` (default `12`) subscribed but paused, so a new speaker is switched in without a renegotiation. A microphone that has just been unmuted counts as speaking, so its first words are not lost. Viewers who cannot see the user list because of the lock settings are not told about other users' voice activity, so their client keeps every microphone subscribed. When enabled, Last-N replaces `audioSubscriptionPoolSize`.
+
 
 ### Upgraded components
 
 Under the hood, BigBlueButton 4.0 installs on Ubuntu 24.04 64-bit, and the following key components have been upgraded
 - Java 21 (OpenJDK)
-- Grails 7.0.12
-- Gradle 8.14.3
-- Groovy 4.0.21
-- Spring 6.2.11
-- Spring Boot 3.5.16
+- Grails 8.0.0
+- Gradle 9.8.1
+- Groovy 5.1.3
+- Spring Framework 7.0.9
+- Spring Boot 4.1.1
+- Tomcat (embedded) 11.0.27
 
 For full details on what is new in BigBlueButton 4.0, see the release notes.
 
 
 Recent releases:
 
+- [4.0.1](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v4.0.1)
+- [4.0.0](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v4.0.0)
+- [4.0.0-rc.5](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v4.0.0-rc.5)
+- [4.0.0-rc.4](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v4.0.0-rc.4)
+- [4.0.0-rc.3](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v4.0.0-rc.3)
+- [4.0.0-rc.2](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v4.0.0-rc.2)
 - [4.0.0-rc.1](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v4.0.0-rc.1)
 - [4.0.0-beta.5](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v4.0.0-beta.5)
 - [4.0.0-beta.4](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v4.0.0-beta.4)
@@ -222,14 +247,55 @@ Recent releases:
 
 ### Other notable changes
 
+#### Node.js 24 runtime
+
+BigBlueButton 4.0 runs its Node.js components (`bbb-html5` build, `bbb-graphql-actions`, `bbb-shared-notes-server`, `bbb-export-annotations`, `bbb-webhooks`, `bbb-webrtc-sfu`, `bbb-transcription-controller`) on Node.js 24, the Active LTS line maintained until April 2028. `bbb-install.sh` installs it from NodeSource, and the packages declare a dependency on `nodejs (>= 24) (<< 25)`.
+
+#### Security response headers from bbb-web
+
+With the move to Grails 8, bbb-web adds four browser security headers to every response it sends:
+
+- `X-Frame-Options: SAMEORIGIN`
+- `X-Content-Type-Options: nosniff`
+- `Referrer-Policy: strict-origin-when-cross-origin`
+- `X-XSS-Protection: 0`
+
+Joining a meeting is not affected, including from an LMS or any other site that embeds BigBlueButton in a frame: the `join` call answers with a redirect, and the client, slides and recordings are served by nginx, which does not add these headers. What changes is that a page rendered by bbb-web itself, such as an API response, is no longer displayed inside a frame on another site.
+
+To turn a header off, set its `enabled` property to `false` in `/etc/bigbluebutton/bbb-web.properties` and restart bbb-web (`sudo systemctl restart bbb-web`). For example, to allow bbb-web's own pages in frames on other sites again:
+
+```properties
+grails.security.headers.frame-options.enabled=false
+```
+
+The other three headers are controlled by `grails.security.headers.content-type-options.enabled`, `grails.security.headers.referrer-policy.enabled` and `grails.security.headers.xss-protection.enabled`. `grails.security.headers.enabled=false` turns all four off.
+
+#### Other bbb-web response changes on Grails 8
+
+- A request for a URL under `/bigbluebutton/` that no API call handles is still answered with 404, but the body is JSON instead of the XML `<Map>` document Grails 7 produced.
+- Without a CORS configuration (the default; the cluster-proxy setup configures one), a cross-origin preflight request is answered with 200 and no `Access-Control-*` headers instead of 403, and responses no longer carry `Vary: Origin`. Neither version grants cross-origin access.
+- A request with more than 10000 parameters is answered with an HTTP 500 page by the embedded Tomcat; Tomcat 10.1 ignored the parameters beyond the limit.
+- Sent directly to port 8090 (nginx answers 413 for bodies above 1 MB before that), a form POST larger than Tomcat's 2 MB limit is answered with an HTTP 500 page instead of an API error.
+- If a `systemd` override of `bbb-web.service` replaces `ExecStart`, update it to launch with `-cp .` as the packaged unit does. With the previous classpath (`-cp WEB-INF/lib/*:/:WEB-INF/classes/:.`) bbb-web on Grails 8 never finishes starting and nginx answers 502.
+
 #### Promoted BlockNote shared notes as default
 
-In BigBlueButton 4.0.0-beta.4 we replaced the default choice for Shared Notes component from `bbb-etherpad` (i.e. Etherpad) to `bbb-shared-notes-server` (i.e. BlockNote). This means that `bbb-shared-notes-server` is now a required package, installed by default while `bbb-etherpad` and `bbb-pads` are now optional.
-In the event that you prefer using Etherpad, install the optional packages via
+In BigBlueButton 4.0.0-beta.4 we replaced the default choice for Shared Notes component from `bbb-etherpad` (i.e. Etherpad) to `bbb-shared-notes-server` (i.e. BlockNote). `bbb-shared-notes-server` is a required package, installed by default.
 
-`$ sudo apt install bbb-pads bbb-etherpad`
+Etherpad (`bbb-etherpad` and `bbb-pads` packages) is not part of the default installation of BigBlueButton 4.0, and its support was dropped within the 4.0 lifecycle; see [Removed Etherpad](#removed-etherpad).
 
-At this point you can use it in a specific session by passing `sharedNotesEditor=etherpad` on the `/create` call. If you have made up your mind and would like to use it for all sessions, add the same line (`sharedNotesEditor=etherpad`) to `/etc/bigbluebutton/bbb-web.properties` and restart BigBlueButton via `$ sudo bbb-conf --restart`
+#### Removed Etherpad
+
+BigBlueButton 4.0 removes Etherpad entirely. Shared notes always use BlockNote (`bbb-shared-notes-server`).
+
+- The `bbb-etherpad` and `bbb-pads` packages are no longer built or published.
+- Upgrading a 4.0 pre-release server (beta or release candidate) that had them installed removes both packages and cleans up what they left behind: the Etherpad files and generated API key, the `etherpad` system user, the `/etc/bigbluebutton/etherpad.json` and `/etc/bigbluebutton/bbb-pads.json` overrides, the `public.pads` entry in `/etc/bigbluebutton/bbb-html5.yml`, and the pads and authors Etherpad stored in Redis (keys starting with `pad:`, `sessionstorage:`, `globalAuthor:`, `token2author:`, `pad2readonly:`, `readonly2pad:` and `ueberDB:`). Pads stored in Etherpad are not migrated.
+  - Etherpad's group and session keys are left in Redis (`groups`, `group:*`, `group2sessions:*`, `author2sessions:*`, `session:*`, `mapper2group:*` and `mapper2author:*`): these prefixes are too generic to delete safely on a Redis instance that other applications may share. Nothing reads them anymore; remove them by hand if you need to.
+  - Use `apt full-upgrade` (or `dist-upgrade`). `apt upgrade` never removes packages, and because the `bigbluebutton` package depends on the exact version of every BigBlueButton package, it then holds back the whole BigBlueButton upgrade, not only the Etherpad removal. To remove Etherpad before upgrading, run `$ sudo apt purge bbb-etherpad bbb-pads`.
+- The `sharedNotesEditor` `/create` parameter and the `sharedNotesEditor` property in `bbb-web.properties` are ignored; every meeting gets BlockNote shared notes. If you customized `/usr/share/bbb-web/WEB-INF/classes/spring/resources.xml` in place, remove its `<property name="sharedNotesEditor" .../>` entry; see [bbb-web properties changes](#bbb-web-properties-changes).
+- The Etherpad-only parts of the GraphQL API were removed: the `sharedNotesEditor` field of `sharedNotes`, the `isEtherpadSharedNotes` field of `meeting.componentsFlags`, the `sharedNotesSession` field of `user_current`, the `sharedNotes_session` and `sharedNotes_diff` types (with their queries and subscriptions) and the `sharedNotesCreateSession` mutation. Plugins or integrations that still request any of them get a GraphQL validation error and should drop them.
+- The recording scripts no longer read `notes_endpoint` (the Etherpad export endpoint) from `bigbluebutton.yml`, and `etherpad` is no longer a valid entry in `notes_formats`. Remove both from `/etc/bigbluebutton/recording/recording.yml` if you set them there. The notes are exported from `bn_notes_endpoint`, which now defaults to `http://127.0.0.1:8787/loopback/api/documents`. If you override `bn_notes_endpoint` in `recording.yml`, change its path to `/loopback/api/documents`. The previous `/api/documents` path no longer answers the recording scripts, so recordings would be archived without their shared notes.
+- Recordings made with Etherpad keep the notes they already archived, including when they are rebuilt with `bbb-record --rebuild` (a rebuild reprocesses the archived raw files and does not archive again). Only running the archive step again for such a recording would fail to fetch its notes: the step logs a warning, writes the `notes/export_failed` marker and continues without shared notes.
 
 
 #### New optional package: bbb-coturn
@@ -249,10 +315,33 @@ Unlike the distro package, `bbb-coturn` does **not** enable or start the service
 See [Turn Server Configuration](/administration/turn-server) for the full configuration.
 
 
+#### New optional package: bbb-playback-presentation-legacy
+
+The players for recordings made with BigBlueButton 0.81 and 0.9 (served under `/playback/presentation/0.81/` and `/playback/presentation/0.9.0/`) moved out of `bbb-playback-presentation` into the new `bbb-playback-presentation-legacy` package, together with the redirect from the unversioned `/playback/presentation/playback.html` link. Recordings made by any current version use the 2.3 player from `bbb-playback`, so a default install no longer ships the old players, and links to them answer 404.
+
+It is an **optional** package, not a dependency of the `bigbluebutton` meta-package. If you migrated recordings from those versions and still need to play them, install it with
+
+`$ sudo apt install bbb-playback-presentation-legacy`
+
+See [Play recordings made with BigBlueButton 0.81 or 0.9](/administration/customize#play-recordings-made-with-bigbluebutton-081-or-09) for details.
+
+
 #### New administration tool: bbbctl
 
 The `bbb-config` package now ships [bbbctl](https://github.com/defnull/bbbctl) (v0.5.1), a community-maintained command-line tool by [@defnull](https://github.com/defnull) for interacting with a BigBlueButton server from the shell. Installed as `/usr/bin/bbbctl`, it talks to the server's own API and lets administrators list, inspect, and end meetings and work with recordings without crafting signed API calls by hand. Thank you for developing it, defnull!
 
+
+#### Plugin SDK 1.0 pre-release
+
+The HTML5 client now uses `bigbluebutton-html-plugin-sdk` `1.0.0-beta.3`, and `html5PluginSdkVersion` defaults to the same value. This is a breaking change for plugins: a pre-release SDK only satisfies a `requiredSdkVersion` range that names a `1.0.0` pre-release, so manifests declaring `0.x` ranges such as `^0.1.26` or `~0.0.77` are rejected and each meeting records a plugin load failure in `bbb-apps-akka`.
+
+Plugin authors should publish manifests with a range that names the pre-release, for example `^1.0.0-beta.1`, which also accepts the final `1.0.0` and later `1.x` releases. To keep one manifest loading on 4.0 pre-releases up to 4.0.0-rc.4, which run the `0.1.x` SDK, add the `0.1.x` range: `^0.1.5 || ^1.0.0-beta.1`. Update the manifests of the plugins you deploy before, or together with, the upgrade. See [SDK version compatibility](/plugins#sdk-version-compatibility).
+
+If you set `html5PluginSdkVersion` in `/etc/bigbluebutton/bbb-web.properties`, remove it or update it to `1.0.0-beta.3`. An override keeps manifests being validated against an SDK version different from the one the client actually runs.
+
+#### Static CSS classes for custom styles
+
+Added in BigBlueButton 4.0.1. The class names the client generates for its components change from build to build, so a custom stylesheet or a theme plugin had to find elements by their `data-test` attributes and their position in the page. Key components now also carry fixed class names with a `bbb-` prefix: `bbb-<block>` for a component (`bbb-navigation`, `bbb-avatar`), `bbb-<block>__<element>` for a part of it (`bbb-navigation__item`, `bbb-chat-message__time`) and `bbb-<block>--<state>` for a state (`bbb-avatar--presenter`, `bbb-mute-toggle--muted`). They cover the navigation sidebar, the sidebar panels, chat, the user list, buttons, the actions bar and nav bar, the talking indicator, the presentation and webcams. See [Static CSS classes for client elements](/administration/customize#static-css-classes-for-client-elements).
 
 #### Removing deprecated layout options
 
@@ -268,7 +357,8 @@ The deprecated REST endpoint `/api/rest/clientSettings` has been removed. Client
 
 #### Other removed configuration
 
-- `public.stats.log` was removed and replaced by `public.stats.logMediaStats` (see [Client-side WebRTC stats logging](#client-side-webrtc-stats-logging)).
+- `public.stats.log` was removed and replaced by `public.stats.logMediaStats` (see [Client settings (settings.yml) changes](#client-settings-settingsyml-changes)).
+- `captions` is no longer a valid `disabledFeatures` value. It has had no effect since BBB 3.0, when typed captions moved to a plugin. Use `liveTranscription` to disable automatic transcription.
 
 ### Changes to events.xml
 
@@ -281,13 +371,20 @@ The deprecated REST endpoint `/api/rest/clientSettings` has been removed. Client
 - `lockSettingsDisableNote` is no longer recognized; use `lockSettingsDisableNotes` instead. The singular property was renamed in BBB 2.5.
 - `clientLogoutTimerInMinutes` was removed. It was never consumed by the HTML5 client; its last reader, the `/enter` endpoint, was removed before BBB 4.0.
   - If you customized `/usr/share/bbb-web/WEB-INF/classes/spring/resources.xml` in place, also remove the `<property name="clientLogoutTimerInMinutes" .../>` entry - bbb-web will fail to start (`NotWritablePropertyException`) otherwise. The `bbb-conf --check` retired-property warning only scans `/etc/bigbluebutton/bbb-web.properties`, not `resources.xml`.
+- `enteredUsersTimeout` was removed. It set how long bbb-web tracked users who had called the `/enter` endpoint without joining; that endpoint was removed in BBB 3.0, so nothing has been tracked since. A leftover value in `/etc/bigbluebutton/bbb-web.properties` is ignored, and `bbb-conf --check` lists it for removal.
+  - If you customized `/usr/share/bbb-web/WEB-INF/classes/spring/resources.xml` in place, also remove the `enteredUserCleanupTimerTask` bean and the `<property name="enteredUserCleanupTimerTask" .../>` and `<property name="enteredUsersTimeout" .../>` entries - bbb-web will fail to start otherwise.
+- `serviceEnabled` was removed in BBB 4.0.1. It was documented as switching the API off, but its only reader was a Grails 2 controller interceptor that has not run since bbb-web moved to Grails 3 in BBB 2.2, so `serviceEnabled=false` has not disabled the API on any supported release. A leftover value in `/etc/bigbluebutton/bbb-web.properties` is ignored, and `bbb-conf --check` lists it for removal.
+  - If you customized `/usr/share/bbb-web/WEB-INF/classes/spring/resources.xml` in place, also remove the `<property name="serviceEnabled" .../>` entry - bbb-web will fail to start otherwise.
+- `sharedNotesEditor` was removed: BlockNote is the only shared-notes editor (it first became the default in 4.0.0-beta.4; see [Promoted BlockNote shared notes as default](#promoted-blocknote-shared-notes-as-default) and [Removed Etherpad](#removed-etherpad)). A leftover value in `/etc/bigbluebutton/bbb-web.properties` is ignored.
+  - If you customized `/usr/share/bbb-web/WEB-INF/classes/spring/resources.xml` in place, also remove the `<property name="sharedNotesEditor" .../>` entry - bbb-web will fail to start (`NotWritablePropertyException`) otherwise.
+- `accessControlAllowOrigin` was removed in BBB 4.0.1. It was meant to set the `Access-Control-Allow-Origin` header on presentation uploads, but the Grails 2 filter that read it has not run since bbb-web moved to Grails 3 in BBB 2.2, so it had no effect. Cross-origin access to bbb-web is configured with the `grails.cors.*` options, as the [cluster proxy guide](/administration/cluster-proxy#bigbluebutton-servers) shows. A leftover value in `/etc/bigbluebutton/bbb-web.properties` is ignored, and `bbb-conf --check` lists it for removal.
 
 #### Value changed
 
 - `defaultMeetingLayout` default changed from `CUSTOM_LAYOUT` to `UNIFIED_LAYOUT`. Accepted values are now `UNIFIED_LAYOUT` (default), plus the hybrid/niche options `CAMERAS_ONLY`, `PARTICIPANTS_AND_CHAT_ONLY`, `PRESENTATION_ONLY`, and `MEDIA_ONLY`. The previous values `CUSTOM_LAYOUT`, `SMART_LAYOUT`, `PRESENTATION_FOCUS`, and `VIDEO_FOCUS` are no longer accepted.
-- `html5PluginSdkVersion` bumped from `0.1.17` to `0.1.26`.
+- `html5PluginSdkVersion` bumped from `0.1.17` to `1.0.0-beta.3`. Plugins whose `requiredSdkVersion` only covers the `0.x` SDK no longer load; see [Plugin SDK 1.0 pre-release](#plugin-sdk-10-pre-release).
 - `disabledFeatures` accepts a new value: `pinChatMessage` (alongside the existing chat-related options).
-- `sharedNotesEditor` default changed from `etherpad` to `blockNote` (BlockNote is now the default shared-notes editor; see [Promoted BlockNote shared notes as default](#promoted-blocknote-shared-notes-as-default)).
+- `disabledFeatures` no longer lists `captions` as an option. It has had no effect since BBB 3.0, when typed captions moved to a plugin. A server that still sets it in `bbb-web.properties` keeps working: the value is accepted and ignored. Use `liveTranscription` to disable automatic transcription.
 - `cameraBridge`, `screenShareBridge`, and `audioBridge` default changed from `bbb-webrtc-sfu` to `livekit` (see [LiveKit is the default media framework](#livekit-is-the-default-media-framework)).
 
 #### Added
@@ -295,6 +392,17 @@ The deprecated REST endpoint `/api/rest/clientSettings` has been removed. Client
 - `lockSettingsPresenterPolicy` added (default `requireApproval`). Controls whether viewers can request the presenter role; see [Request to Present](#request-to-present).
 - `requireUserConsentBeforeUnmuting` added (default `false`). Only relevant when `allowModsToUnmuteUsers=true`; when `true`, a consent dialog is shown before a moderator can unmute a participant.
 - `maskTagThreshold` added (default `0` = disabled). When set to `N`, any slide whose generated SVG contains `N` or more `<mask>` tags falls back to full-slide rasterization during conversion; see [Rasterize slides whose SVG contains mask tags](/administration/customize#rasterize-slides-whose-svg-contains-mask-tags).
+- `maxPresentationsPerRequest` added in BBB 4.0.1 (default `10`). Maximum number of documents processed per `create`/`insertDocument` call; see [Limit the number of presentations per API request](/administration/customize#limit-the-number-of-presentations-per-api-request).
+- `insertDocumentMaxRequests` and `insertDocumentRateWindowSec` added in BBB 4.0.1 (default `30` per `60` seconds; `0` = disabled). Per-meeting rate limit on `insertDocument` calls; see [Limit `insertDocument` API calls](/administration/customize#limit-insertdocument-api-calls).
+- `presentationConversionMaxRequests` and `presentationConversionRateWindowSec` added in BBB 4.0.1 (default `20` per `60` seconds; `0` = disabled). Per-meeting cap on presentations entering the conversion pipeline from participant and API uploads; breakout-room captures are exempt. See [Rate limit presentation uploads](/administration/customize#rate-limit-presentation-uploads).
+- `filterTagThreshold` added (default `1`; `0` = disabled). Slides whose generated SVG contains `N` or more `<filter>` tags (which `pdftocairo` emits for soft masks) are rendered with both `pdftocairo` and `pdftoppm`, and are rasterized only when the two renders noticeably differ. This fixes slides that showed up blank or with missing images ([#23953](https://github.com/bigbluebutton/bigbluebutton/issues/23953)); see [Verify slides with soft masks](/administration/customize#verify-slides-with-soft-masks).
+
+### bbb-apps-akka settings changes
+
+- `apps.presentationUploadTokenMaxRequests` and `apps.presentationUploadTokenWindowSec` added in BBB 4.0.1 (default `20` per `60` seconds; `0` = disabled). Per-user rate limit on presentation upload-token requests from the client.
+- `apps.presentationMaxPerPod` added in BBB 4.0.1 (default `50`; `0` = disabled). Caps how many presentations a presentation pod holds.
+
+See [Rate limit presentation uploads](/administration/customize#rate-limit-presentation-uploads).
 
 ### Client settings (settings.yml) changes
 
@@ -303,15 +411,23 @@ These changes apply to the client configuration file (`/etc/bigbluebutton/bbb-ht
 #### Added
 
 - `public.kurento.pagination.gridEnabled` (default `true`) - whether the camera-less avatar grid (the "webcam grid") is shown while the presentation is minimized. The grid can also be disabled per meeting with `disabledFeatures=webcamGrid`.
+- `public.kurento.pagination.paginationToggleModeratorOnly` (default `false`) - shows the "Video pagination" switch in Settings to moderators only. A user who cannot see the switch, whether because of this setting or `paginationToggleEnabled: false`, always gets the default from `public.app.defaultSettings.application.paginationEnabled`. See [Limit overall media streams](/administration/customize#limit-overall-media-streams). Added in BBB 4.0.1.
+- `public.app.audioCaptions.speechProcessing` (default `cloud`) - where the browser transcribes the speaker's audio for WebSpeech live captions: `cloud` leaves it to the browser, `local` always transcribes on the user's device (the language pack is downloaded on the user's confirmation) and `auto` transcribes on the device when the browser can and as `cloud` otherwise. See [Live captions transcribed on the user's device](#live-captions-transcribed-on-the-users-device). Added in BBB 4.0.1.
+- `public.app.audioFilterStorage` (default `session`) - where the user's audio-processing pick in Settings > Audio is kept: `session` scopes it to the browser session and the current meeting, `local` makes it follow `public.app.userSettingsStorage` like the other settings. Added in BBB 4.0.1.
+- `public.chat.announceUserAwayStatusInChat` (default `true`) - whether bbb-apps-akka posts a system message in the public chat when a user sets or clears the away status. Set it to `false` to keep these changes out of the chat; the away status itself is unchanged. Added in BBB 4.0.1.
+- `public.media.livekit.selectiveSubscription.lastN` (default `enabled: false`) - plays only the most relevant microphones on the LiveKit audio bridge: `audibleSize` (default `3`) microphones are heard at once, `standbySize` (default `12`) stay subscribed but paused, `speechHoldMs` (default `1500`) is the silence after which an audible speaker can be replaced, `minAudibleMs` (default `2000`) the minimum time a microphone stays audible and `standbyGraceMs` (default `5000`) the delay before a standby track is unsubscribed. When enabled it replaces `audioSubscriptionPoolSize`. See [Last-N audio for the LiveKit bridge](#last-n-audio-for-the-livekit-bridge-experimental). Added in BBB 4.0.1.
 - `public.multiFunctionalMode.enabled` (default `false`) - enables the auxiliary/dual sidebar content panel.
 - `public.userList.searchBar.enabled` (default `true`) - enables the user list search field.
 - `public.app.appsGallery.maxPinnedApps` (default `3`) - maximum number of apps a user can pin in the Apps Gallery.
+- `public.app.remainingTimeThresholdInMinutes` (default `6`) - how many minutes before the end of a meeting with a set `duration` the remaining time banner appears. Previously this was hard-coded to 30 minutes; set it to `30` to restore that behavior. See [Configure when the remaining time banner appears](/administration/customize#configure-when-the-remaining-time-banner-appears).
 - `public.sidebarNavigation.appsToLabelAsNew` (default `[]`) - apps to highlight with a "new" label (e.g. `poll`, `breakoutroom`, `timer`, `audio-captions`).
 - `public.media.audio.audioWasmProcessing` - configuration block for the "Advanced Filtering" (WASM) audio-processing option; `provider` selects the backend (`bbba` default, or `workadventureDtln`) and a provider may override values set in `constraints`; see [Dedicated Audio settings tab](#dedicated-audio-settings-tab).
 - `public.app.defaultSettings.audio.processingMode` (default `standard`) - which of the three audio-processing modes (`advanced`, `standard`, `original`) comes pre-selected for a new user in Settings > Audio. `advanced` falls back to `standard` when WASM processing is unsupported by the browser or disabled server-side.
+- `public.app.defaultSettings.application.recordingIndicatorAutoCollapse` (default `false`) - collapses the recording indicator in the navigation bar to an icon-only button that reveals its label on hover or keyboard focus. Users can change it in Settings > Application ("Collapse recording button"); phones and the read-only indicator never collapse.
 - `public.media.audio.microphoneConstraints` - browser-level audio constraints (auto gain control, echo cancellation, noise suppression) applied when the user selects the `standard` audio-processing mode (moved from `public.app.defaultSettings.application.microphoneConstraints`).
 - `public.timer.presets`, `public.timer.quickAddButtons`, `public.timer.maxHours`, `public.timer.serverSyncTimeInterval` - timer presets and behavior.
 - `public.app.breakouts.breakoutRoomMinimum` (default `2`) - minimum number of breakout rooms.
+- `public.app.breakouts.inheritLockSettingsByDefault` (default `false`) - pre-checks the "Propagate the current lock settings" option when a moderator creates breakout rooms, like `captureSharedNotesByDefault` and `sendInvitationToAssignedModeratorsByDefault` do for their options.
 - `public.app.audioCaptions.showInSidebarNavigation` and `public.app.audioCaptions.terms` - show captions in the sidebar navigation and configure terms-of-service URLs per locale.
 - `public.app.darkTheme.autoDetectFromSystem` (default `true`) - uses the operating system's `prefers-color-scheme` preference as the initial theme and keeps following it while the user has not chosen a theme manually. The per-user "Dark mode" toggle and the `bbb_prefer_dark_theme` parameter always take precedence over the detected system theme.
 - `public.stats.logMediaStats` and `public.stats.probes` - client-side WebRTC stats logging.
@@ -319,6 +435,9 @@ These changes apply to the client configuration file (`/etc/bigbluebutton/bbb-ht
 - `public.sidebarNavigation.buttons` - controls which built-in sidebar navigation buttons render, in which section (`top`/`center`/`bottom`) and in what order. It is a full replacement list (omit an id to hide that button; ids introduced by future upstream versions must be added back manually). Defaults: `top: [profile, user-list, chat, notes]`, `center: [apps-gallery, pinned-apps]`, `bottom: [audio-captions, learning-dashboard, settings]`.
 - `public.app.audioCaptions.microphoneAlert` (default `enabled: true`) - shows a warning when WebSpeech live captions are on and the user holds the floor but nothing is being transcribed (a likely wrong-microphone / noisy-environment signal). Configurable via `helpLink` (empty hides the link), `threshold` (dB), `speakingThreshold` (ms), `duration` (ms; `0` = manual dismiss) and `interval` (ms).
 - `public.plugins[].settings.pin` / `.isNew` - a plugin can default-pin the items it injects into the Apps Gallery (`pin: true` pins all injected items; `pin: ["id-a", "id-b"]` pins only those ids; user pin/unpin choices are persisted and respected), and `isNew: true` shows the "new" ribbon on the plugin's gallery item.
+- `public.whiteboard.wheelZoomRequiresCtrl` (default `true`) - whether zooming the presentation with the mouse wheel requires holding `Ctrl` (`Cmd` on macOS). With the default, a bare wheel scroll pans the slide; set to `false` for the BigBlueButton 3.0 behavior where the wheel zooms directly. See [Whiteboard: scroll to pan, Ctrl+scroll to zoom](#whiteboard-scroll-to-pan-ctrlscroll-to-zoom).
+- `public.media.livekit.sdkLogBridge` (default `true`) - forwards livekit-client's own logs through the BigBlueButton client logger, so SDK-level media errors reach the usual client log destination.
+- `public.media.livekit.negotiationProbe` (default `false`) - debug instrumentation that logs how long a subscriber offer takes to be answered, from receive to socket dispatch. Off by default; enable only when diagnosing media negotiation latency.
 
 #### Value changed
 
@@ -331,6 +450,7 @@ These changes apply to the client configuration file (`/etc/bigbluebutton/bbb-ht
 - `public.app.defaultSettings.application.pushToTalkEnabled` default changed from `false` to `true` - push-to-talk (hold `M` to stay unmuted, added in BBB 3.0) is now enabled by default.
 - `public.layout.showSessionDetailsOnJoin` default changed from `true` to `false` - the Session Details dialog is no longer opened automatically when joining.
 - `public.kurento.pagination.mobileGridSizes` (`moderator` and `viewer`) defaults changed from `14` to `6`, as part of the [mobile layout overhaul](#mobile-layout-overhaul).
+- `public.app.showConnectionErrors` now includes the new error code `3007`. The client shows it when bbb-graphql-middleware refuses a subscription because the connection reached `max_connection_concurrent_subscriptions`, and asks the user to refresh. Remove `3007` from the list to fall back to the generic `3006` handling. See [Common Client Errors](/support/troubleshooting#common-client-errors).
 
 #### Removed
 
@@ -338,6 +458,7 @@ These changes apply to the client configuration file (`/etc/bigbluebutton/bbb-ht
 - `public.stats.log` (replaced by `public.stats.logMediaStats`).
 - `public.app.defaultSettings.application.audioWasmProcessing` and the commented-out `public.app.defaultSettings.application.microphoneConstraints` example - superseded by `public.app.defaultSettings.audio.processingMode` and `public.media.audio.microphoneConstraints` (see [Dedicated Audio settings tab](#dedicated-audio-settings-tab)).
 - The SIP.js / legacy-audio client settings, removed together with the SIP.js audio bridge now that LiveKit is the default audio path. Under `public.media`: `callTransferTimeout`, `callHangupTimeout`, `callHangupMaximumRetries`, `iceGatheringTimeout`, `audioConnectionTimeout`, `audioReconnectionDelay`, `audioReconnectionAttempts`, `sipjsHackViaWs`, `sipjsAllowMdns`, `sip_ws_host`, `websocketKeepAliveInterval`, `websocketKeepAliveDebounce`, `traceSip`, `sdpSemantics`; plus `public.app.ipv4FallbackDomain`. Any of these still set in `bbb-html5.yml` are now silently ignored.
+- `public.pads.url` (the Etherpad URL), removed together with Etherpad. Earlier 4.0 pre-releases wrote it into `bbb-html5.yml`; the upgrade removes the `public.pads` entry from that file (see [Removed Etherpad](#removed-etherpad)).
 
 
 ## Development

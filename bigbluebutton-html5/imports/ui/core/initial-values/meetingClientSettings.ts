@@ -1,5 +1,15 @@
-import { AudioPresets, LogLevel } from 'livekit-client';
+import { LogLevel, type TrackPublishOptions } from 'livekit-client';
 import { MeetingClientSettings } from '../../Types/meetingClientSettings';
+
+export const LIVEKIT_AUDIO_PUBLISH_OPTIONS: TrackPublishOptions = {
+  audioPreset: {
+    maxBitrate: 48000,
+    priority: 'high',
+  },
+  dtx: false,
+  red: true,
+  forceStereo: false,
+};
 
 export const meetingClientSettingsInitialValues: MeetingClientSettings = {
   public: {
@@ -63,6 +73,7 @@ export const meetingClientSettingsInitialValues: MeetingClientSettings = {
         enabled: false,
         mobile: false,
         provider: 'webspeech',
+        speechProcessing: 'cloud',
         showInSidebarNavigation: false,
         microphoneAlert: {
           enabled: true,
@@ -93,6 +104,7 @@ export const meetingClientSettingsInitialValues: MeetingClientSettings = {
       appsGallery: {
         maxPinnedApps: 3,
       },
+      remainingTimeThresholdInMinutes: 6,
       remainingTimeAlertThresholdArray: [
         1,
         5,
@@ -105,6 +117,7 @@ export const meetingClientSettingsInitialValues: MeetingClientSettings = {
         captureWhiteboardByDefault: false,
         captureSharedNotesByDefault: false,
         sendInvitationToAssignedModeratorsByDefault: false,
+        inheritLockSettingsByDefault: false,
         breakoutRoomMinimum: 2,
         breakoutRoomLimit: 16,
         allowPresentationManagementInBreakouts: true,
@@ -112,6 +125,7 @@ export const meetingClientSettingsInitialValues: MeetingClientSettings = {
       },
       showAllAvailableLocales: true,
       showAudioFilters: true,
+      audioFilterStorage: 'session',
       reactionsButton: {
         enabled: true,
       },
@@ -144,6 +158,7 @@ export const meetingClientSettingsInitialValues: MeetingClientSettings = {
           wakeLock: true,
           paginationEnabled: true,
           whiteboardToolbarAutoHide: false,
+          recordingIndicatorAutoCollapse: false,
           pushToTalkEnabled: false,
           autoCloseReactionsBar: true,
           darkTheme: false,
@@ -222,7 +237,7 @@ export const meetingClientSettingsInitialValues: MeetingClientSettings = {
       fallbackOnEmptyLocaleString: true,
       maxMutationPayloadSize: 10485760, // 10MB
       timeoutBeforeRedirectOnMeetingEnd: 20000,
-      showConnectionErrors: [3001, 3002, 3003, 3004, 3005, 3006],
+      showConnectionErrors: [3001, 3002, 3003, 3004, 3005, 3006, 3007],
     },
     sharedNotes: {
       serverHostname: '',
@@ -412,6 +427,7 @@ export const meetingClientSettingsInitialValues: MeetingClientSettings = {
       },
       pagination: {
         paginationToggleEnabled: true,
+        paginationToggleModeratorOnly: false,
         pageChangeDebounceTime: 2500,
         desktopPageSizes: {
           moderator: 0,
@@ -629,9 +645,6 @@ export const meetingClientSettingsInitialValues: MeetingClientSettings = {
         bottom: ['audio-captions', 'learning-dashboard', 'settings'],
       },
     },
-    pads: {
-      url: 'ETHERPAD_HOST',
-    },
     media: {
       audio: {
         defaultFullAudioBridge: 'livekit',
@@ -685,6 +698,14 @@ export const meetingClientSettingsInitialValues: MeetingClientSettings = {
           enabled: true,
           audioSubscriptionPoolSize: 0,
           muteDebounceMs: 2500,
+          lastN: {
+            enabled: false,
+            audibleSize: 3,
+            standbySize: 12,
+            speechHoldMs: 1500,
+            minAudibleMs: 2000,
+            standbyGraceMs: 5000,
+          },
         },
         logLevel: LogLevel.warn,
         reconnectOnFatalFailures: true,
@@ -694,12 +715,7 @@ export const meetingClientSettingsInitialValues: MeetingClientSettings = {
           stopLocalTrackOnUnpublish: false,
         },
         audio: {
-          publishOptions: {
-            audioPreset: AudioPresets.music,
-            dtx: true,
-            red: false,
-            forceStereo: false,
-          },
+          publishOptions: LIVEKIT_AUDIO_PUBLISH_OPTIONS,
           unpublishOnMute: false,
           unpublishAfterMuteMs: 5000,
           useLiveKitAudioState: false,

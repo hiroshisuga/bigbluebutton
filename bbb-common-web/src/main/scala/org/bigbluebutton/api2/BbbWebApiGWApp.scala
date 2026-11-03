@@ -128,7 +128,6 @@ class BbbWebApiGWApp(
                     allowStartStopRecording: java.lang.Boolean,
                     sharedNotesInitialContentJson: java.util.ArrayList[AnyRef],
                     sharedNotesInitialContentMarkdown: java.lang.String,
-                    sharedNotesEditor:         java.lang.String,
                     recordFullDurationMedia: java.lang.Boolean,
                     webcamsOnlyForModerator: java.lang.Boolean,
                     multiUserWhiteboardEnabled: java.lang.Boolean,
@@ -192,7 +191,6 @@ class BbbWebApiGWApp(
       meetingCameraCap = meetingCameraCap.intValue(),
       sharedNotesInitialContentJson = sharedNotesInitialContentJsonVector,
       sharedNotesInitialContentMarkdown = sharedNotesInitialContentMarkdown,
-      sharedNotesEditor = sharedNotesEditor,
       maxPinnedCameras = maxPinnedCameras.intValue(),
       cameraBridge,
       screenShareBridge,
@@ -398,6 +396,9 @@ class BbbWebApiGWApp(
       msgToAkkaAppsEventBus.publish(MsgToAkkaApps(toAkkaAppsChannel, event))
     } else if (msg.isInstanceOf[OfficeToPdfConversionFailed]) {
       val event = MsgBuilder.buildOfficeToPdfConversionFailedMsg(msg.asInstanceOf[OfficeToPdfConversionFailed])
+      msgToAkkaAppsEventBus.publish(MsgToAkkaApps(toAkkaAppsChannel, event))
+    } else if (msg.isInstanceOf[ConversionRateLimitExceeded]) {
+      val event = MsgBuilder.buildPresentationConversionRateLimitedMsg(msg.asInstanceOf[ConversionRateLimitExceeded])
       msgToAkkaAppsEventBus.publish(MsgToAkkaApps(toAkkaAppsChannel, event))
     } else if (msg.isInstanceOf[DocPageCompletedProgress]) {
       val event = MsgBuilder.buildPresentationConversionCompletedSysPubMsg(msg.asInstanceOf[DocPageCompletedProgress], pageTokenSecret)

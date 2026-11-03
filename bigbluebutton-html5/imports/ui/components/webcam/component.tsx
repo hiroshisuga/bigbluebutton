@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, {
+  useState, useEffect, useRef, useCallback,
+} from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 import { Resizable } from 're-resizable';
 import Draggable, { DraggableEvent } from 'react-draggable';
@@ -22,6 +24,7 @@ import Storage from '/imports/ui/services/storage/session';
 import Styled from './styles';
 import { Input, Layout, Output } from '/imports/ui/components/layout/layoutTypes';
 import { VideoItem } from '/imports/ui/components/video-provider/types';
+import { VIDEO_TYPES } from '/imports/ui/components/video-provider/enums';
 import useDeduplicatedSubscription from '/imports/ui/core/hooks/useDeduplicatedSubscription';
 import { useStorageKey } from '/imports/ui/services/storage/hooks';
 import useSettings from '../../services/settings/hooks/useSettings';
@@ -149,12 +152,12 @@ const WebcamComponent: React.FC<WebcamComponentProps> = ({
     cams?.setAttribute('data-position', cameraDock.position);
   }, [cameraDock.position, cameraDock.maxWidth, isPresenter, displayPresentation]);
 
-  const handleVideoFocus = (id: string) => {
+  const handleVideoFocus = useCallback((id: string) => {
     layoutContextDispatch({
       type: ACTIONS.SET_FOCUSED_CAMERA_ID,
       value: focusedId !== id ? id : INITIAL_INPUT_STATE.cameraDock.focusedId,
     });
-  };
+  }, [focusedId, layoutContextDispatch]);
 
   const onResizeHandle = (deltaWidth: number, deltaHeight: number) => {
     if (cameraDock.resizableEdge?.top || cameraDock.resizableEdge?.bottom) {
@@ -438,6 +441,19 @@ const WebcamContainer: React.FC = () => {
 
   const { streams: videoUsers, gridUsers } = useVideoStreams();
   VideoService.updateActivePeers(videoUsers);
+
+  // Count only real camera streams. AUDIO_ONLY (speaking) tiles are merged into the
+  // stream set for the unified layout, but they must not inflate the camera count:
+  // otherwise speaking with no webcams shared forces the top camera dock to display and
+  // shrinks the presentation, even while the presentation is visible (issue #25235).
+  const numCamerasValue = videoUsers.filter((vs) => vs.type !== VIDEO_TYPES.AUDIO_ONLY).length;
+
+  useEffect(() => {
+    layoutContextDispatch({
+      type: ACTIONS.SET_NUM_CAMERAS,
+      value: numCamerasValue,
+    });
+  }, [numCamerasValue]);
 
   let usersVideo: VideoItem[];
   if (gridUsers.length > 0) {

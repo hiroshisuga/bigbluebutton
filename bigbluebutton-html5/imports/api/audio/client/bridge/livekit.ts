@@ -1,6 +1,7 @@
 import {
-  AudioPresets,
   Track,
+  ConnectionError,
+  ConnectionErrorReason,
   ConnectionState,
   DisconnectReason,
   RoomEvent,
@@ -33,6 +34,7 @@ import {
 } from '/imports/ui/services/livekit';
 import { getLiveKitStats } from '/imports/ui/services/livekit/stats';
 import MediaStreamUtils from '/imports/utils/media-stream-utils';
+import { LIVEKIT_AUDIO_PUBLISH_OPTIONS } from '/imports/ui/core/initial-values/meetingClientSettings';
 import { consumeMuteCommand } from './mute-intent';
 
 const BRIDGE_NAME = 'livekit';
@@ -501,8 +503,8 @@ export default class LiveKitAudioBridge extends BaseAudioBridge {
   }
 
   private static isFatalPublishError(error: Error): boolean {
-    return error.name === 'ConnectionError'
-      && error.message?.includes('timed out');
+    return error instanceof ConnectionError
+      && error.reason === ConnectionErrorReason.Timeout;
   }
 
   private isLocalPublicationMuted(): boolean {
@@ -661,6 +663,23 @@ export default class LiveKitAudioBridge extends BaseAudioBridge {
         isMuted,
       },
     }, `LiveKit: local audio track unmuted - ${trackSid}`);
+
+    // If we have a pending unmute request coming from us (the client) and we
+    // reached here first, it means the server already unmuted the track.
+    // Consume it to mark as done and skip reinforcing (unnecessary).
+    if (consumeMuteCommand(false)) {
+      logger.debug({
+        logCode: 'livekit_audio_mute_reinforce_skipped',
+        extraInfo: {
+          bridge: this.bridgeName,
+          role: this.role,
+          trackSid,
+          shouldBeMuted: this.shouldBeMuted,
+        },
+      }, `LiveKit: skipping mute reinforcement, unmute in flight - ${trackSid}`);
+
+      return;
+    }
 
     // The server is not notified of a track-level unmute, so if BBB's state is
     // muted we must re-mute here to reconcile states.
@@ -1833,12 +1852,8 @@ export default class LiveKitAudioBridge extends BaseAudioBridge {
     try {
       // @ts-ignore
       const LIVEKIT_SETTINGS = window.meetingClientSettings.public.media?.livekit?.audio;
-      const basePublishOptions: TrackPublishOptions = LIVEKIT_SETTINGS?.publishOptions || {
-        audioPreset: AudioPresets.musicHighQuality,
-        dtx: true,
-        red: true,
-        forceStereo: false,
-      };
+      const basePublishOptions: TrackPublishOptions = LIVEKIT_SETTINGS?.publishOptions
+        || LIVEKIT_AUDIO_PUBLISH_OPTIONS;
       const publishOptions = {
         ...basePublishOptions,
         source: Track.Source.Microphone,

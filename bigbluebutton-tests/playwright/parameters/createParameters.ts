@@ -8,6 +8,8 @@ import { MultiUsers } from '../user/multiusers';
 import { constants } from './constants';
 
 const { messageModerator } = constants;
+// one minute, the shortest duration a meeting can have, plus the interval of the server's expiry check
+const MEETING_DURATION_END_WAIT_TIME = 2 * 60000;
 
 export class CreateParameters extends MultiUsers {
   async recordMeeting() {
@@ -21,10 +23,13 @@ export class CreateParameters extends MultiUsers {
     await this.modPage.waitAndClick(e.confirmRecordingButton);
 
     const userRecordingButton = this.userPage.page.locator(`${e.recordingIndicator} button`);
+    // Structural assertion, not an exact color: the palette is themeable and
+    // dark theme shifts every computed color. Only the recording state draws a
+    // border, so its presence is what marks recording as started.
     await expect(
       userRecordingButton,
       'should show recording as started for the attendee before checking the consent modal',
-    ).toHaveCSS('background-color', 'rgb(223, 39, 33)', { timeout: ELEMENT_WAIT_LONGER_TIME });
+    ).toHaveCSS('border-top-style', 'solid', { timeout: ELEMENT_WAIT_LONGER_TIME });
 
     if (!shouldShowModal) {
       // Give the recording-change effects time to run before asserting that the gate suppressed the modal.
@@ -108,6 +113,24 @@ export class CreateParameters extends MultiUsers {
     );
   }
 
+  async meetingEndsAfterDuration() {
+    await this.modPage.hasElement(e.whiteboard, 'should display the whiteboard for the moderator');
+    await this.modPage.hasText(
+      e.meetingEndedModal,
+      e.meetingEndedByDurationMessage,
+      'should end the meeting when its duration is over',
+      MEETING_DURATION_END_WAIT_TIME,
+    );
+  }
+
+  async durationAboveRemainingTimeThreshold() {
+    await this.modPage.hasElement(e.whiteboard, 'should display the whiteboard for the moderator');
+    await this.modPage.wasRemoved(
+      e.timeRemaining,
+      'should not display the remaining time above the configured threshold',
+    );
+  }
+
   async moderatorOnlyMessage() {
     await this.modPage.waitForSelector(e.whiteboard);
     // check for the mod only message on the mod page
@@ -160,6 +183,14 @@ export class CreateParameters extends MultiUsers {
     await this.modPage.clickMicrophoneButton();
     await this.modPage.waitAndClick(e.joinEchoTestButton);
     await this.modPage.hasElement(e.unmuteMicButton, 'should display the unmute microphone button for the moderator');
+  }
+
+  async muteOnStartDisabled() {
+    await this.modPage.waitAndClick(e.joinAudio);
+    await this.modPage.clickMicrophoneButton();
+    await this.modPage.waitAndClick(e.joinEchoTestButton);
+    await this.modPage.hasElement(e.muteMicButton, 'should display the mute microphone button for the moderator');
+    await this.modPage.hasElement(e.isTalking, 'should display the talking indicator for the moderator');
   }
 
   async allowModsToUnmuteUsers() {
@@ -217,7 +248,7 @@ export class CreateParameters extends MultiUsers {
     );
   }
 
-  async allowModsToEjectCameras() {
+  private async shareAttendeeWebcamAndOpenItsOptions() {
     await this.modPage.hasElement(e.whiteboard, 'should display the whiteboard for the moderator');
     await this.userPage.waitAndClick(e.joinVideo);
     await this.userPage.waitAndClick(e.startSharingWebcam);
@@ -225,29 +256,64 @@ export class CreateParameters extends MultiUsers {
       e.webcamMirroredVideoContainer,
       'should display the webcam container for the attendee',
     );
+    await this.modPage.hasElement(
+      e.webcamStreamItem,
+      'should display the attendee webcam for the moderator',
+      VIDEO_LOADING_WAIT_TIME,
+    );
     await this.modPage.waitAndClick(e.usersListSidebarButton);
     await this.modPage.waitAndClick(e.moreOptionsUserItemButton);
+    await this.modPage.hasElement(e.makePresenter, 'should display the options menu of the attendee');
+  }
+
+  async allowModsToEjectCameras() {
+    await this.shareAttendeeWebcamAndOpenItsOptions();
     await this.modPage.waitAndClick(e.ejectCamera);
+
+    await this.userPage.wasRemoved(
+      e.webcamMirroredVideoContainer,
+      'should stop the attendee webcam after the moderator ejects it',
+      VIDEO_LOADING_WAIT_TIME,
+    );
+    await this.modPage.wasRemoved(
+      e.webcamStreamItem,
+      'should remove the attendee webcam for the moderator after ejecting it',
+      VIDEO_LOADING_WAIT_TIME,
+    );
+    await this.userPage.waitAndClick(e.joinVideo);
+    await this.userPage.waitAndClick(e.startSharingWebcam);
+    await this.userPage.hasElement(
+      e.webcamMirroredVideoContainer,
+      'should let the attendee share the webcam again after it was ejected',
+      VIDEO_LOADING_WAIT_TIME,
+    );
+  }
+
+  async modsCannotEjectCamerasByDefault() {
+    await this.shareAttendeeWebcamAndOpenItsOptions();
+    await this.modPage.wasRemoved(
+      e.ejectCamera,
+      'should not display the eject camera option without allowModsToEjectCameras',
+    );
   }
 
   async overrideDefaultPresentation() {
     await this.modPage.waitForSelector(e.whiteboard);
     await this.userPage.waitForSelector(e.whiteboard);
+    await this.userPage.hasElement(e.currentSlideImg, 'should display the pre-uploaded slide for the attendee');
     await this.modPage.waitAndClick(e.mediaAreaButton);
     await this.modPage.waitAndClick(e.managePresentations);
+    await this.modPage.hasElementCount(
+      e.presentationItem,
+      1,
+      'should not upload the default presentation next to the pre-uploaded one',
+    );
     await this.modPage.hasText(
       e.presentationItem,
       'ScientificPaper.pdf',
       'should display the uploaded presentation name in the manage presentations modal',
     );
     await this.modPage.press('Escape');
-    await this.userPage.page.waitForTimeout(1500); // wait for the whiteboard zoom to stabilize
-    await expect(this.modPage.page, 'should display the overridden presentation for the mod').toHaveScreenshot(
-      'mod-page-overridden-default-presentation.png',
-    );
-    await expect(this.userPage.page, 'should display the overridden presentation for the viewer').toHaveScreenshot(
-      'viewer-page-overridden-default-presentation.png',
-    );
   }
 
   async camerasOnly() {
@@ -258,8 +324,8 @@ export class CreateParameters extends MultiUsers {
     await this.userPage.shareWebcam();
     await this.modPage.waitForSelector(e.webcamContainer, VIDEO_LOADING_WAIT_TIME);
     await this.userPage.waitForSelector(e.webcamContainer, VIDEO_LOADING_WAIT_TIME);
-
-    await this.modPage.page.waitForTimeout(1000);
+    await this.modPage.hasElementCount(e.webcamVideoItem, 2, 'should display both webcams to the moderator');
+    await this.userPage.hasElementCount(e.webcamVideoItem, 2, 'should display both webcams to the attendee');
 
     await checkScreenshots(
       this,
@@ -293,7 +359,6 @@ export class CreateParameters extends MultiUsers {
 
     await this.modPage.hasElement(e.chatMessages, 'should display the chat messages for the moderator');
     await this.userPage.hasElement(e.chatMessages, 'should display the chat messages for the attendee');
-    await this.userPage.page.waitForTimeout(1000);
 
     await checkScreenshots(
       this,

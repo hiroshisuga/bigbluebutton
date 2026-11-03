@@ -91,33 +91,6 @@ class PresentationPodsAppSpec extends AnyFlatSpec {
     assert(!PresentationPodsApp.pageBelongsToMeeting(stateWith(emptyPod), ownPageId))
   }
 
-  behavior of "PresentationPodsApp.presentationBelongsToMeeting"
-
-  it should "accept a presentation held by one of the meeting's pods" in {
-    assert(PresentationPodsApp.presentationBelongsToMeeting(stateWith(defaultPod), "own-presentation-id"))
-  }
-
-  it should "reject a presentation belonging to another meeting" in {
-    assert(!PresentationPodsApp.presentationBelongsToMeeting(stateWith(defaultPod), "foreign-presentation-id"))
-  }
-
-  it should "reject an unknown presentation id, and not confuse a page id for one" in {
-    assert(!PresentationPodsApp.presentationBelongsToMeeting(stateWith(defaultPod), "no-such-presentation"))
-    assert(!PresentationPodsApp.presentationBelongsToMeeting(stateWith(defaultPod), ownPageId))
-  }
-
-  it should "reject every presentation when the meeting has no pods or no presentations" in {
-    val emptyPod = PresentationPod(PresentationPod.DEFAULT_PRESENTATION_POD, "", Map.empty)
-    assert(!PresentationPodsApp.presentationBelongsToMeeting(stateWith(), "own-presentation-id"))
-    assert(!PresentationPodsApp.presentationBelongsToMeeting(stateWith(emptyPod), "own-presentation-id"))
-  }
-
-  it should "find a presentation held by a non-default pod" in {
-    val secondPod = PresentationPod("second-pod", "", Map.empty)
-      .addPresentation(presentation("second-presentation-id", "second-presentation-id/1"))
-    assert(PresentationPodsApp.presentationBelongsToMeeting(stateWith(defaultPod, secondPod), "second-presentation-id"))
-  }
-
   behavior of "PresentationPodsApp.pageBelongsToMeeting (multi-pod)"
 
   it should "find a page held by a non-default pod" in {
@@ -127,5 +100,71 @@ class PresentationPodsAppSpec extends AnyFlatSpec {
 
     assert(PresentationPodsApp.pageBelongsToMeeting(state, "second-presentation-id/1"))
     assert(PresentationPodsApp.pageBelongsToMeeting(state, ownPageId))
+  }
+
+  behavior of "PresentationPodsApp.findPodWithPresentation"
+
+  it should "return the pod that holds the presentation" in {
+    val secondPod = PresentationPod("second-pod", "", Map.empty)
+      .addPresentation(presentation("second-presentation-id", "second-presentation-id/1"))
+    val state = stateWith(defaultPod, secondPod)
+
+    assert(PresentationPodsApp.findPodWithPresentation(state, "own-presentation-id").map(_.id)
+      .contains(PresentationPod.DEFAULT_PRESENTATION_POD))
+    assert(PresentationPodsApp.findPodWithPresentation(state, "second-presentation-id").map(_.id)
+      .contains("second-pod"))
+  }
+
+  it should "return None for a presentation held by no pod" in {
+    assert(PresentationPodsApp.findPodWithPresentation(stateWith(defaultPod), "no-such-presentation").isEmpty)
+    assert(PresentationPodsApp.findPodWithPresentation(stateWith(), "own-presentation-id").isEmpty)
+  }
+
+  behavior of "PresentationPodsApp.podIsFullFor"
+
+  it should "refuse a new presentation when the pod is at its limit" in {
+    assert(PresentationPodsApp.podIsFullFor(defaultPod, "new-presentation-id", 1))
+  }
+
+  it should "not refuse a presentation the full pod already holds" in {
+    assert(!PresentationPodsApp.podIsFullFor(defaultPod, "own-presentation-id", 1))
+  }
+
+  it should "accept a new presentation while the pod is below its limit" in {
+    assert(!PresentationPodsApp.podIsFullFor(defaultPod, "new-presentation-id", 2))
+  }
+
+  it should "never refuse when the limit is disabled" in {
+    assert(!PresentationPodsApp.podIsFullFor(defaultPod, "new-presentation-id", 0))
+  }
+
+  behavior of "PresentationPodsApp.maxPresentationsPerPodFor"
+
+  it should "let server imports go past the cap, up to twice it" in {
+    assert(PresentationPodsApp.maxPresentationsPerPodFor(systemUpload = true, 50) == 100)
+    assert(PresentationPodsApp.maxPresentationsPerPodFor(systemUpload = false, 50) == 50)
+  }
+
+  it should "keep the cap disabled for server imports" in {
+    assert(PresentationPodsApp.maxPresentationsPerPodFor(systemUpload = true, 0) == 0)
+  }
+
+  behavior of "PresentationPodsApp.isPresentationId"
+
+  it should "accept the ids generatePresentationId produces" in {
+    assert(PresentationPodsApp.isPresentationId(PresentationPodsApp.generatePresentationId("slides.pdf")))
+    assert(PresentationPodsApp.isPresentationId("0123456789abcdef0123456789abcdef01234567-1793037924284"))
+  }
+
+  it should "reject anything else" in {
+    val digest = "0123456789abcdef0123456789abcdef01234567"
+    assert(!PresentationPodsApp.isPresentationId(""))
+    assert(!PresentationPodsApp.isPresentationId("not-a-presentation-id"))
+    assert(!PresentationPodsApp.isPresentationId(digest))
+    assert(!PresentationPodsApp.isPresentationId(digest + "-"))
+    assert(!PresentationPodsApp.isPresentationId(digest.dropRight(1) + "-1793037924284"))
+    assert(!PresentationPodsApp.isPresentationId(digest + "8-1793037924284"))
+    assert(!PresentationPodsApp.isPresentationId(digest.toUpperCase + "-1793037924284"))
+    assert(!PresentationPodsApp.isPresentationId(digest + "-1793037924284x"))
   }
 }

@@ -16,8 +16,7 @@ import useSettings from '/imports/ui/services/settings/hooks/useSettings';
 import getFromUserSettings from '/imports/ui/services/users-settings';
 import useMeeting from '/imports/ui/core/hooks/useMeeting';
 import MediaService from '/imports/ui/components/media/service';
-import { useVideoStreams, useVideoStreamsCount } from '/imports/ui/components/video-provider/hooks';
-import { VIDEO_TYPES } from '/imports/ui/components/video-provider/enums';
+import { useVideoStreamsCount } from '/imports/ui/components/video-provider/hooks';
 import { useIsChatEnabled, useIsPresentationEnabled, useIsScreenSharingEnabled } from '/imports/ui/services/features';
 import useUserChangedLocalSettings from '/imports/ui/services/settings/hooks/useUserChangedLocalSettings';
 import Session from '/imports/ui/services/storage/in-memory';
@@ -82,8 +81,12 @@ const LayoutObserver: React.FC = () => {
     // case when the presentation has been manually removed in the media area drop up
     // or when defaultUploadedPresentation is null in bigbluebutton.properties
     if (loadingPresentationPageData || loadingMeeting) return;
+    // presentationLastState is what the presentation-area pile restores to when a
+    // screen share or external video ends; keep it in step with the automatic
+    // close/reopen so that ending a share does not reopen an empty media area.
     if (!currentPageId && !currentMeeting?.isBreakout) {
       closedDueToAbsentPresentation.current = true;
+      Session.setItem('presentationLastState', false);
       layoutContextDispatch({
         type: ACTIONS.SET_PRESENTATION_IS_OPEN,
         value: false,
@@ -92,6 +95,7 @@ const LayoutObserver: React.FC = () => {
       // restore presentation when a page becomes available after having been absent
       // (e.g. preUploadedPresentationOverrideDefault=true on a slow server)
       closedDueToAbsentPresentation.current = false;
+      Session.setItem('presentationLastState', true);
       layoutContextDispatch({
         type: ACTIONS.SET_PRESENTATION_IS_OPEN,
         value: true,
@@ -100,7 +104,6 @@ const LayoutObserver: React.FC = () => {
   }, [currentPageId, loadingPresentationPageData, loadingMeeting, currentMeeting?.isBreakout]);
 
   const isThereWebcam = useVideoStreamsCount() > 0;
-  const { streams: videoStream } = useVideoStreams();
   const isScreenSharingEnabled = useIsScreenSharingEnabled();
   const isPresentationEnabled = useIsPresentationEnabled();
   const isChatEnabled = useIsChatEnabled();
@@ -292,19 +295,6 @@ const LayoutObserver: React.FC = () => {
       isPresentationEnabled,
     );
   });
-
-  // Count only real camera streams. AUDIO_ONLY (speaking) tiles are merged into the
-  // stream set for the unified layout, but they must not inflate the camera count:
-  // otherwise speaking with no webcams shared forces the top camera dock to display and
-  // shrinks the presentation, even while the presentation is visible (issue #25235).
-  const numCamerasValue = videoStream.filter((vs) => vs.type !== VIDEO_TYPES.AUDIO_ONLY).length;
-
-  useEffect(() => {
-    layoutContextDispatch({
-      type: ACTIONS.SET_NUM_CAMERAS,
-      value: numCamerasValue,
-    });
-  }, [numCamerasValue]);
 
   useEffect(() => {
     if (layoutIsReady) {
