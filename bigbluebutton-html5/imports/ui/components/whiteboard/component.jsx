@@ -2979,6 +2979,9 @@ const Whiteboard = React.memo((props) => {
     if (!layer || !targetDoc.contains(layer)) {
       layer = targetDoc.querySelector('.tl-overlays > .tl-html-layer');
       laserLayerRef.current = layer;
+      laserElRef.current?.remove();
+      laserElRef.current = null;
+      currentLaserTypeRef.current = null;
     }
 
     let laserEl = laserElRef.current;
@@ -3041,7 +3044,7 @@ const Whiteboard = React.memo((props) => {
       translate(${x - laserDef.cx}px, ${y - laserDef.cy}px)
       scale(${1 / viewerLaserZoom})
     `;
-  }, [otherCursors, isPresenter, viewerLaserZoom]);
+  }, [otherCursors, isPresenter, viewerLaserZoom, mountedTldrawEditor]);
 
   React.useEffect(() => {
     removeViewerLaser();
