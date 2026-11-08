@@ -1089,7 +1089,9 @@ const Whiteboard = React.memo((props) => {
   }, [laserMode]);
 
   const publishCursorUpdateForLaser = React.useCallback((...args) => {
-    if (suppressLaserAfterPinchRef.current) return undefined;
+    const [payload] = args;
+    const hidden = payload?.xPercent === -1 || payload?.yPercent === -1;
+    if (suppressLaserAfterPinchRef.current && !hidden) return undefined;
     return publishCursorUpdate(...args);
   }, [publishCursorUpdate]);
 
@@ -1100,7 +1102,8 @@ const Whiteboard = React.memo((props) => {
   );
 
   const updateCursorPosition = React.useCallback((x, y) => {
-    if (suppressLaserAfterPinchRef.current) return;
+    const hidden = x === -1 || y === -1;
+    if (suppressLaserAfterPinchRef.current && !hidden) return;
 
     const editor = tlEditorRef.current;
     if (
@@ -1110,7 +1113,7 @@ const Whiteboard = React.memo((props) => {
       && Number.isFinite(x)
       && Number.isFinite(y)
     ) {
-      const screenPos = x === -1 && y === -1
+      const screenPos = hidden
         ? { x: -1, y: -1 }
         : editor.pageToScreen({ x, y });
       // Retain the last screen position even while the overlay is unmounted.
@@ -2736,7 +2739,18 @@ const Whiteboard = React.memo((props) => {
       setCanMoveCamera(originalCanMoveCamera);
     };
 
+    const resumeLaserForPointer = (event) => {
+      if (
+        (event.pointerType === 'mouse' || event.pointerType === 'pen')
+        && suppressLaserAfterPinchRef.current
+        && !postPinchTouchPointRef.current
+      ) {
+        suppressLaserAfterPinchRef.current = false;
+      }
+    };
+
     const handlePointerDown = (e) => {
+      resumeLaserForPointer(e);
       if (e.pointerType !== 'touch') return;
       if (editor.getCurrentToolId?.() !== 'hand') return;
 
@@ -2759,6 +2773,7 @@ const Whiteboard = React.memo((props) => {
     };
 
     const handlePointerMove = (e) => {
+      resumeLaserForPointer(e);
       if (e.pointerType !== 'touch') return;
       if (!suppressLaserAfterPinchRef.current) return;
 
