@@ -97,18 +97,7 @@ const useMouseEvents = ({
   isInfiniteWhiteboard,
 }) => {
   const timeoutIdRef = React.useRef();
-  const fingerCountRef = React.useRef(0);
-  const initialPinchDistanceRef = React.useRef(0);
-  const isPinchingRef = React.useRef(false);
   const mouseLeaveTimeoutRef = React.useRef();
-  const PINCH_THRESHOLD = 10;
-
-  const getDistanceBetweenTouches = (touch1, touch2) => {
-    const dx = touch2.clientX - touch1.clientX;
-    const dy = touch2.clientY - touch1.clientY;
-    return Math.sqrt(dx * dx + dy * dy);
-  };
-
   const handleMouseUp = useEventCallback(() => {
     if (timeoutIdRef.current) {
       clearTimeout(timeoutIdRef.current);
@@ -279,106 +268,6 @@ const useMouseEvents = ({
     [onMouseWheel],
   );
 
-  const handlePointerDown = useEventCallback((event) => {
-    if (!event.isPrimary && event.pointerType === 'touch' && !isPresenterRef.current) {
-      event.stopPropagation();
-      tlEditorRef.current?.cancel();
-    }
-  });
-
-  const handleTouchStart = useEventCallback((event) => {
-    if (event.touches.length === 2) {
-      if (!isPresenterRef.current) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
-      fingerCountRef.current = 2;
-      isPinchingRef.current = false;
-      const [t1, t2] = event.touches;
-      initialPinchDistanceRef.current = getDistanceBetweenTouches(t1, t2);
-    } else if (event.touches.length === 3) {
-      fingerCountRef.current = 3;
-    } else {
-      fingerCountRef.current = 0;
-    }
-  });
-
-  const onTouchMove = useEventCallback((event) => {
-    if (fingerCountRef.current === 2 && event.touches.length === 2) {
-      const [t1, t2] = event.touches;
-      const currentDistance = getDistanceBetweenTouches(t1, t2);
-      const distanceDiff = Math.abs(currentDistance - initialPinchDistanceRef.current);
-      if (distanceDiff > PINCH_THRESHOLD) {
-        isPinchingRef.current = true;
-
-        // Pinch-to-zoom for presenters
-        if (isPresenterRef.current && tlEditorRef.current && currentPresentationPage) {
-          const MAX_ZOOM_FACTOR = 4;
-          const MIN_ZOOM_FACTOR = isInfiniteWhiteboard ? 0.25 : 1;
-          const ZOOM_STEP = 0.1;
-
-          const { x: cx, y: cy, z: cz } = tlEditorRef.current.getCamera();
-          let currentZoomLevel = cz / initialZoomRef.current;
-
-          // Zoom in if fingers moving apart, zoom out if moving together
-          if (currentDistance > initialPinchDistanceRef.current) {
-            currentZoomLevel = Math.min(currentZoomLevel + ZOOM_STEP, MAX_ZOOM_FACTOR);
-          } else {
-            currentZoomLevel = Math.max(currentZoomLevel - ZOOM_STEP, MIN_ZOOM_FACTOR);
-          }
-
-          const zoomPercentage = currentZoomLevel * 100;
-          zoomChanger(zoomPercentage);
-
-          const newCameraZoomFactor = currentZoomLevel * initialZoomRef.current;
-
-          // Calculate center point between the two touches
-          const centerX = (t1.clientX + t2.clientX) / 2;
-          const centerY = (t1.clientY + t2.clientY) / 2;
-
-          const rect = whiteboardRef.current?.getBoundingClientRect();
-          const canvasCenterX = (centerX - (rect?.left || 0)) / cz + cx;
-          const canvasCenterY = (centerY - (rect?.top || 0)) / cz + cy;
-
-          const nextCamera = {
-            x: cx + (canvasCenterX - cx) * (cz / newCameraZoomFactor - 1),
-            y: cy + (canvasCenterY - cy) * (cz / newCameraZoomFactor - 1),
-            z: newCameraZoomFactor,
-          };
-
-          tlEditorRef.current.setCamera(nextCamera, { duration: 175 });
-
-          // Update initial distance for continuous pinch
-          initialPinchDistanceRef.current = currentDistance;
-        }
-      }
-    }
-  });
-
-  const handleTouchMove = React.useMemo(
-    () => throttle({ interval: 175 }, onTouchMove),
-    [onTouchMove],
-  );
-
-  const handleTouchEnd = useEventCallback((event) => {
-    if (event.touches.length === 0) {
-      const count = fingerCountRef.current;
-
-      if (!hasWBAccess && !isPresenterRef.current) return;
-
-      if (count === 2) {
-        if (!isPinchingRef.current && hasWBAccess) {
-          tlEditorRef.current?.undo();
-        }
-      } else if (count === 3 && hasWBAccess) {
-        tlEditorRef.current?.redo();
-      }
-      fingerCountRef.current = 0;
-      isPinchingRef.current = false;
-      initialPinchDistanceRef.current = 0;
-    }
-  });
-
   React.useEffect(() => {
     if (whiteboardToolbarAutoHide) {
       toggleToolsAnimations(
@@ -406,10 +295,6 @@ const useMouseEvents = ({
       presentationWrapper.addEventListener('mouseenter', handleMouseEnter);
       presentationWrapper.addEventListener('mouseleave', handleMouseLeave);
       presentationWrapper.addEventListener('wheel', handleMouseWheel, { passive: false, capture: true });
-      presentationWrapper.addEventListener('pointerdown', handlePointerDown, { capture: true });
-      presentationWrapper.addEventListener('touchstart', handleTouchStart, { passive: false, capture: true });
-      presentationWrapper.addEventListener('touchend', handleTouchEnd, { passive: false, capture: true });
-      presentationWrapper.addEventListener('touchmove', handleTouchMove, { passive: false });
     }
 
     return () => {
@@ -419,10 +304,6 @@ const useMouseEvents = ({
         presentationWrapper.removeEventListener('mouseenter', handleMouseEnter);
         presentationWrapper.removeEventListener('mouseleave', handleMouseLeave);
         presentationWrapper.removeEventListener('wheel', handleMouseWheel, { capture: true });
-        presentationWrapper.removeEventListener('pointerdown', handlePointerDown, { capture: true });
-        presentationWrapper.removeEventListener('touchstart', handleTouchStart, { capture: true });
-        presentationWrapper.removeEventListener('touchend', handleTouchEnd, { capture: true });
-        presentationWrapper.removeEventListener('touchmove', handleTouchMove);
       }
       window.removeEventListener('mousedown', handleMouseDownWindow);
     };
@@ -436,14 +317,11 @@ const useMouseEvents = ({
     handleMouseEnter,
     handleMouseLeave,
     handleMouseWheel,
-    handlePointerDown,
-    handleTouchStart,
-    handleTouchEnd,
-    handleTouchMove,
   ]);
 };
 
 export {
   useMouseEvents,
   useCursor,
+  useEventCallback,
 };
