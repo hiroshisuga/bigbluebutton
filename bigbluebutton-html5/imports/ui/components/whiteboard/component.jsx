@@ -2266,7 +2266,12 @@ const Whiteboard = React.memo((props) => {
 
   useMouseEvents(
     {
-      whiteboardRef, tlEditorRef, isWheelZoomRef, initialZoomRef, isPresenterRef,
+      whiteboardRef,
+      tlEditorRef,
+      isWheelZoomRef,
+      initialZoomRef,
+      isPresenterRef,
+      mountedTldrawEditor,
     },
     {
       hasWBAccess: hasWBAccessRef.current,
