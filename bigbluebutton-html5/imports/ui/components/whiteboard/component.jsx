@@ -2565,90 +2565,110 @@ const Whiteboard = React.memo((props) => {
     }
   };
 
-  const makeLaserSvg = ({ color, cx, cy, r }, id) => {
-    const width = cx * 2;
-    const height = cy * 2;
+  const {
+    laserDefs, laserSvgs, laserDataUrls, mobileLaserSvgs, cursorLasers,
+  } = React.useMemo(() => {
+    const makeLaserSvg = ({ color, cx, cy, r }, id) => {
+      const width = cx * 2;
+      const height = cy * 2;
 
-    // Simple laser SVG
-    /*
-    return `
-      <svg class="bbb-laser-pointer" xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
-        <defs>
-          <radialGradient id="g-${id}">
-            <stop offset="0%" stop-color="${color}" stop-opacity="0.95"/>
-            <stop offset="50%" stop-color="${color}" stop-opacity="0.70"/>
-            <stop offset="100%" stop-color="${color}" stop-opacity="0.1"/>
-          </radialGradient>
-        </defs>
-        <circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#g-${id})" />
-      </svg>
+      // Simple laser SVG
+      /*
+      return `
+        <svg class="bbb-laser-pointer" xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+          <defs>
+            <radialGradient id="g-${id}">
+              <stop offset="0%" stop-color="${color}" stop-opacity="0.95"/>
+              <stop offset="50%" stop-color="${color}" stop-opacity="0.70"/>
+              <stop offset="100%" stop-color="${color}" stop-opacity="0.1"/>
+            </radialGradient>
+          </defs>
+          <circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#g-${id})" />
+        </svg>
+        `.replace(/\s+/g, ' ').trim();
+      */
+      // Laser with halo
+      return `
+        <svg class="bbb-laser-pointer" xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+          <defs>
+            <radialGradient id="g-${id}-core" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#ffffff" stop-opacity="1" style="stop-color: #ffffff !important"/>
+              <stop offset="10%" stop-color="#ffffff" stop-opacity="0.95" style="stop-color: #ffffff !important"/>
+              <stop offset="30%" stop-color="${color}" stop-opacity="0.95"/>
+              <stop offset="60%" stop-color="${color}" stop-opacity="0.65"/>
+              <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+            </radialGradient>
+            <radialGradient id="g-${id}-ring" cx="50%" cy="50%" r="50%">
+              <stop offset="60%" stop-color="${color}" stop-opacity="0"/>
+              <stop offset="68%" stop-color="${color}" stop-opacity="0.35"/>
+              <stop offset="74%" stop-color="#ffffff" stop-opacity="0.95" style="stop-color: #ffffff !important"/>
+              <stop offset="84%" stop-color="#ffffff" stop-opacity="0.95" style="stop-color: #ffffff !important"/>
+              <stop offset="90%" stop-color="${color}" stop-opacity="0.65"/>
+              <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+          <circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#g-${id}-core)" />
+          <circle cx="${cx}" cy="${cy}" r="${r * 0.72}" fill="url(#g-${id}-ring)" />
+          <circle cx="${cx}" cy="${cy}" r="${Math.max(2, r * 0.13)}" fill="#ffffff" />
+        </svg>
       `.replace(/\s+/g, ' ').trim();
-    */
-    // Laser with halo
-    return `
-      <svg class="bbb-laser-pointer" xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-        <defs>
-          <radialGradient id="g-${id}-core" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stop-color="#ffffff" stop-opacity="1" style="stop-color: #ffffff !important"/>
-            <stop offset="10%" stop-color="#ffffff" stop-opacity="0.95" style="stop-color: #ffffff !important"/>
-            <stop offset="30%" stop-color="${color}" stop-opacity="0.95"/>
-            <stop offset="60%" stop-color="${color}" stop-opacity="0.65"/>
-            <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
-          </radialGradient>
-          <radialGradient id="g-${id}-ring" cx="50%" cy="50%" r="50%">
-            <stop offset="60%" stop-color="${color}" stop-opacity="0"/>
-            <stop offset="68%" stop-color="${color}" stop-opacity="0.35"/>
-            <stop offset="74%" stop-color="#ffffff" stop-opacity="0.95" style="stop-color: #ffffff !important"/>
-            <stop offset="84%" stop-color="#ffffff" stop-opacity="0.95" style="stop-color: #ffffff !important"/>
-            <stop offset="90%" stop-color="${color}" stop-opacity="0.65"/>
-            <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
-          </radialGradient>
-        </defs>
-        <circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#g-${id}-core)" />
-        <circle cx="${cx}" cy="${cy}" r="${r * 0.72}" fill="url(#g-${id}-ring)" />
-        <circle cx="${cx}" cy="${cy}" r="${Math.max(2, r * 0.13)}" fill="#ffffff" />
-      </svg>
-    `.replace(/\s+/g, ' ').trim();
-  };
+    };
 
-  const laserSizes = [
-    ['Small', laserRadiusSmall],
-    ['Large', laserRadiusLarge],
-  ];
+    const laserSizes = [
+      ['Small', laserRadiusSmall],
+      ['Large', laserRadiusLarge],
+    ];
 
-  const laserDefs = Object.fromEntries(
-    laserSizes.flatMap(([sizeName, radius]) => (
-      laserColors.map((color, index) => [
-        `color${index + 1}${sizeName}`,
-        {
-          color,
-          cx: radius + 2,
-          cy: radius + 2,
-          r: radius,
-        },
+    const defs = Object.fromEntries(
+      laserSizes.flatMap(([sizeName, radius]) => (
+        laserColors.map((color, index) => [
+          `color${index + 1}${sizeName}`,
+          {
+            color,
+            cx: radius + 2,
+            cy: radius + 2,
+            r: radius,
+          },
+        ])
+      )),
+    );
+
+    const svgs = Object.fromEntries(
+      Object.entries(defs).map(([key, def]) => [
+        key,
+        makeLaserSvg(def, key),
       ])
-    )),
-  );
+    );
 
-  const laserSvgs = Object.fromEntries(
-    Object.entries(laserDefs).map(([key, def]) => [
-      key,
-      makeLaserSvg(def, key),
-    ])
-  );
+    const svgToDataUrl = (svg) =>
+      `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 
-  const svgToDataUrl = (svg) =>
-    `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+    const dataUrls = Object.fromEntries(
+      Object.entries(svgs).map(([key, svg]) => [key, svgToDataUrl(svg)]),
+    );
 
-  const svgToCursor = (svg, x, y) =>
-    `url("${svgToDataUrl(svg)}") ${x} ${y}, auto`;
+    const mobileSvgs = Object.fromEntries(
+      Object.entries(svgs).map(([key, svg]) => [
+        key,
+        svg.replace('bbb-laser-pointer', 'bbb-laser-pointer-mobile-presenter'),
+      ]),
+    );
 
-  const cursorLasers = Object.fromEntries(
-    Object.entries(laserDefs).map(([key, def]) => [
-      key,
-      svgToCursor(laserSvgs[key], def.cx, def.cy),
-    ])
-  );
+    const cursors = Object.fromEntries(
+      Object.entries(defs).map(([key, def]) => [
+        key,
+        `url("${dataUrls[key]}") ${def.cx} ${def.cy}, auto`,
+      ]),
+    );
+
+    return {
+      laserDefs: defs,
+      laserSvgs: svgs,
+      laserDataUrls: dataUrls,
+      mobileLaserSvgs: mobileSvgs,
+      cursorLasers: cursors,
+    };
+  }, [laserColors, laserRadiusSmall, laserRadiusLarge]);
 
   const createLaserElement = (svgString, targetDoc) => {
     const wrapper = targetDoc.createElement('div');
@@ -3626,7 +3646,7 @@ const Whiteboard = React.memo((props) => {
         }}
       />
       { (isPresenter && isMobile) && (() => {
-        const svg = laserSvgs[laserMode];
+        const svg = mobileLaserSvgs[laserMode];
         if (!svg) return null;
         const editor = tlEditorRef.current;
         if (!editor) return null;
@@ -3640,10 +3660,6 @@ const Whiteboard = React.memo((props) => {
           return null;
         }
  
-        const svgMobilePresenter = svg.replace(
-          'bbb-laser-pointer',
-          'bbb-laser-pointer-mobile-presenter'
-        );
         return (
           <div
             style={{
@@ -3653,7 +3669,7 @@ const Whiteboard = React.memo((props) => {
               pointerEvents: 'none',
               zIndex: 200,
             }}
-            dangerouslySetInnerHTML={{ __html: svgMobilePresenter}}
+            dangerouslySetInnerHTML={{ __html: svg}}
           />
         );
       })()}
@@ -3674,7 +3690,7 @@ const Whiteboard = React.memo((props) => {
               }}
             >
               <img
-                src={svgToDataUrl(laserSvgs[key])}
+                src={laserDataUrls[key]}
                 width={def.cx * 2}
                 height={def.cy * 2}
                 alt=""
