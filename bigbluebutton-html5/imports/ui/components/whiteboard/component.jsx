@@ -2796,13 +2796,6 @@ const Whiteboard = React.memo((props) => {
     removeViewerLaser();
   }, [curPageId]);
 
-  const updateStore = (pages, cameras) => {
-    tlEditorRef.current.store.put(pages);
-    tlEditorRef.current.store.put(cameras);
-    tlEditorRef.current.store.put(assets);
-    tlEditorRef.current.store.put(bgShape);
-  };
-
   const finalizeStore = () => {
     tlEditorRef.current.history.clear();
   };
