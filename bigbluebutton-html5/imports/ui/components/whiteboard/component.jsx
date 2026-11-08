@@ -1073,9 +1073,10 @@ const Whiteboard = React.memo((props) => {
     return tool === 'hand' ? laserMode : '';
   }, [laserMode]);
 
-  const publishCursorUpdateForLaser = React.useCallback((...args) => {
-    if (touchGestureRef.current.suppressLaser) return undefined;
-    return publishCursorUpdate(...args);
+  const publishCursorUpdateForLaser = React.useCallback((payload) => {
+    const hidden = payload.xPercent === -1 || payload.yPercent === -1;
+    if (touchGestureRef.current.suppressLaser && !hidden) return undefined;
+    return publishCursorUpdate(payload);
   }, [publishCursorUpdate, touchGestureRef]);
 
   const publishCursorPosition = useCursor(
@@ -1085,7 +1086,8 @@ const Whiteboard = React.memo((props) => {
   );
 
   const updateCursorPosition = React.useCallback((x, y) => {
-    if (touchGestureRef.current.suppressLaser) return;
+    const hidden = x === -1 || y === -1;
+    if (touchGestureRef.current.suppressLaser && !hidden) return;
 
     const editor = tlEditorRef.current;
     if (
@@ -1095,7 +1097,7 @@ const Whiteboard = React.memo((props) => {
       && Number.isFinite(x)
       && Number.isFinite(y)
     ) {
-      const screenPos = x === -1 && y === -1
+      const screenPos = hidden
         ? { x: -1, y: -1 }
         : editor.pageToScreen({ x, y });
       // Retain the last screen position even while the overlay is unmounted.
