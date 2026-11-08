@@ -1,6 +1,15 @@
 import React, { useEffect } from 'react';
 import { throttle } from 'radash';
 
+// Keep native listeners stable while calling the latest committed handler.
+const useEventCallback = (callback) => {
+  const callbackRef = React.useRef(callback);
+
+  React.useLayoutEffect(() => { callbackRef.current = callback; });
+
+  return React.useCallback((...args) => callbackRef.current(...args), []);
+};
+
 const hasBackgroundImageUrl = (el) => {
   const targetWin = el?.ownerDocument?.defaultView || window;
   const style = targetWin.getComputedStyle(el);
@@ -79,6 +88,7 @@ const getTldrawOpenMenu = (targetDoc = document) => {
 
 const useMouseEvents = ({
   whiteboardRef, tlEditorRef, isWheelZoomRef, isTouchZoomRef, initialZoomRef, isPresenterRef,
+  mountedTldrawEditor,
 }, {
   hasWBAccess,
   whiteboardToolbarAutoHide,
@@ -131,7 +141,7 @@ const useMouseEvents = ({
     }, TOUCH_GESTURE_SETTLE_MS);
   };
 
-  const handleMouseUp = () => {
+  const handleMouseUp = useEventCallback(() => {
     if (timeoutIdRef.current) {
       clearTimeout(timeoutIdRef.current);
     }
@@ -141,9 +151,9 @@ const useMouseEvents = ({
     }, 1000);
 
     tlEditorRef?.current?.updateInstanceState({ canMoveCamera: true, isReadonly: false });
-  };
+  });
 
-  const handleMouseDownWhiteboard = (event) => {
+  const handleMouseDownWhiteboard = useEventCallback((event) => {
     if (!isPresenterRef.current && !hasWBAccess) {
       const updateProps = { isReadonly: false };
 
@@ -155,9 +165,9 @@ const useMouseEvents = ({
     }
 
     setIsMouseDown(true);
-  };
+  });
 
-  const handleMouseDownWindow = (event) => {
+  const handleMouseDownWindow = useEventCallback((event) => {
     const { target } = event;
     const editor = tlEditorRef.current;
     const targetDoc = getWhiteboardDocument();
@@ -183,9 +193,9 @@ const useMouseEvents = ({
     }
 
     return undefined;
-  };
+  });
 
-  const handleMouseEnter = () => {
+  const handleMouseEnter = useEventCallback(() => {
     clearTimeout(mouseLeaveTimeoutRef.current);
     if (whiteboardToolbarAutoHide) {
       toggleToolsAnimations(
@@ -196,9 +206,9 @@ const useMouseEvents = ({
         getWhiteboardDocument(),
       );
     }
-  };
+  });
 
-  const handleMouseLeave = () => {
+  const handleMouseLeave = useEventCallback(() => {
     if (whiteboardToolbarAutoHide) {
       clearTimeout(mouseLeaveTimeoutRef.current);
       const targetDoc = getWhiteboardDocument();
@@ -241,14 +251,14 @@ const useMouseEvents = ({
     setTimeout(() => {
       updateCursorPosition(-1, -1);
     }, 150);
-  };
+  });
 
   useEffect(() => () => {
     clearTimeout(mouseLeaveTimeoutRef.current);
     clearTimeout(touchZoomResetTimeoutRef.current);
   }, []);
 
-  const handleMouseWheel = throttle({ interval: 175 }, (event) => {
+  const onMouseWheel = useEventCallback((event) => {
     event.preventDefault();
     event.stopPropagation();
     if (!tlEditorRef.current || !isPresenterRef.current || !currentPresentationPage) {
@@ -323,11 +333,16 @@ const useMouseEvents = ({
     setWheelZoomTimeout();
   });
 
+  const handleMouseWheel = React.useMemo(
+    () => throttle({ interval: 175 }, onMouseWheel),
+    [onMouseWheel],
+  );
+
   const isSecondaryTouchPointer = (event) => !event.isPrimary && event.pointerType === 'touch';
 
   // tldraw (use-gesture) starts its own pinch on the second pointerdown it sees, so no
   // second touch pointer may reach it: the presenter's pinch is handled in handleTouchMove.
-  const handlePointerDown = (event) => {
+  const handlePointerDown = useEventCallback((event) => {
     if (!isSecondaryTouchPointer(event)) return;
     event.stopPropagation();
     const editor = tlEditorRef.current;
@@ -341,13 +356,13 @@ const useMouseEvents = ({
       editor.interrupt();
       if (isBusy()) editor.complete();
     }
-  };
+  });
 
-  const handleSecondaryPointer = (event) => {
+  const handleSecondaryPointer = useEventCallback((event) => {
     if (isSecondaryTouchPointer(event)) event.stopPropagation();
-  };
+  });
 
-  const handleTouchStart = (event) => {
+  const handleTouchStart = useEventCallback((event) => {
     if (event.touches.length === 2) {
       clearTimeout(touchZoomResetTimeoutRef.current);
       fingerCountRef.current = 2;
@@ -378,9 +393,9 @@ const useMouseEvents = ({
       fingerCountRef.current = 0;
       touchGestureRef.current = null;
     }
-  };
+  });
 
-  const handleTouchMove = (event) => {
+  const handleTouchMove = useEventCallback((event) => {
     if (fingerCountRef.current !== 2 || event.touches.length !== 2) return;
     const [t1, t2] = event.touches;
     const distance = getDistanceBetweenTouches(t1, t2);
@@ -455,9 +470,9 @@ const useMouseEvents = ({
     // The cursor the others see follows the point between the fingers, not the first finger.
     const { x: nx, y: ny } = editor.getCamera();
     updateCursorPosition((midpoint.x - bounds.x) / nz - nx, (midpoint.y - bounds.y) / nz - ny);
-  };
+  });
 
-  const handleTouchEnd = (event) => {
+  const handleTouchEnd = useEventCallback((event) => {
     if (event.touches.length < 2) {
       touchGestureRef.current = null;
       resetTouchZoomAfterCameraSettles();
@@ -479,15 +494,15 @@ const useMouseEvents = ({
       isPinchingRef.current = false;
       initialPinchDistanceRef.current = 0;
     }
-  };
+  });
 
-  const handleTouchCancel = () => {
+  const handleTouchCancel = useEventCallback(() => {
     fingerCountRef.current = 0;
     isPinchingRef.current = false;
     initialPinchDistanceRef.current = 0;
     touchGestureRef.current = null;
     resetTouchZoomAfterCameraSettles();
-  };
+  });
 
   React.useEffect(() => {
     if (whiteboardToolbarAutoHide) {
@@ -553,11 +568,19 @@ const useMouseEvents = ({
   }, [
     tlEditorRef,
     isPresenterRef,
+    mountedTldrawEditor,
+    handleMouseDownWindow,
     handleMouseDownWhiteboard,
     handleMouseUp,
     handleMouseEnter,
     handleMouseLeave,
     handleMouseWheel,
+    handlePointerDown,
+    handleSecondaryPointer,
+    handleTouchStart,
+    handleTouchMove,
+    handleTouchEnd,
+    handleTouchCancel,
   ]);
 };
 
