@@ -164,6 +164,52 @@ const isPagePointVisibleOnSlide = (editor, pageId, pagePoint, infiniteWhiteboard
   return insideViewport;
 };
 
+const MobilePresenterLaser = React.forwardRef(({
+  editor, pageId, infiniteWhiteboard, svg, cx, cy, initialScreenPoint,
+}, ref) => {
+  const [screenPoint, setScreenPoint] = React.useState(initialScreenPoint);
+
+  // Cursor movement should update only this overlay, not the whole whiteboard.
+  React.useImperativeHandle(ref, () => ({ updatePosition: setScreenPoint }), []);
+
+  if (editor.getCurrentToolId() !== 'hand') return null;
+
+  const pagePoint = editor.screenToPage(screenPoint);
+  if (!isPagePointVisibleOnSlide(editor, pageId, pagePoint, infiniteWhiteboard)) {
+    return null;
+  }
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        left: screenPoint.x - cx,
+        top: screenPoint.y - cy,
+        pointerEvents: 'none',
+        zIndex: 200,
+      }}
+      dangerouslySetInnerHTML={{ __html: svg }}
+    />
+  );
+});
+
+MobilePresenterLaser.displayName = 'MobilePresenterLaser';
+MobilePresenterLaser.propTypes = {
+  editor: PropTypes.shape({
+    getCurrentToolId: PropTypes.func.isRequired,
+    screenToPage: PropTypes.func.isRequired,
+  }).isRequired,
+  pageId: PropTypes.number.isRequired,
+  infiniteWhiteboard: PropTypes.bool.isRequired,
+  svg: PropTypes.string.isRequired,
+  cx: PropTypes.number.isRequired,
+  cy: PropTypes.number.isRequired,
+  initialScreenPoint: PropTypes.shape({
+    x: PropTypes.number.isRequired,
+    y: PropTypes.number.isRequired,
+  }).isRequired,
+};
+
 const defaultUser = {
   userId: '',
 };
@@ -405,7 +451,8 @@ const Whiteboard = React.memo((props) => {
   const [laserMenuPos, setLaserMenuPos] = React.useState({ x: 0, y: 0 });
   const laserMenuRef = React.useRef(null);
   const [laserMode, setLaserMode] = React.useState('');
-  const [presenterCursorPoint, setPresenterCursorPoint] = React.useState({ x: -1, y: -1 });
+  const presenterCursorPointRef = React.useRef({ x: -1, y: -1 });
+  const mobilePresenterLaserRef = React.useRef(null);
   const [viewerLaserZoom, setViewerLaserZoom] = React.useState(1);
   const [mountedTldrawEditor, setMountedTldrawEditor] = React.useState(null);
 
@@ -1228,11 +1275,12 @@ const Whiteboard = React.memo((props) => {
       && Number.isFinite(x)
       && Number.isFinite(y)
     ) {
-      // Use the same page point for the mobile laser and cursor publication.
       const screenPos = x === -1 && y === -1
         ? { x: -1, y: -1 }
         : editor.pageToScreen({ x, y });
-      setPresenterCursorPoint({ x: screenPos.x, y: screenPos.y });
+      // Retain the last screen position even while the overlay is unmounted.
+      presenterCursorPointRef.current = screenPos;
+      mobilePresenterLaserRef.current?.updatePosition(screenPos);
     }
 
     publishCursorPosition(x, y);
@@ -3728,43 +3776,18 @@ const Whiteboard = React.memo((props) => {
           viewerCanPan,
         }}
       />
-      {(isPresenter && isMobile) && (() => {
-        const svg = mobileLaserSvgs[laserMode];
-        if (!svg) return null;
-        const editor = tlEditorRef.current;
-        if (!editor) return null;
-        const tool = tlEditorRef.current?.getCurrentToolId?.();
-        if (tool !== 'hand') return null;
-        // Making laser invisible outside of the visible part of the slide
-        // presenterCursorPoint was produced by editor.pageToScreen(),
-        //  so screenToPage() converts it back to the same page coordinate.
-        const cursorPagePoint = editor.screenToPage({
-          x: presenterCursorPoint.x,
-          y: presenterCursorPoint.y,
-        });
-        const pointIsVisible = isPagePointVisibleOnSlide(
-          editor,
-          curPageIdRef.current,
-          cursorPagePoint,
-          isInfiniteWhiteboard,
-        );
-        if (!pointIsVisible) {
-          return null;
-        }
-
-        return (
-          <div
-            style={{
-              position: 'fixed',
-              left: presenterCursorPoint.x - laserDefs[laserMode].cx,
-              top: presenterCursorPoint.y - laserDefs[laserMode].cy,
-              pointerEvents: 'none',
-              zIndex: 200,
-            }}
-            dangerouslySetInnerHTML={{ __html: svg }}
-          />
-        );
-      })()}
+      {isPresenter && isMobile && mountedTldrawEditor && mobileLaserSvgs[laserMode] && (
+        <MobilePresenterLaser
+          ref={mobilePresenterLaserRef}
+          initialScreenPoint={presenterCursorPointRef.current}
+          editor={mountedTldrawEditor}
+          pageId={curPageId}
+          infiniteWhiteboard={Boolean(isInfiniteWhiteboard)}
+          svg={mobileLaserSvgs[laserMode]}
+          cx={laserDefs[laserMode].cx}
+          cy={laserDefs[laserMode].cy}
+        />
+      )}
       {laserMenuVisible && (
         <Styled.LaserContextMenu
           ref={laserMenuRef}
