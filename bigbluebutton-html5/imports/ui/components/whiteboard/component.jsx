@@ -3006,18 +3006,18 @@ const Whiteboard = React.memo((props) => {
     if (!layer) return;
     if (!laserDef) return;
 
-    if (!laserEl && layer) {
-      laserEl = createLaserElement(laserSvgs[laserKey], targetDoc);
-      layer.appendChild(laserEl);
-      laserElRef.current = laserEl;
-    }
-
     // Now we place the laser SVG at the position of redPointer, which is invisible.
     const x = presenterCursor.xPercent;
     const y = presenterCursor.yPercent;
     if (x === -1 || y === -1) {
       removeViewerLaser();
       return;
+    }
+
+    if (!laserEl && layer) {
+      laserEl = createLaserElement(laserSvgs[laserKey], targetDoc);
+      layer.appendChild(laserEl);
+      laserElRef.current = laserEl;
     }
 
     // Keep cursor size regardless of the slide zoom or window size change,
