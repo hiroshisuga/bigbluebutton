@@ -50,7 +50,20 @@ const useTouchGestures = ({
     setCanMoveCamera(cameraRef.current?.originalCanMoveCamera);
   });
 
+  // Resume mouse/pen input after the remaining touch has been released.
+  const resumeLaserForPointer = (event) => {
+    const gesture = gestureRef.current;
+    if (
+      (event.pointerType === 'mouse' || event.pointerType === 'pen')
+      && gesture.suppressLaser
+      && !gesture.postPinchTouchPoint
+    ) {
+      gesture.suppressLaser = false;
+    }
+  };
+
   const handlePointerDown = useEventCallback((event) => {
+    resumeLaserForPointer(event);
     if (event.pointerType !== 'touch') return;
     if (!event.isPrimary && !isPresenter) {
       event.stopPropagation();
@@ -70,6 +83,7 @@ const useTouchGestures = ({
   });
 
   const handlePointerMove = useEventCallback((event) => {
+    resumeLaserForPointer(event);
     const gesture = gestureRef.current;
     if (event.pointerType !== 'touch' || !cameraRef.current?.laserEnabled) return;
     if (!gesture.suppressLaser || !gesture.postPinchTouchPoint) return;
@@ -184,7 +198,7 @@ const useTouchGestures = ({
         editor?.redo();
       }
     }
-    // Preserve the existing post-pinch suppression until the next primary touch.
+    // Suppress final touch updates until a new touch or mouse/pen input resumes.
     resetGesture(true);
   });
 
