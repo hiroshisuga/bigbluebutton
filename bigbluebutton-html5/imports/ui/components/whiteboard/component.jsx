@@ -37,7 +37,6 @@ import {
   getDifferences,
 } from './utils';
 import { useMouseEvents, useCursor } from './hooks';
-import useTouchGestures from './touch-gestures';
 import {
   notifyShapeNumberExceeded, getCustomEditorAssetUrls, getCustomAssetUrls,
   debouncedUpdateShapes, sanitizeShape,
@@ -359,6 +358,8 @@ const Whiteboard = React.memo((props) => {
   const hasWBAccessRef = React.useRef(hasWBAccess);
   const isModeratorRef = React.useRef(isModerator);
   const currentPresentationPageRef = React.useRef(currentPresentationPage);
+  const suppressLaserAfterPinchRef = React.useRef(false);
+  const postPinchTouchPointRef = React.useRef(null);
   const initialViewBoxWidthRef = React.useRef(null);
   const initialViewBoxHeightRef = React.useRef(null);
   const previousTool = React.useRef(null);
@@ -377,17 +378,7 @@ const Whiteboard = React.memo((props) => {
 
   currentUserRef.current = currentUser;
 
-  const touchGestureRef = useTouchGestures({
-    editor: mountedTldrawEditor,
-    whiteboardRef,
-    initialZoomRef,
-    isPresenter,
-    hasWBAccess,
-    laserMode,
-    currentPresentationPage,
-    zoomChanger,
-    isInfiniteWhiteboard,
-  });
+  const POST_PINCH_LASER_THRESHOLD = 10;
   
   const getWhiteboardDocument = () => (
     whiteboardRef.current?.ownerDocument || document
@@ -1075,9 +1066,9 @@ const Whiteboard = React.memo((props) => {
 
   const publishCursorUpdateForLaser = React.useCallback((payload) => {
     const hidden = payload.xPercent === -1 || payload.yPercent === -1;
-    if (touchGestureRef.current.suppressLaser && !hidden) return undefined;
+    if (suppressLaserAfterPinchRef.current && !hidden) return undefined;
     return publishCursorUpdate(payload);
-  }, [publishCursorUpdate, touchGestureRef]);
+  }, [publishCursorUpdate]);
 
   const publishCursorPosition = useCursor(
     publishCursorUpdateForLaser,
@@ -1087,7 +1078,7 @@ const Whiteboard = React.memo((props) => {
 
   const updateCursorPosition = React.useCallback((x, y) => {
     const hidden = x === -1 || y === -1;
-    if (touchGestureRef.current.suppressLaser && !hidden) return;
+    if (suppressLaserAfterPinchRef.current && !hidden) return;
 
     const editor = tlEditorRef.current;
     if (
@@ -1106,7 +1097,7 @@ const Whiteboard = React.memo((props) => {
     }
 
     publishCursorPosition(x, y);
-  }, [isMobile, publishCursorPosition, touchGestureRef]);
+  }, [isMobile, publishCursorPosition]);
 
   const setCamera = (zoom, x = 0, y = 0) => {
     if (tlEditorRef.current) {
@@ -2285,6 +2276,8 @@ const Whiteboard = React.memo((props) => {
       mountedTldrawEditor,
     },
     {
+      isPresenter,
+      laserMode,
       hasWBAccess: hasWBAccessRef.current,
       whiteboardToolbarAutoHide,
       animations,
@@ -2592,6 +2585,142 @@ const Whiteboard = React.memo((props) => {
       setLaserMenuPos({ x, y });
     }
   }, [laserMenuVisible]);
+
+  React.useEffect(() => {
+    if (!isPresenter || !laserMode) return undefined;
+
+    const targetDoc = getWhiteboardDocument();
+    const targetWin = targetDoc.defaultView || window;
+    const presentationWrapper = targetDoc.querySelector('#presentationInnerWrapper');
+    const editor = mountedTldrawEditor;
+
+    if (!presentationWrapper || !editor) return undefined;
+    if ((targetWin.navigator.maxTouchPoints || 0) < 2) return undefined;
+
+    const originalCanMoveCamera = editor.getInstanceState().canMoveCamera;
+    let multiTouchGesture = false;
+
+    const setCanMoveCamera = (canMoveCamera) => {
+      if (editor.getInstanceState().canMoveCamera === canMoveCamera) return;
+
+      editor.updateInstanceState({
+        canMoveCamera,
+      });
+    };
+
+    const resetGesture = () => {
+      multiTouchGesture = false;
+      setCanMoveCamera(originalCanMoveCamera);
+    };
+
+    const resumeLaserForPointer = (event) => {
+      if (
+        (event.pointerType === 'mouse' || event.pointerType === 'pen')
+        && suppressLaserAfterPinchRef.current
+        && !postPinchTouchPointRef.current
+      ) {
+        suppressLaserAfterPinchRef.current = false;
+      }
+    };
+
+    const handlePointerDown = (e) => {
+      resumeLaserForPointer(e);
+      if (e.pointerType !== 'touch') return;
+      if (editor.getCurrentToolId?.() !== 'hand') return;
+
+      // The first touch pointer is primary.
+      if (e.isPrimary) {
+        // A new primary touch starts a new single-touch gesture.
+        suppressLaserAfterPinchRef.current = false;
+        postPinchTouchPointRef.current = null;
+
+        if (!multiTouchGesture) {
+          setCanMoveCamera(false);
+        }
+        return;
+      }
+
+      // A non-primary touch means that a second (or later) finger
+      // has arrived. Enable camera movement before tldraw handles it.
+      multiTouchGesture = true;
+      setCanMoveCamera(originalCanMoveCamera);
+    };
+
+    const handlePointerMove = (e) => {
+      resumeLaserForPointer(e);
+      if (e.pointerType !== 'touch') return;
+      if (!suppressLaserAfterPinchRef.current) return;
+
+      const startPoint = postPinchTouchPointRef.current;
+      if (!startPoint) return;
+
+      const distance = Math.hypot(
+        e.clientX - startPoint.x,
+        e.clientY - startPoint.y,
+      );
+
+      if (distance < POST_PINCH_LASER_THRESHOLD) return;
+
+      // The remaining finger has moved far enough to be considered
+      // an intentional single-touch laser gesture.
+      suppressLaserAfterPinchRef.current = false;
+      postPinchTouchPointRef.current = null;
+      multiTouchGesture = false;
+
+      // Return to laser mode: one finger moves the laser,
+      // not the camera.
+      setCanMoveCamera(false);
+    };
+
+    const handleTouchEnd = (e) => {
+      // A pinch has just changed from two fingers to one.
+      // Do not immediately treat the remaining finger as a laser gesture.
+      if (multiTouchGesture && e.touches.length === 1) {
+        const touch = e.touches[0];
+        suppressLaserAfterPinchRef.current = true;
+        postPinchTouchPointRef.current = {
+          x: touch.clientX,
+          y: touch.clientY,
+        };
+        return;
+      }
+      // Do not change canMoveCamera on a 2 -> 1 transition.
+      // Keep the whole multi-touch interaction in camera mode
+      // until every finger has been released.
+      // Changing it here can interfere with tldraw's pinch gesture state.
+      if (e.touches.length === 0) {
+        resetGesture();
+        // Keep suppression active until the next primary pointerdown.
+        // This prevents the final touchend from updating the laser.
+        postPinchTouchPointRef.current = null;
+      }
+    };
+
+    const handleTouchCancel = () => {
+      // A cancelled touch sequence is no longer reliable.
+      // Always return to the original state.
+      resetGesture();
+      suppressLaserAfterPinchRef.current = false;
+      postPinchTouchPointRef.current = null;
+    };
+
+    presentationWrapper.addEventListener('pointerdown', handlePointerDown, true);
+    presentationWrapper.addEventListener('pointermove', handlePointerMove, true);
+    presentationWrapper.addEventListener('touchend', handleTouchEnd, true);
+    presentationWrapper.addEventListener('touchcancel', handleTouchCancel, true);
+
+    return () => {
+      resetGesture();
+
+      suppressLaserAfterPinchRef.current = false;
+      postPinchTouchPointRef.current = null;
+
+      presentationWrapper.removeEventListener('pointerdown', handlePointerDown, true);
+      presentationWrapper.removeEventListener('pointermove', handlePointerMove, true);
+      presentationWrapper.removeEventListener('touchend', handleTouchEnd, true);
+      presentationWrapper.removeEventListener('touchcancel', handleTouchCancel, true);
+    };
+  }, [isPresenter, laserMode, mountedTldrawEditor]);
 
   React.useEffect(() => {
     const targetDoc = getWhiteboardDocument();
