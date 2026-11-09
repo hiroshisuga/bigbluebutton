@@ -25,6 +25,9 @@ const propTypes = {
   }).isRequired,
   handleSave: PropTypes.func.isRequired,
   dispatchChangePresentationDownloadable: PropTypes.func.isRequired,
+  fileUploadConstraintsHint: PropTypes.bool.isRequired,
+  fileSizeMax: PropTypes.number.isRequired,
+  filePagesMax: PropTypes.number.isRequired,
   fileValidMimeTypes: PropTypes.arrayOf(PropTypes.shape).isRequired,
   presentations: PropTypes.arrayOf(PropTypes.shape({
     presentationId: PropTypes.string.isRequired,
@@ -53,6 +56,10 @@ const defaultProps = {
 };
 
 const intlMessages = defineMessages({
+  extraHint: {
+    id: 'app.presentationUploder.extraHint',
+    description: 'message used to indicate upload file max sizes',
+  },
   dropzoneLabel: {
     id: 'app.presentationUploder.dropzoneLabel',
     description: 'message warning where drop files for upload',
@@ -830,6 +837,25 @@ class PresentationUploader extends Component {
     );
   }
 
+  renderExtraHint() {
+    const {
+      intl,
+      fileSizeMax,
+      filePagesMax,
+    } = this.props;
+
+    const options = {
+      maxFileSize: fileSizeMax / 1000000,
+      maxFilePages: filePagesMax,
+    };
+
+    return (
+      <Styled.ExtraHint data-test="uploadConstraintsHint">
+        {intl.formatMessage(intlMessages.extraHint, options)}
+      </Styled.ExtraHint>
+    );
+  }
+
   renderExternalUpload() {
     const { externalUploadData, intl } = this.props;
 
@@ -889,6 +915,7 @@ class PresentationUploader extends Component {
     const {
       isPresenter,
       currentPresentation,
+      fileUploadConstraintsHint,
       intl,
     } = this.props;
     if (!isPresenter) return null;
@@ -902,6 +929,7 @@ class PresentationUploader extends Component {
       <div id="upload-modal">
         {isMobile ? this.renderPicDropzone() : null}
         {this.renderDropzone()}
+        {fileUploadConstraintsHint ? this.renderExtraHint() : null}
         {pendingPptxFiles.length > 0 && (
           <Styled.AnimationOptions data-test="pptxAnimationOptions">
             <Styled.AnimationOptionsLabel>
