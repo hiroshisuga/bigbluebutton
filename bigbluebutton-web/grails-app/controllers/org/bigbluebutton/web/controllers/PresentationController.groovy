@@ -469,7 +469,9 @@ class PresentationController {
       return
     }
 
-    if (!presentationId || file == null || file.empty) {
+    if (!(presentationId ==~ /[A-Za-z0-9_-]+/)
+        || !(rm ==~ /[A-Za-z0-9_-]+/)
+        || file == null || file.empty) {
       response.setStatus(400)
       response.contentType = 'text/plain'
       render 'missing presentationId or notesUpload'
@@ -597,6 +599,14 @@ class PresentationController {
       return
     }
 
+    if (!(presentationName ==~ /[A-Za-z0-9_-]+/)
+        || !(rm ==~ /[A-Za-z0-9_-]+/)
+        || !(slide ==~ /[0-9]+/)) {
+      response.setStatus(400)
+      render text: ''
+      return
+    }
+
     if (presentationService.pageTokenSecret) {
       def pageToken = params.pageToken
 
@@ -678,7 +688,8 @@ class PresentationController {
       return
     }
 
-    if (!presentationId) {
+    if (!(presentationId ==~ /[A-Za-z0-9_-]+/)
+        || !(rm ==~ /[A-Za-z0-9_-]+/)) {
       response.setStatus(400)
       response.contentType = 'text/plain'
       render 'missing presentationId'
