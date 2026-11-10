@@ -52,6 +52,10 @@ class UrlMappings {
       }
     }
 
+    "/bigbluebutton/presentation-notes/checkUpload"(controller: "presentation") {
+      action = [GET: 'checkNotesBeforeUploading']
+    }
+
     "/bigbluebutton/presentation-notes/upload"(controller: "presentation") {
       action = [POST: 'uploadNotes']
     }
