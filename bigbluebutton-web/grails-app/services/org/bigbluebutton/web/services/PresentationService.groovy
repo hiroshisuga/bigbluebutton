@@ -29,6 +29,7 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.Semaphore
 import java.util.concurrent.ThreadFactory
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
@@ -60,6 +61,7 @@ class PresentationService {
 	private static final int DOWNLOAD_QUEUE_CAPACITY_PER_THREAD = 20
 
 	private ExecutorService downloadExecutor
+	private final Semaphore notesExtractionSlot = new Semaphore(1)
 
 	@PostConstruct
 	void initDownloadExecutor() {
@@ -199,7 +201,30 @@ class PresentationService {
 		 new File(roomDirectory(conf, room).absolutePath + File.separatorChar + presentationName + File.separatorChar + "notes" + File.separatorChar + "${id}.txt")
 	}
 
+	private def withNotesExtractionSlot(Closure work) {
+		if (!notesExtractionSlot.tryAcquire()) {
+			throw new RejectedExecutionException("Notes extraction is busy")
+		}
+		try {
+			return work.call()
+		} finally {
+			notesExtractionSlot.release()
+		}
+	}
+
 	def uploadNotesPptx(String conf, String room, String presentationId, file) {
+		withNotesExtractionSlot {
+			doUploadNotesPptx(conf, room, presentationId, file)
+		}
+	}
+
+	def extractNotesFromExistingPptx(String conf, String room, String presentationId) {
+		withNotesExtractionSlot {
+			doExtractNotesFromExistingPptx(conf, room, presentationId)
+		}
+	}
+
+	private def doUploadNotesPptx(String conf, String room, String presentationId, file) {
 		def presDir = new File(
 			roomDirectory(conf, room).absolutePath
 				+ File.separatorChar
@@ -241,7 +266,7 @@ class PresentationService {
 			}
 		}
 
-		def extractNotesFromExistingPptx(String conf, String room, String presentationId) {
+		private def doExtractNotesFromExistingPptx(String conf, String room, String presentationId) {
 			def presDir = new File(
 				roomDirectory(conf, room).absolutePath
 					+ File.separatorChar
@@ -268,6 +293,23 @@ class PresentationService {
 
 			return true
 		}
+
+	private Thread readNotesOutput(InputStream stream, StringBuffer output) {
+		Thread.startDaemon {
+			try {
+				stream.withReader("UTF-8") { reader ->
+					char[] buffer = new char[1024]
+					int count
+					while ((count = reader.read(buffer)) != -1) {
+						int keep = Math.min(count, 4096 - output.length())
+						if (keep > 0) output.append(buffer, 0, keep)
+					}
+				}
+			} catch (IOException ignored) {
+				// Ignore pipe closure during forced termination.
+			}
+		}
+	}
 
 		private void extractNotesFromPptxFile(File presDir, File pptxFile) {
 			// We need to change the path if the script is copied in other locations.
@@ -313,23 +355,35 @@ class PresentationService {
 
 				def stdout = new StringBuffer()
 				def stderr = new StringBuffer()
-
-				proc.consumeProcessOutput(stdout, stderr)
-
-				boolean finished = proc.waitFor(120, TimeUnit.SECONDS)
-
-				if (!finished) {
-					proc.destroyForcibly()
-					throw new RuntimeException("Notes extraction timed out")
+				Thread stdoutReader
+				Thread stderrReader
+				try {
+					stdoutReader = readNotesOutput(proc.inputStream, stdout)
+					stderrReader = readNotesOutput(proc.errorStream, stderr)
+					if (!proc.waitFor(120, TimeUnit.SECONDS)) {
+						throw new RuntimeException("Notes extraction timed out")
+					}
+				} finally {
+					if (proc.isAlive()) proc.destroyForcibly()
+					boolean interrupted = false
+					while (true) {
+						try {
+							proc.waitFor()
+							stdoutReader?.join()
+							stderrReader?.join()
+							break
+						} catch (InterruptedException ignored) {
+							interrupted = true
+						}
+					}
+					if (interrupted) Thread.currentThread().interrupt()
 				}
-
 				if (proc.exitValue() != 0) {
 					throw new RuntimeException(
-					"Notes extraction failed. exit=${proc.exitValue()}, stderr=${stderr.toString()}"
-				)
-			}
-
-			log.info("Notes extraction stdout: ${stdout.toString()}")
+						"Notes extraction failed. exit=${proc.exitValue()}, stderr=${stderr.toString()}"
+					)
+				}
+				log.info("Notes extraction stdout: ${stdout.toString()}")
 
 			if (notesDir.exists()) {
 				deleteRecursively(notesDir)
