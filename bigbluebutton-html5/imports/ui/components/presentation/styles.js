@@ -402,13 +402,13 @@ const PresenterToolSlideContent = styled.div`
   container-type: size;
 `;
 
-const PresenterToolSlideViewport = styled.div`
-  --viewport-ratio: ${({ $aspectRatio }) => (
-    Number.isFinite($aspectRatio) && $aspectRatio > 0
+const PresenterToolSlideViewport = styled.div.attrs(({ $aspectRatio }) => ({
+  style: {
+    '--viewport-ratio': Number.isFinite($aspectRatio) && $aspectRatio > 0
       ? $aspectRatio
-      : (16 / 9)
-  )};
-
+      : (16 / 9),
+  },
+}))`
   position: relative;
 
   width: min(
@@ -428,14 +428,17 @@ const PresenterToolSlideViewport = styled.div`
   background: #000;
 `;
 
-const PresenterToolTransformedSlideLayer = styled.div`
+const PresenterToolTransformedSlideLayer = styled.div.attrs(({
+  $leftRatio, $topRatio, $widthRatio, $heightRatio,
+}) => ({
+  style: {
+    left: `${$leftRatio * 100}%`,
+    top: `${$topRatio * 100}%`,
+    width: `${$widthRatio * 100}%`,
+    height: `${$heightRatio * 100}%`,
+  },
+}))`
   position: absolute;
-
-  left: ${({ $leftRatio }) => `${$leftRatio * 100}%`};
-  top: ${({ $topRatio }) => `${$topRatio * 100}%`};
-
-  width: ${({ $widthRatio }) => `${$widthRatio * 100}%`};
-  height: ${({ $heightRatio }) => `${$heightRatio * 100}%`};
 
   overflow: hidden;
   pointer-events: none;
@@ -458,11 +461,13 @@ const PresenterToolTransformedSlide = styled.img`
   background: #fff;
 `;
 
-const PresenterToolCursorDot = styled.div`
+const PresenterToolCursorDot = styled.div.attrs(({ $leftRatio, $topRatio }) => ({
+  style: {
+    left: `${$leftRatio * 100}%`,
+    top: `${$topRatio * 100}%`,
+  },
+}))`
   position: absolute;
-
-  left: ${({ $leftRatio }) => `${$leftRatio * 100}%`};
-  top: ${({ $topRatio }) => `${$topRatio * 100}%`};
 
   width: 12px;
   height: 12px;
