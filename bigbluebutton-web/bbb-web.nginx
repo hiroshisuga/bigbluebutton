@@ -42,6 +42,11 @@ location ~ "^\/bigbluebutton\/presentation\/(?<prestoken>[a-zA-Z0-9_-]+)/upload$
 
 # Allow a presenter to upload a PPTX containing speaker notes.
 location = /bigbluebutton/presentation-notes/upload {
+	set $notes_upload_content_length $http_content_length;
+	auth_request /bigbluebutton/presentation-notes/checkUpload;
+	auth_request_set $file_too_large_header $upstream_http_x_file_too_large;
+	error_page 403 = @error403;
+
 	proxy_pass         http://127.0.0.1:8090;
 	proxy_redirect     default;
 	proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
@@ -50,6 +55,16 @@ location = /bigbluebutton/presentation-notes/upload {
 
 	client_max_body_size       1000m;
 	client_body_buffer_size    128k;
+}
+
+location = /bigbluebutton/presentation-notes/checkUpload {
+	internal;
+	proxy_pass http://127.0.0.1:8090;
+	proxy_pass_request_body off;
+	proxy_set_header Content-Length "";
+	proxy_set_header X-Original-URI $request_uri;
+	proxy_set_header X-Original-Content-Length $notes_upload_content_length;
+	proxy_set_header Cookie $http_cookie;
 }
 
 location /bigbluebutton/presentation/download {
