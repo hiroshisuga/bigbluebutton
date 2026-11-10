@@ -39,6 +39,7 @@ import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 import java.nio.charset.StandardCharsets
 import java.util.regex.Pattern
+import java.util.concurrent.RejectedExecutionException
 
 class PresentationController {
   MeetingService meetingService
@@ -463,6 +464,10 @@ class PresentationController {
       response.status = 200
       response.contentType = 'application/json'
       render '{"status":"ok"}'
+    } catch (RejectedExecutionException e) {
+      response.status = 503
+      render 'notes extraction is busy'
+      return
     } catch (Exception e) {
       log.error("Failed to upload notes pptx. meetingId=${conf}, presId=${presentationId}", e)
       response.setStatus(500)
@@ -652,6 +657,10 @@ class PresentationController {
       response.status = 200
       response.contentType = 'application/json'
       render '{"status":"ok"}'
+    } catch (RejectedExecutionException e) {
+      response.status = 503
+      render 'notes extraction is busy'
+      return
     } catch (FileNotFoundException e) {
       log.warn("Existing pptx not found for notes extraction. meetingId=${conf}, presId=${presentationId}", e)
       response.setStatus(404)
