@@ -162,7 +162,10 @@ class PresentationController {
   }
 
   private UserSession validateSession() {
-    def sessionToken = params.sessionToken
+    return validateSession(params.sessionToken)
+  }
+
+  private UserSession validateSession(String sessionToken) {
     if (!sessionToken) return null
     UserSession userSession = meetingService.getUserSessionWithSessionToken(sessionToken)
     Boolean allowRequestsWithoutSession = meetingService.getAllowRequestsWithoutSession(sessionToken)
@@ -389,6 +392,47 @@ class PresentationController {
     }
   }
 
+  def checkNotesBeforeUploading = {
+    def originalUri = request.getHeader("x-original-uri")
+    def userSession = validateSession(originalUri ? ParamsUtil.getSessionToken(originalUri) : null)
+    if (userSession == null) {
+      response.status = 401
+      render 'not authorized'
+      return
+    }
+
+    Meeting meeting = ServiceUtils.findMeetingFromMeetingID(userSession.meetingID)
+    User currentUser = meeting?.getUserById(userSession.getInternalUserId())
+    if (currentUser == null
+        || (currentUser.getRole() != Meeting.ROLE_MODERATOR
+            && !currentUser.isPresenter())) {
+      response.status = 403
+      render 'forbidden'
+      return
+    }
+
+    long contentLength
+    try {
+      contentLength = Long.parseLong(request.getHeader("x-original-content-length") ?: "0")
+    } catch (NumberFormatException ignored) {
+      response.status = 403
+      render 'invalid content length'
+      return
+    }
+
+    long maxUploadFileSize = paramsProcessorUtil.getMaxPresentationFileUpload() as long
+    if (contentLength <= 0 || contentLength >= maxUploadFileSize) {
+      if (contentLength >= maxUploadFileSize) {
+        response.setHeader("X-File-Too-Large", "1")
+      }
+      response.status = 403
+      render 'upload refused'
+      return
+    }
+
+    render status: 200, text: 'authorized'
+  }
+
   def uploadNotes = {
     log.info("uploadNotes called")
 
@@ -428,6 +472,12 @@ class PresentationController {
       response.setStatus(400)
       response.contentType = 'text/plain'
       render 'missing presentationId or notesUpload'
+      return
+    }
+
+    if (file.size >= (paramsProcessorUtil.getMaxPresentationFileUpload() as long)) {
+      response.status = 413
+      render 'file too large'
       return
     }
 
