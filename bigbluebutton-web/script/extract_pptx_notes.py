@@ -3,10 +3,41 @@
 
 import argparse
 import posixpath
+import resource
 import sys
 import zipfile
 from defusedxml import ElementTree as ET
 from pathlib import Path
+
+MAX_XML_BYTES = 8 * 1024 * 1024
+MAX_TOTAL_XML_BYTES = 64 * 1024 * 1024
+MAX_NOTE_BYTES = 16 * 1024 * 1024
+MAX_ZIP_ENTRIES = 10_000
+MAX_SLIDES = 10_000
+MAX_MEMORY_BYTES = 256 * 1024 * 1024
+
+
+class NotesZipFile(zipfile.ZipFile):
+    def __init__(self, path):
+        super().__init__(path)
+        if len(self.filelist) > MAX_ZIP_ENTRIES:
+            self.close()
+            raise ValueError("Too many PPTX entries")
+        self.names = set(self.namelist())
+        self.xml_bytes_read = 0
+
+    def read_xml_bytes(self, name):
+        limit = min(MAX_XML_BYTES, MAX_TOTAL_XML_BYTES - self.xml_bytes_read)
+        info = self.getinfo(name)
+        if info.file_size > limit:
+            raise ValueError("PPTX XML size limit exceeded")
+        with self.open(info) as part:
+            data = part.read(limit + 1)
+        if len(data) > limit:
+            raise ValueError("PPTX XML size limit exceeded")
+        self.xml_bytes_read += len(data)
+        return data
+
 
 NS = {
     "a": "http://schemas.openxmlformats.org/drawingml/2006/main",
@@ -17,7 +48,7 @@ NS = {
 
 
 def read_xml(z, name):
-    return ET.fromstring(z.read(name))
+    return ET.fromstring(z.read_xml_bytes(name))
 
 
 def rels_path_for_part(part_path):
@@ -33,7 +64,7 @@ def resolve_target(base_part_path, target):
 
 
 def load_rels(z, rels_path):
-    if rels_path not in z.namelist():
+    if rels_path not in z.names:
         return {}
 
     root = read_xml(z, rels_path)
@@ -60,7 +91,7 @@ def get_slide_paths_in_order(z):
       ppt/slides/slide2.xml
       ...
     """
-    if "ppt/presentation.xml" not in z.namelist():
+    if "ppt/presentation.xml" not in z.names:
         return []
 
     presentation = read_xml(z, "ppt/presentation.xml")
@@ -80,7 +111,9 @@ def get_slide_paths_in_order(z):
             posixpath.join("ppt", target)
         ).lstrip("/")
 
-        if slide_path in z.namelist():
+        if slide_path in z.names:
+            if len(slide_paths) >= MAX_SLIDES:
+                raise ValueError("Too many PPTX slides")
             slide_paths.append(slide_path)
 
     return slide_paths
@@ -111,7 +144,7 @@ def get_note_path_for_slide(z, slide_path):
         if rtype.endswith("/notesSlide"):
             note_path = resolve_target(slide_path, target)
 
-            if note_path in z.namelist():
+            if note_path in z.names:
                 return note_path
 
     return None
@@ -166,7 +199,7 @@ def expanded_pptx_path(original_pptx):
 
 def is_complete_pptx(path):
     """
-    Return True only when the file looks like a complete PPTX package.
+    Return True when the ZIP index and required PPTX parts are available.
     """
     path = Path(path)
 
@@ -177,16 +210,13 @@ def is_complete_pptx(path):
         return False
 
     try:
-        with zipfile.ZipFile(path) as z:
-            if z.testzip() is not None:
-                return False
-
+        with NotesZipFile(path) as z:
             required_parts = {
                 "[Content_Types].xml",
                 "ppt/presentation.xml",
                 "ppt/_rels/presentation.xml.rels",
             }
-            return required_parts.issubset(z.namelist())
+            return required_parts.issubset(z.names)
     except (OSError, zipfile.BadZipFile):
         return False
 
@@ -236,28 +266,27 @@ def extract_notes(original_pptx_path, output_dir):
 
     pptx_path = select_pptx_for_notes(original_pptx_path)
 
-    with zipfile.ZipFile(pptx_path) as z:
+    with NotesZipFile(pptx_path) as z:
         slide_paths = get_slide_paths_in_order(z)
         visible_slide_num = 1
+        note_bytes_written = 0
 
         for slide_path in slide_paths:
             if is_hidden_slide(z, slide_path):
-                print(f"{slide_path}: hidden, skipped")
                 continue
 
             note_path = get_note_path_for_slide(z, slide_path)
 
             note_text = ""
             if note_path:
-                note_text = extract_note_from_xml(z.read(note_path))
+                note_text = extract_note_from_xml(z.read_xml_bytes(note_path))
 
+            note_bytes = note_text.encode("utf-8")
+            note_bytes_written += len(note_bytes)
+            if note_bytes_written > MAX_NOTE_BYTES:
+                raise ValueError("Presenter notes size limit exceeded")
             out_file = output_dir / f"{visible_slide_num}.txt"
-            out_file.write_text(note_text, encoding="utf-8")
-
-            print(
-                f"Visible slide {visible_slide_num}: "
-                f"{slide_path}, note={note_path or 'none'}"
-            )
+            out_file.write_bytes(note_bytes)
 
             visible_slide_num += 1
 
@@ -265,6 +294,12 @@ def extract_notes(original_pptx_path, output_dir):
 
 
 def main():
+    limits = resource.getrlimit(resource.RLIMIT_AS)
+    memory_limit = min(
+        [MAX_MEMORY_BYTES]
+        + [limit for limit in limits if limit != resource.RLIM_INFINITY]
+    )
+    resource.setrlimit(resource.RLIMIT_AS, (memory_limit, memory_limit))
     parser = argparse.ArgumentParser(
         description=(
             "Extract PowerPoint speaker notes while keeping slide numbering "
@@ -290,5 +325,5 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as error:
-        print(f"ERROR: {error}", file=sys.stderr)
+        print(f"ERROR: {str(error)[:1024]}", file=sys.stderr)
         sys.exit(1)
