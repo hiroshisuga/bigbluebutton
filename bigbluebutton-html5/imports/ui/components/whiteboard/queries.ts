@@ -60,7 +60,7 @@ export interface PresentationPage {
   presentationName: string;
   isDefaultPresentation: boolean;
   infiniteWhiteboard: boolean;
-  nextPagesSvg: string[] | null;
+  nextPagesSvg: string;
   fitToWidth: boolean;
 }
 
