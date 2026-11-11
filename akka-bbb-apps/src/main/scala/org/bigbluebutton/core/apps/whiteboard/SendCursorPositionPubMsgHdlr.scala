@@ -23,7 +23,7 @@ trait SendCursorPositionPubMsgHdlr extends RightsManagementTrait {
       // without reconnecting anyone: the middleware only checks whether the
       // receiving connection belongs to a locked viewer.
       val hiddenForLockedViewers = userIsViewer && MeetingStatus2x.getPermissions(liveMeeting.status).hideViewersCursor
-      val body = SendCursorPositionEvtMsgBody(msg.body.whiteboardId, userIsViewer, hiddenForLockedViewers, msg.body.xPercent, msg.body.yPercent)
+      val body = SendCursorPositionEvtMsgBody(msg.body.whiteboardId, userIsViewer, hiddenForLockedViewers, msg.body.xPercent, msg.body.yPercent, msg.body.laserType)
       val event = SendCursorPositionEvtMsg(header, body)
       val msgEvent = BbbCommonEnvCoreMsg(envelope, event)
       bus.outGW.send(msgEvent)
