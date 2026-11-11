@@ -81,10 +81,7 @@ const getTldrawOpenMenu = (targetDoc = document) => {
 
 const useMouseEvents = ({
   whiteboardRef, tlEditorRef, isWheelZoomRef, isTouchZoomRef, initialZoomRef, isPresenterRef,
-  mountedTldrawEditor,
 }, {
-  isPresenter,
-  laserMode,
   hasWBAccess,
   whiteboardToolbarAutoHide,
   animations,
@@ -292,12 +289,6 @@ const useMouseEvents = ({
     setWheelZoomTimeout();
   });
 
-  const resetTouchGesture = () => {
-    fingerCountRef.current = 0;
-    isPinchingRef.current = false;
-    initialPinchDistanceRef.current = 0;
-  };
-
   const handlePointerDown = (event) => {
     if (!event.isPrimary && event.pointerType === 'touch' && !isPresenterRef.current) {
       event.stopPropagation();
@@ -386,6 +377,8 @@ const useMouseEvents = ({
     if (event.touches.length === 0) {
       const count = fingerCountRef.current;
 
+      if (!hasWBAccess && !isPresenterRef.current) return;
+
       if (count === 2) {
         if (!isPinchingRef.current && hasWBAccess) {
           tlEditorRef.current?.undo();
@@ -393,12 +386,16 @@ const useMouseEvents = ({
       } else if (count === 3 && hasWBAccess) {
         tlEditorRef.current?.redo();
       }
-      resetTouchGesture();
+      fingerCountRef.current = 0;
+      isPinchingRef.current = false;
+      initialPinchDistanceRef.current = 0;
     }
   };
 
   const handleTouchCancel = () => {
-    resetTouchGesture();
+    fingerCountRef.current = 0;
+    isPinchingRef.current = false;
+    initialPinchDistanceRef.current = 0;
     resetTouchZoomAfterCameraSettles();
   };
 
@@ -421,16 +418,6 @@ const useMouseEvents = ({
       );
     }
   }, [whiteboardToolbarAutoHide]);
-
-  // Reset gesture state on lifecycle changes, not ordinary listener rebinding.
-  React.useEffect(() => () => {
-    fingerCountRef.current = 0;
-    isPinchingRef.current = false;
-    initialPinchDistanceRef.current = 0;
-    clearTimeout(touchZoomResetTimeoutRef.current);
-    // eslint-disable-next-line no-param-reassign
-    isTouchZoomRef.current = false;
-  }, [isPresenter, laserMode, mountedTldrawEditor]);
 
   React.useEffect(() => {
     const targetDoc = getWhiteboardDocument();
@@ -475,7 +462,6 @@ const useMouseEvents = ({
     handleMouseEnter,
     handleMouseLeave,
     handleMouseWheel,
-    handleTouchCancel,
   ]);
 };
 
