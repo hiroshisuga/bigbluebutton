@@ -2273,11 +2273,8 @@ const Whiteboard = React.memo((props) => {
       isWheelZoomRef,
       initialZoomRef,
       isPresenterRef,
-      mountedTldrawEditor,
     },
     {
-      isPresenter,
-      laserMode,
       hasWBAccess: hasWBAccessRef.current,
       whiteboardToolbarAutoHide,
       animations,

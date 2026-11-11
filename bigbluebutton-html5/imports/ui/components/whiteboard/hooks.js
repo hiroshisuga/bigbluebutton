@@ -73,10 +73,7 @@ const getTldrawOpenMenu = () => {
 
 const useMouseEvents = ({
   whiteboardRef, tlEditorRef, isWheelZoomRef, initialZoomRef, isPresenterRef,
-  mountedTldrawEditor,
 }, {
-  isPresenter,
-  laserMode,
   hasWBAccess,
   whiteboardToolbarAutoHide,
   animations,
@@ -267,12 +264,6 @@ const useMouseEvents = ({
     setWheelZoomTimeout();
   });
 
-  const resetTouchGesture = () => {
-    fingerCountRef.current = 0;
-    isPinchingRef.current = false;
-    initialPinchDistanceRef.current = 0;
-  };
-
   const handlePointerDown = (event) => {
     if (!event.isPrimary && event.pointerType === 'touch' && !isPresenterRef.current) {
       event.stopPropagation();
@@ -353,6 +344,8 @@ const useMouseEvents = ({
     if (event.touches.length === 0) {
       const count = fingerCountRef.current;
 
+      if (!hasWBAccess && !isPresenterRef.current) return;
+
       if (count === 2) {
         if (!isPinchingRef.current && hasWBAccess) {
           tlEditorRef.current?.undo();
@@ -360,11 +353,11 @@ const useMouseEvents = ({
       } else if (count === 3 && hasWBAccess) {
         tlEditorRef.current?.redo();
       }
-      resetTouchGesture();
+      fingerCountRef.current = 0;
+      isPinchingRef.current = false;
+      initialPinchDistanceRef.current = 0;
     }
   };
-
-  const handleTouchCancel = () => resetTouchGesture();
 
   React.useEffect(() => {
     if (whiteboardToolbarAutoHide) {
@@ -384,13 +377,6 @@ const useMouseEvents = ({
     }
   }, [whiteboardToolbarAutoHide]);
 
-  // Reset gesture state on lifecycle changes, not ordinary listener rebinding.
-  React.useEffect(() => () => {
-    fingerCountRef.current = 0;
-    isPinchingRef.current = false;
-    initialPinchDistanceRef.current = 0;
-  }, [isPresenter, laserMode, mountedTldrawEditor]);
-
   React.useEffect(() => {
     const presentationWrapper = document.getElementById('presentationInnerWrapper');
     window.addEventListener('mousedown', handleMouseDownWindow);
@@ -403,7 +389,6 @@ const useMouseEvents = ({
       presentationWrapper.addEventListener('pointerdown', handlePointerDown, { capture: true });
       presentationWrapper.addEventListener('touchstart', handleTouchStart, { passive: false, capture: true });
       presentationWrapper.addEventListener('touchend', handleTouchEnd, { passive: false, capture: true });
-      presentationWrapper.addEventListener('touchcancel', handleTouchCancel, { passive: false, capture: true });
       presentationWrapper.addEventListener('touchmove', handleTouchMove, { passive: false });
     }
 
@@ -417,7 +402,6 @@ const useMouseEvents = ({
         presentationWrapper.removeEventListener('pointerdown', handlePointerDown, { capture: true });
         presentationWrapper.removeEventListener('touchstart', handleTouchStart, { capture: true });
         presentationWrapper.removeEventListener('touchend', handleTouchEnd, { capture: true });
-        presentationWrapper.removeEventListener('touchcancel', handleTouchCancel, { capture: true });
         presentationWrapper.removeEventListener('touchmove', handleTouchMove);
       }
       window.removeEventListener('mousedown', handleMouseDownWindow);
@@ -430,7 +414,6 @@ const useMouseEvents = ({
     handleMouseEnter,
     handleMouseLeave,
     handleMouseWheel,
-    handleTouchCancel,
   ]);
 };
 
