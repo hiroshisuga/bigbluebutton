@@ -2797,7 +2797,6 @@ const Whiteboard = React.memo((props) => {
       isTouchZoomRef,
       initialZoomRef,
       isPresenterRef,
-      mountedTldrawEditor,
     },
     {
       hasWBAccess: hasWBAccessRef.current,
