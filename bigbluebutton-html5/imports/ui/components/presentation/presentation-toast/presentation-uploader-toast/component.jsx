@@ -194,23 +194,23 @@ function renderPresentationItemStatus(item, intl) {
 
     switch (item.uploadErrorMsgKey) {
       case 'CONVERSION_TIMEOUT':
-        constraint.slideNumber = item.uploadErrorDetailsJson.numberPageError;
-        constraint.maxAttempts = item.uploadErrorDetailsJson.maxNumberOfAttempts;
+        constraint['slideNumber'] = item.uploadErrorDetailsJson.numberPageError;
+        constraint['maxAttempts'] = item.uploadErrorDetailsJson.maxNumberOfAttempts;
         break;
       case 'FILE_TOO_LARGE': {
         const { maxFileSize } = item.uploadErrorDetailsJson;
-        constraint.maxFileSize = getSizeWithUnit(maxFileSize);
+        constraint['maxFileSize'] = getSizeWithUnit(maxFileSize);
         break;
       }
       case 'PAGE_COUNT_EXCEEDED':
-        constraint.maxNumberOfPages = item.uploadErrorDetailsJson.maxNumberOfPages;
+        constraint['maxNumberOfPages'] = item.uploadErrorDetailsJson.maxNumberOfPages;
         break;
       case 'PDF_HAS_BIG_PAGE':
-        constraint.maxPageSize = (item.uploadErrorDetailsJson.bigPageSize / 1000 / 1000).toFixed(2);
+        constraint['maxPageSize'] = (item.uploadErrorDetailsJson.bigPageSize / 1000 / 1000).toFixed(2);
         break;
       case 'INVALID_MIME_TYPE':
-        constraint.extension = item.uploadErrorDetailsJson.fileExtension;
-        constraint.contentType = item.uploadErrorDetailsJson.fileMime;
+        constraint['extension'] = item.uploadErrorDetailsJson.fileExtension;
+        constraint['contentType'] = item.uploadErrorDetailsJson.fileMime;
         break;
       default:
         break;
@@ -352,10 +352,10 @@ const renderToastList = (presentations, intl) => {
 
   if (converted === 0) {
     toastHeading = presentationsSorted.length > 1
-      ? intl.formatMessage(intlMessages.uploadingPlural, {
-        numberOfPresentations: presentationsSorted.length,
-      })
-      : intl.formatMessage(intlMessages.uploading);
+    ? intl.formatMessage(intlMessages.uploadingPlural, {
+      numberOfPresentations: presentationsSorted.length,
+    })
+    : intl.formatMessage(intlMessages.uploading);
   }
 
   if (converted > 0 && converted !== presentationsSorted.length) {
@@ -414,7 +414,7 @@ function renderExportationStatus(item, intl) {
 function renderToastExportItem(item, intl) {
   const { exportToChatStatus: status } = item;
   const loading = [EXPORT_STATUSES.RUNNING, EXPORT_STATUSES.COLLECTING,
-    EXPORT_STATUSES.PROCESSING].includes(status);
+  EXPORT_STATUSES.PROCESSING].includes(status);
   const done = status === EXPORT_STATUSES.EXPORTED;
   const statusIconMap = {
     [EXPORT_STATUSES.RUNNING]: 'blank',
@@ -483,9 +483,7 @@ function renderExportToast(presToShow, intl, exportToastId) {
       <Styled.UploadToastHeader>
         <Styled.UploadIcon iconName="download" />
         <Styled.UploadToastTitle>
-          {intl.formatMessage(intlMessages[headerLabelId], {
-            numberOfPresentations: presToShowSorted.length,
-          })}
+          {intl.formatMessage(intlMessages[headerLabelId], { numberOfPresentations: presToShowSorted.length })}
         </Styled.UploadToastTitle>
       </Styled.UploadToastHeader>
       <Styled.InnerToast>
@@ -553,16 +551,16 @@ export const PresentationUploaderToast = ({
       } else {
         toast(
           renderExportToast(exportingPres, intl, exportToastIdRef.current), {
-            hideProgressBar: true,
-            autoClose: false,
-            newestOnTop: true,
-            closeOnClick: true,
-            toastId: exportToastIdRef.current,
-            onClose: () => {
-              Session.setItem('presentationUploaderExportToastId', null);
-              getIdsFromPresentationsAndDismiss(exportingPres);
-            },
+          hideProgressBar: true,
+          autoClose: false,
+          newestOnTop: true,
+          closeOnClick: true,
+          toastId: exportToastIdRef.current,
+          onClose: () => {
+            Session.setItem('presentationUploaderExportToastId', null);
+            getIdsFromPresentationsAndDismiss(exportingPres);
           },
+        },
         );
       }
     }
