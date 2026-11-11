@@ -147,10 +147,6 @@ class UrlMappings {
       action = [GET: 'updateRecordingsHandler', POST: 'updateRecordingsHandler']
     }
 
-    "/bigbluebutton/api/guestWait"(controller: "api") {
-      action = [GET: 'guestWaitHandler']
-    }
-
     "/bigbluebutton/textTrack/validateAuthToken"(controller: "recording") {
       action = [GET: 'checkTextTrackAuthToken']
     }
@@ -181,6 +177,6 @@ class UrlMappings {
       action = [GET: 'index']
     }
 
-    "500"(view: '/error')
+    "500"(controller: "error", action: "serverError")
   }
 }
