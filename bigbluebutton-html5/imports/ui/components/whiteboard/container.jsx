@@ -53,6 +53,7 @@ import connectionStatus from '/imports/ui/core/graphql/singletons/connectionStat
 
 const RECONNECT_SYNC_DELAY_MS = 750;
 const VISIBILITY_REFETCH_DELAY_MS = 500;
+const DEFAULT_LASER_COLORS = ['#ff1414', '#00a080'];
 
 const throttleWithTrailing = (func, interval) => {
   let pendingArgs = null;
@@ -290,7 +291,7 @@ const WhiteboardContainer = (props) => {
   };
 
   const publishCursorUpdate = useCallback((payload) => {
-    const { whiteboardId, xPercent, yPercent } = payload;
+    const { whiteboardId, xPercent, yPercent, laserType } = payload;
     if (!whiteboardId || xPercent == null || yPercent == null || !(hasWBAccess || isPresenter)) return;
 
     presentationPublishCursor({
@@ -298,6 +299,7 @@ const WhiteboardContainer = (props) => {
         whiteboardId,
         xPercent,
         yPercent,
+        laserType,
       },
     });
   }, [hasWBAccess, isPresenter]);
@@ -497,7 +499,7 @@ const WhiteboardContainer = (props) => {
 
   const bgShape = [];
 
-  const { isIphone, isPhone } = deviceInfo;
+  const { isIphone, isPhone, isMobile } = deviceInfo;
 
   const assetId = AssetRecordType.createId(curPageNum);
   const assets = [{
@@ -526,7 +528,9 @@ const WhiteboardContainer = (props) => {
   const sidebarNavigationWidth = layoutSelect(
     (i) => i?.output?.sidebarNavigation?.width,
   );
-  const { maxStickyNoteLength, maxNumberOfAnnotations, lockToolbarTools, pointerDiameter } = WHITEBOARD_CONFIG;
+  const { maxStickyNoteLength, maxNumberOfAnnotations, lockToolbarTools, pointerDiameter,
+    laserRadiusSmall = 10, laserRadiusLarge = 16, laserColors = DEFAULT_LASER_COLORS,
+  } = WHITEBOARD_CONFIG;
   const fontFamily = WHITEBOARD_CONFIG.styles.text.family;
   const {
     colorStyle, dashStyle, fillStyle, fontStyle, sizeStyle,
@@ -573,6 +577,9 @@ const WhiteboardContainer = (props) => {
           maxNumberOfAnnotations,
           lockToolbarTools,
           pointerDiameter,
+          laserRadiusSmall,
+          laserRadiusLarge,
+          laserColors,
           fontFamily,
           colorStyle,
           dashStyle,
@@ -598,6 +605,7 @@ const WhiteboardContainer = (props) => {
           toggleToolsAnimations,
           isIphone,
           isPhone,
+          isMobile,
           currentPresentationPage,
           numberOfPages: currentPresentationPage?.totalPages,
           presentationId,
