@@ -182,9 +182,6 @@ def serialize_xml(root: etree._Element) -> bytes:
 def read_package(path: Path) -> dict[str, bytes]:
     with zipfile.ZipFile(path, "r") as archive:
         check_package_size(info.file_size for info in archive.infolist())
-        bad = archive.testzip()
-        if bad:
-            raise ConversionError(f"Broken ZIP member in input PPTX: {bad}")
         return {name: archive.read(name) for name in archive.namelist()}
 
 
