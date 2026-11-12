@@ -22,6 +22,7 @@ package org.bigbluebutton.presentation;
 public class ConversionMessageConstants {
     public static final String OFFICE_DOC_CONVERSION_SUCCESS_KEY = "OFFICE_DOC_CONVERSION_SUCCESS";
     public static final String OFFICE_DOC_CONVERSION_FAILED_KEY = "OFFICE_DOC_CONVERSION_FAILED";
+    public static final String PPTX_RESOURCE_LIMIT_EXCEEDED_KEY = "PPTX_RESOURCE_LIMIT_EXCEEDED";
     public static final String OFFICE_DOC_CONVERSION_INVALID_KEY = "OFFICE_DOC_CONVERSION_INVALID";
     public static final String FILE_TOO_LARGE = "FILE_TOO_LARGE";
     public static final String SUPPORTED_DOCUMENT_KEY = "SUPPORTED_DOCUMENT";

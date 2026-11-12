@@ -38,6 +38,7 @@ import argparse
 import copy
 import posixpath
 import re
+import resource
 import sys
 import zipfile
 from dataclasses import dataclass
@@ -45,6 +46,14 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 from lxml import etree
+
+
+MAX_MEMORY_BYTES = 1024 * 1024 * 1024
+MAX_PACKAGE_BYTES = 1024 * 1024 * 1024
+MAX_XML_BYTES = 8 * 1024 * 1024
+MAX_PACKAGE_PARTS = 10_000
+MAX_SLIDES = 1_000
+RESOURCE_LIMIT_EXIT_CODE = 42
 
 
 NS = {
@@ -134,7 +143,29 @@ class ConversionError(RuntimeError):
     pass
 
 
+class ResourceLimitError(ConversionError):
+    pass
+
+
+def limit_memory() -> None:
+    soft, hard = resource.getrlimit(resource.RLIMIT_AS)
+    limits = [MAX_MEMORY_BYTES]
+    limits.extend(value for value in (soft, hard) if value != resource.RLIM_INFINITY)
+    limit = min(limits)
+    resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
+
+
+def check_package_size(sizes: Iterable[int]) -> None:
+    total = 0
+    for count, size in enumerate(sizes, start=1):
+        total += size
+        if count > MAX_PACKAGE_PARTS or total > MAX_PACKAGE_BYTES:
+            raise ResourceLimitError("PPTX package exceeds resource limits")
+
+
 def parse_xml(data: bytes) -> etree._Element:
+    if len(data) > MAX_XML_BYTES:
+        raise ResourceLimitError("XML part exceeds size limit")
     parser = etree.XMLParser(remove_blank_text=False, resolve_entities=False)
     return etree.fromstring(data, parser=parser)
 
@@ -150,6 +181,7 @@ def serialize_xml(root: etree._Element) -> bytes:
 
 def read_package(path: Path) -> dict[str, bytes]:
     with zipfile.ZipFile(path, "r") as archive:
+        check_package_size(info.file_size for info in archive.infolist())
         bad = archive.testzip()
         if bad:
             raise ConversionError(f"Broken ZIP member in input PPTX: {bad}")
@@ -157,6 +189,7 @@ def read_package(path: Path) -> dict[str, bytes]:
 
 
 def write_package(path: Path, files: dict[str, bytes]) -> None:
+    check_package_size(len(data) for data in files.values())
     path.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         for name in sorted(files):
@@ -531,6 +564,9 @@ def expanded_indices(
     start = target.start_paragraph or 0
     end = target.end_paragraph if target.end_paragraph is not None else start
 
+    if start < 0 or end < 0:
+        raise ResourceLimitError("Negative paragraph range")
+
     if start >= len(paragraphs):
         warnings.append(
             f"shape {target.spid}: paragraph {start} is outside "
@@ -647,7 +683,10 @@ def expand_slide(
     slide_xml: bytes,
     omit_initial: bool,
     strict: bool,
+    max_slides: int = MAX_SLIDES,
 ) -> tuple[list[etree._Element], list[str], int]:
+    if max_slides < 1:
+        raise ResourceLimitError("Generated slide count exceeds limit")
     base_root = parse_xml(slide_xml)
     groups, warnings = extract_click_groups(base_root)
 
@@ -691,6 +730,8 @@ def expand_slide(
         if signature == previous_signature:
             continue
 
+        if len(roots) >= max_slides:
+            raise ResourceLimitError("Generated slide count exceeds limit")
         roots.append(
             render_state(
                 base_root,
@@ -872,6 +913,9 @@ def convert(
     if not original_entries:
         raise ConversionError("No slides were found in the PPTX")
 
+    if len(original_entries) > MAX_SLIDES:
+        raise ResourceLimitError("Input slide count exceeds limit")
+
     next_slide_number = numeric_suffix(
         files,
         r"ppt/slides/slide(\d+)\.xml",
@@ -901,6 +945,7 @@ def convert(
             files[slide_part],
             omit_initial=omit_initial,
             strict=strict,
+            max_slides=MAX_SLIDES - total_generated,
         )
         total_clicks += click_count
 
@@ -1026,12 +1071,16 @@ def main() -> int:
         parser.error(f"input file does not exist: {args.input}")
 
     try:
+        limit_memory()
         convert(
             args.input,
             args.output,
             omit_initial=args.omit_initial,
             strict=args.strict,
         )
+    except (ResourceLimitError, MemoryError):
+        print("Error: PPTX resource limit exceeded", file=sys.stderr)
+        return RESOURCE_LIMIT_EXIT_CODE
     except (ConversionError, etree.XMLSyntaxError, zipfile.BadZipFile) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1

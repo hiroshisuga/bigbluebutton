@@ -27,10 +27,15 @@ import java.util.regex.Pattern;
 public class Office2PdfConverterHandler extends AbstractCommandHandler {
   private static Logger log = LoggerFactory.getLogger(Office2PdfConverterHandler.class);
 
+  private static final int PPTX_RESOURCE_LIMIT_EXIT_CODE = 42;
   private final String id;
 
   public Office2PdfConverterHandler(String id) {
     this.id = id;
+  }
+
+  public boolean isPptxResourceLimitExceeded() {
+    return exitCode == PPTX_RESOURCE_LIMIT_EXIT_CODE;
   }
 
   @Override

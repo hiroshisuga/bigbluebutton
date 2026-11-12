@@ -60,14 +60,17 @@ if [[ "${source,,}" == *.pptx && -f "${animationMarker}" ]]; then
 
   rm -f "${temporaryExpandedPresentation}"
 
-  if ! /usr/bin/timeout "${timeoutSecs}s" \
+  expansionStatus=0
+  /usr/bin/timeout "${timeoutSecs}s" \
       /usr/bin/python3 \
       "${animationExpander}" \
       "${source}" \
-      "${temporaryExpandedPresentation}"; then
+      "${temporaryExpandedPresentation}" || expansionStatus=$?
+
+  if (( expansionStatus != 0 )); then
     echo "PowerPoint animation expansion failed: ${source}" >&2
     rm -f "${temporaryExpandedPresentation}"
-    exit 1
+    exit "${expansionStatus}"
   fi
 
   if [[ ! -s "${temporaryExpandedPresentation}" ]]; then

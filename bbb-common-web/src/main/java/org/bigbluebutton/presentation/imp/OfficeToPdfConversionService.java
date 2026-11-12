@@ -82,7 +82,9 @@ public class OfficeToPdfConversionService {
         Gson gson = new Gson();
         String logStr = gson.toJson(logData);
         log.warn(" --analytics-- data={}", logStr);
-        pres.setConversionStatus(ConversionMessageConstants.OFFICE_DOC_CONVERSION_FAILED_KEY);
+        if (!ConversionMessageConstants.PPTX_RESOURCE_LIMIT_EXCEEDED_KEY.equals(pres.getConversionStatus())) {
+          pres.setConversionStatus(ConversionMessageConstants.OFFICE_DOC_CONVERSION_FAILED_KEY);
+        }
         return pres;
       }
     }
@@ -118,6 +120,10 @@ public class OfficeToPdfConversionService {
       }
 
       
+      if (ConversionMessageConstants.PPTX_RESOURCE_LIMIT_EXCEEDED_KEY.equals(pres.getConversionStatus())) {
+        break;
+      }
+
       if(!success) {
         if(++attempts != 3) {
           //Try again
