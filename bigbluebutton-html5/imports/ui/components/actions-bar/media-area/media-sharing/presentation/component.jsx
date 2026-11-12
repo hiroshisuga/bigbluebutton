@@ -20,6 +20,7 @@ const propTypes = {
   allowDownloadOriginal: PropTypes.bool.isRequired,
   allowDownloadConverted: PropTypes.bool.isRequired,
   allowDownloadWithAnnotations: PropTypes.bool.isRequired,
+  allowPopupPresentation: PropTypes.bool.isRequired,
   intl: PropTypes.shape({
     formatMessage: PropTypes.func.isRequired,
   }).isRequired,
@@ -511,6 +512,8 @@ class PresentationUploader extends Component {
   }
 
   handleUploadPresentationNotes(presentationItem, file) {
+    if (!this.props.allowPopupPresentation) return;
+
     const { intl, uploadPresentationNotes, renderNotesUploadToast } = this.props;
     const endpoint = '/bigbluebutton/presentation-notes/upload';
     const toastId = `presentation-notes-upload-${presentationItem.presentationId}`;
@@ -579,6 +582,8 @@ class PresentationUploader extends Component {
   }
 
   handleExtractPresentationNotesFromExistingPptx(presentationItem) {
+    if (!this.props.allowPopupPresentation) return;
+
     const { extractPresentationNotesFromExistingPptx, intl } = this.props;
 
     notify(intl.formatMessage(intlMessages.extractingPresentationNotes), 'info');
@@ -720,6 +725,7 @@ class PresentationUploader extends Component {
       allowDownloadOriginal,
       allowDownloadConverted,
       allowDownloadWithAnnotations,
+      allowPopupPresentation,
       onActionCompleted,
     } = this.props;
 
@@ -782,6 +788,7 @@ class PresentationUploader extends Component {
             allowDownloadOriginal={allowDownloadOriginal}
             allowDownloadConverted={allowDownloadConverted}
             allowDownloadWithAnnotations={allowDownloadWithAnnotations}
+            allowPopupPresentation={allowPopupPresentation}
             handleDownloadableChange={this.handleDownloadableChange}
             item={item}
             closeModal={() => onActionCompleted()}

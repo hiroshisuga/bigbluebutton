@@ -55,6 +55,7 @@ const propTypes = {
   allowDownloadOriginal: PropTypes.bool.isRequired,
   allowDownloadConverted: PropTypes.bool.isRequired,
   allowDownloadWithAnnotations: PropTypes.bool.isRequired,
+  allowPopupPresentation: PropTypes.bool.isRequired,
   item: PropTypes.shape({
     id: PropTypes.string,
     filename: PropTypes.string,
@@ -114,6 +115,7 @@ class PresentationDownloadDropdown extends PureComponent {
       allowDownloadOriginal,
       allowDownloadConverted,
       allowDownloadWithAnnotations,
+      allowPopupPresentation,
       item,
       closeModal,
       handleExtractPresentationNotesFromExistingPptx,
@@ -192,16 +194,18 @@ class PresentationDownloadDropdown extends PureComponent {
         },
       });
     }
-    this.menuItems.push({
-      key: this.actionsKey[3],
-      id: 'uploadPresenterNotes',
-      dataTest: 'uploadPresenterNotes',
-      label: intl.formatMessage(intlMessages.uploadPresenterNotes),
-      onClick: () => {
-        this.notesFileInputRef.current?.click();
-      },
-    });
-    if (isPptxPresentation) {
+    if (allowPopupPresentation) {
+      this.menuItems.push({
+        key: this.actionsKey[3],
+        id: 'uploadPresenterNotes',
+        dataTest: 'uploadPresenterNotes',
+        label: intl.formatMessage(intlMessages.uploadPresenterNotes),
+        onClick: () => {
+          this.notesFileInputRef.current?.click();
+        },
+      });
+    }
+    if (allowPopupPresentation && isPptxPresentation) {
       this.menuItems.push({
         key: this.actionsKey[4],
         id: 'extractPresentationNotesFromExistingPptx',
@@ -217,8 +221,11 @@ class PresentationDownloadDropdown extends PureComponent {
 
   render() {
     const {
-      intl, disabled, item, handleUploadPresentationNotes,
+      intl, disabled, item, handleUploadPresentationNotes, allowPopupPresentation,
     } = this.props;
+
+    const actions = this.getAvailableActions();
+    if (!actions.length) return null;
 
     const customStyles = { zIndex: 9999 };
     let tooltipLabelForDropdown = intl.formatMessage(intlMessages.options);
@@ -251,25 +258,27 @@ class PresentationDownloadDropdown extends PureComponent {
             anchorOrigin: { vertical: 'bottom', horizontal: 'left' },
             transformOrigin: { vertical: 'top', horizontal: 'left' },
           }}
-          actions={this.getAvailableActions()}
+          actions={actions}
         />
-        <input
-          ref={this.notesFileInputRef}
-          type="file"
-          accept=".pptx"
-          style={{ display: 'none' }}
-          onChange={(e) => {
-            e.stopPropagation();
-            const file = e.target.files?.[0];
-            if (file) {
-              const isPptx = file.name.toLowerCase().endsWith('.pptx');
-              if (isPptx) {
-                handleUploadPresentationNotes(item, file);
+        {allowPopupPresentation && (
+          <input
+            ref={this.notesFileInputRef}
+            type="file"
+            accept=".pptx"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              e.stopPropagation();
+              const file = e.target.files?.[0];
+              if (file) {
+                const isPptx = file.name.toLowerCase().endsWith('.pptx');
+                if (isPptx) {
+                  handleUploadPresentationNotes(item, file);
+                }
               }
-            }
-            e.target.value = '';
-          }}
-        />
+              e.target.value = '';
+            }}
+          />
+        )}
       </PresentationDownloadDropdownWrapper>
     );
   }
