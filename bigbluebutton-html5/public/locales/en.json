@@ -481,6 +481,7 @@
     "app.presentationUploder.conversion.conversionTimeout": "Slide {slideNumber} could not be processed within {maxAttempts} attempts.",
     "app.presentationUploder.conversion.officeDocConversionInvalid": "Failed to process Office document. Please upload a PDF instead.",
     "app.presentationUploder.conversion.officeDocConversionFailed": "Failed to process Office document. Please upload a PDF instead.",
+    "app.presentationUploder.conversion.pptxResourceLimitExceeded": "An abnormal condition was detected while processing the PPTX file. Upload failed.",
     "app.presentationUploder.conversion.pdfHasBigPage": "We could not convert the PDF file, please try optimizing it. Max page size {maxPageSize}",
     "app.presentationUploder.conversion.podLimitReached": "Maximum of {maxPresentationsPerPod} presentations reached. Remove a presentation before uploading another.",
     "app.presentationUploder.conversion.rateLimitExceeded": "Too many presentations were uploaded recently. Please wait a moment and try again.",

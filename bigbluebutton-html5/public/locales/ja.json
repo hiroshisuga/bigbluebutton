@@ -481,6 +481,7 @@
     "app.presentationUploder.conversion.conversionTimeout": "スライド{slideNumber}は{maxAttempts}回の試行で処理できませんでした。",
     "app.presentationUploder.conversion.officeDocConversionInvalid": "Office書類がうまく処理できませんでした。PDFファイルをアップロードしてみてください。",
     "app.presentationUploder.conversion.officeDocConversionFailed": "Office書類がうまく処理できませんでした。PDFファイルをアップロードしてみてください。",
+    "app.presentationUploder.conversion.pptxResourceLimitExceeded": "PPTXファイルの処理中に異常を検知しました。アップロードに失敗しました。",
     "app.presentationUploder.conversion.pdfHasBigPage": "PDFファイルを変換できませんでした。最適化してみてください。最大は{maxPageSize}ページ",
     "app.presentationUploder.conversion.timeout": "エラー：変換に時間がかかりすぎました",
     "app.presentationUploder.conversion.pageCountFailed": "ページ数の判定に失敗しました。",

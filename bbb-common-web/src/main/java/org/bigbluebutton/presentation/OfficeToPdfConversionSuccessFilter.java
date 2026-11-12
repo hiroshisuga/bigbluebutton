@@ -53,10 +53,13 @@ public class OfficeToPdfConversionSuccessFilter {
   }
 
   public void sendOfficeToPdfConversionFailed(UploadedPresentation pres) {
+    String messageKey = ConversionMessageConstants.PPTX_RESOURCE_LIMIT_EXCEEDED_KEY.equals(pres.getConversionStatus())
+            ? ConversionMessageConstants.PPTX_RESOURCE_LIMIT_EXCEEDED_KEY
+            : ConversionMessageConstants.OFFICE_DOC_CONVERSION_FAILED_KEY;
     OfficeToPdfConversionFailed error = new OfficeToPdfConversionFailed(pres.getPodId(),
             pres.getMeetingId(),
             pres.getName(),
-            ConversionMessageConstants.OFFICE_DOC_CONVERSION_FAILED_KEY,
+            messageKey,
             pres.getTemporaryPresentationId(),
             pres.getId(),
             3);
