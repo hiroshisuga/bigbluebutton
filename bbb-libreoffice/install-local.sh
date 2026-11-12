@@ -6,6 +6,12 @@ fi;
 
 cd "$(dirname "$0")"
 
+if ! /usr/bin/python3 -c 'import lxml.etree' >/dev/null 2>&1; then
+	echo "Installing python3-lxml for PPTX animation expansion"
+	apt-get update || exit 1
+	apt-get install -y --no-install-recommends python3-lxml || exit 1
+fi
+
 DOCKER_CHECK=`docker --version &> /dev/null && echo 1 || echo 0`
 
 if [ "$DOCKER_CHECK"  = "0" ]; then
