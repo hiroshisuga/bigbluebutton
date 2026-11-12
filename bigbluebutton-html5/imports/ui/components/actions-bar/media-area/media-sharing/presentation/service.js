@@ -333,10 +333,17 @@ function handleFiledrop(files, files2, that, intl, intlMessages, expandAnimation
     );
     const [tooLarge, accepted] = partition(validFiles, (f) => f.size > fileSizeMax);
 
-    if (!accepted.length) {
-      if (rejected.length) notify(intl.formatMessage(intlMessages.rejectedError), 'error');
-      return;
+    if (rejected.length > 0) {
+      notify(intl.formatMessage(intlMessages.rejectedError), 'error');
     }
+
+    if (tooLarge.length > 0) {
+      const maxFileSize = getSizeWithUnit(fileSizeMax);
+      const names = tooLarge.map((file) => file.name).join(', ');
+      notify(`${names}: ${intl.formatMessage(intlMessages[413], { maxFileSize })}`, 'error');
+    }
+
+    if (!accepted.length) return;
 
     const presentationsToUpload = accepted.map((file) => {
       const id = uniqueId(uuid());
@@ -404,16 +411,6 @@ function handleFiledrop(files, files2, that, intl, intlMessages, expandAnimation
           });
         });
     });
-
-    if (rejected.length > 0) {
-      notify(intl.formatMessage(intlMessages.rejectedError), 'error');
-    }
-
-    if (tooLarge.length > 0) {
-      const maxFileSize = getSizeWithUnit(fileSizeMax);
-      const names = tooLarge.map((file) => file.name).join(', ');
-      notify(`${names}: ${intl.formatMessage(intlMessages[413], { maxFileSize })}`, 'error');
-    }
   }
 }
 
