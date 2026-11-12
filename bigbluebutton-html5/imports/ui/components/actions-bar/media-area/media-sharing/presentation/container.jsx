@@ -8,6 +8,7 @@ import PresUploaderToast from '/imports/ui/components/presentation/presentation-
 import PresentationUploader from './component';
 import {
   useIsPresentationEnabled,
+  useIsPopupPresentationEnabled,
   useIsDownloadPresentationOriginalFileEnabled,
   useIsDownloadPresentationConvertedToPdfEnabled,
   useIsDownloadPresentationWithAnnotationsEnabled,
@@ -69,6 +70,7 @@ const PresentationUploaderContainer = (props) => {
   };
 
   const presentationEnabled = useIsPresentationEnabled();
+  const allowPopupPresentation = useIsPopupPresentationEnabled();
   const allowDownloadOriginal = useIsDownloadPresentationOriginalFileEnabled();
   const allowDownloadConverted = useIsDownloadPresentationConvertedToPdfEnabled();
   const allowDownloadWithAnnotations = useIsDownloadPresentationWithAnnotationsEnabled();
@@ -97,6 +99,7 @@ const PresentationUploaderContainer = (props) => {
         allowDownloadConverted={allowDownloadConverted}
         allowDownloadWithAnnotations={allowDownloadWithAnnotations}
         presentationEnabled={presentationEnabled}
+        allowPopupPresentation={allowPopupPresentation}
         externalUploadData={externalUploadData}
         handleSave={Service.handleSavePresentation}
         handleDismissToast={PresUploaderToast.handleDismissToast}
