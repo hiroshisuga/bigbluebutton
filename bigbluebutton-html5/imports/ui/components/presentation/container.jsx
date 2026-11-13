@@ -36,6 +36,7 @@ const PresentationContainer = (props) => {
   const [annotationStreamData, setAnnotationStreamData] = useState([]);
   const presentationIsOpen = props?.presentationIsOpen ?? true;
   const layoutContextDispatch = layoutDispatch();
+  const hasScreenShare = layoutSelectInput((i) => i.screenShare.hasScreenShare);
   const { selectedLayout } = useSettings(SETTINGS.APPLICATION);
 
   const { data: presentationPageData } = useDeduplicatedSubscription(
@@ -278,6 +279,7 @@ const PresentationContainer = (props) => {
           numCameras,
           ...props,
           userIsPresenter,
+          hasScreenShare,
           presentationBounds: presentation,
           fullscreenContext,
           fullscreenElementId,
