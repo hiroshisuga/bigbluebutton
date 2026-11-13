@@ -36,6 +36,7 @@ const PresentationContainer = (props) => {
   const [annotationStreamData, setAnnotationStreamData] = useState([]);
   const presentationIsOpen = props?.presentationIsOpen ?? true;
   const layoutContextDispatch = layoutDispatch();
+  const hasScreenShare = layoutSelectInput((i) => i.screenShare.hasScreenShare);
   const { selectedLayout } = useSettings(SETTINGS.APPLICATION);
 
   const { data: presentationPageData } = useDeduplicatedSubscription(
@@ -73,11 +74,7 @@ const PresentationContainer = (props) => {
   } = useMeeting((m) => ({
     createdTime: m.createdTime,
     usersPolicies: m.usersPolicies,
-    componentsFlags: m.componentsFlags,
   }));
-  const hasScreenShare = currentMeeting?.componentsFlags?.hasScreenshare === true;
-  const isScreenshareDisplayed = hasScreenShare
-    && currentMeeting?.componentsFlags?.hasScreenshareAsContent === true;
 
   const { data: initialPageAnnotations, refetch: refetchInitialPageAnnotations } = useQuery(
     CURRENT_PAGE_ANNOTATIONS_QUERY,
@@ -283,7 +280,6 @@ const PresentationContainer = (props) => {
           ...props,
           userIsPresenter,
           hasScreenShare,
-          isScreenshareDisplayed,
           presentationBounds: presentation,
           fullscreenContext,
           fullscreenElementId,
