@@ -49,6 +49,7 @@ const PresentationContainer = ({
 }) => {
   const [annotationStreamData, setAnnotationStreamData] = useState([]);
   const layoutContextDispatch = layoutDispatch();
+  const hasScreenShare = layoutSelectInput((i) => i.screenShare.hasScreenShare);
   const { selectedLayout } = useSettings(SETTINGS.LAYOUT);
 
   const {
@@ -75,11 +76,7 @@ const PresentationContainer = ({
   } = useMeeting((m) => ({
     createdTime: m.createdTime,
     usersPolicies: m.usersPolicies,
-    componentsFlags: m.componentsFlags,
   }));
-  const hasScreenShare = currentMeeting?.componentsFlags?.hasScreenshare === true;
-  const isScreenshareDisplayed = hasScreenShare
-    && currentMeeting?.componentsFlags?.hasScreenshareAsContent === true;
 
   const { data: whiteboardWritersData } = useDeduplicatedSubscription(
     CURRENT_PAGE_WRITERS_SUBSCRIPTION,
@@ -324,7 +321,6 @@ const PresentationContainer = ({
           popupWindow,
           isPresentationDetached,
           hasScreenShare,
-          isScreenshareDisplayed,
           toggleDetachPresentation,
           setPresentationFitToWidth,
           fitToWidth,

@@ -368,7 +368,6 @@
     "app.presentation.changedSlideContent": "プレゼンがスライド{slideNumber}に移動",
     "app.presentation.emptySlideContent": "現在のスライドにはコンテンツはありません",
     "app.presentation.currentSlide": "現在のスライド",
-    "app.presentation.screenshareAudienceWarning": "オンライン視聴者には、スライドではなく画面共有の映像が表示されています。",
     "app.presentation.screenshareSlideWarning": "画面共有が継続中です。スライドを操作していますが、参加者に表示している内容をご確認ください。",
     "app.presentation.nextSlide": "次のスライド",
     "app.presentation.noCurrentSlide": "現在のスライドはありません",

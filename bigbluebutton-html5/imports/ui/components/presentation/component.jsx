@@ -23,10 +23,6 @@ import FallbackView from '/imports/ui/components/common/fallback-errors/fallback
 import TooltipContainer from '/imports/ui/components/common/tooltip/container';
 
 const intlMessages = defineMessages({
-  screenshareAudienceWarning: {
-    id: 'app.presentation.screenshareAudienceWarning',
-    description: 'Indicate that online viewers are seeing the shared screen',
-  },
   screenshareSlideWarning: {
     id: 'app.presentation.screenshareSlideWarning',
     description: 'Remind the presenter about screen sharing when navigating popup slides',
@@ -1227,8 +1223,8 @@ class Presentation extends PureComponent {
   }
 
   handleSlideNavigation() {
-    const { userIsPresenter, isPresentationDetached, isScreenshareDisplayed } = this.props;
-    if (userIsPresenter && isPresentationDetached && isScreenshareDisplayed
+    const { userIsPresenter, isPresentationDetached, hasScreenShare } = this.props;
+    if (userIsPresenter && isPresentationDetached && hasScreenShare
       && !this.state.showScreenshareSlideWarning) {
       this.setState({ showScreenshareSlideWarning: true });
     }
@@ -1461,7 +1457,7 @@ class Presentation extends PureComponent {
                 height: svgHeight + toolbarHeight,
               }}
             >
-              {userIsPresenter && isPresentationDetached && this.props.isScreenshareDisplayed
+              {userIsPresenter && isPresentationDetached && this.props.hasScreenShare
                 && this.state.showScreenshareSlideWarning && (
                   <Styled.ScreenshareSlideWarning role="alert">
                     {intl.formatMessage(intlMessages.screenshareSlideWarning)}
@@ -1637,12 +1633,6 @@ class Presentation extends PureComponent {
           <Styled.PresenterToolSlideLabel>
             {label}
           </Styled.PresenterToolSlideLabel>
-          {reflectPresenterView && this.props.userIsPresenter
-            && this.props.isScreenshareDisplayed && (
-              <Styled.PresenterToolScreenshareWarning role="status">
-                {intl.formatMessage(intlMessages.screenshareAudienceWarning)}
-              </Styled.PresenterToolScreenshareWarning>
-          )}
 
           <Styled.PresenterToolSlideContent>
             {presenterViewMatchesSlide ? (
@@ -1801,7 +1791,6 @@ export default injectIntl(Presentation);
 
 Presentation.propTypes = {
   hasScreenShare: PropTypes.bool,
-  isScreenshareDisplayed: PropTypes.bool,
   // Defines a boolean value to detect whether a current user is a presenter
   userIsPresenter: PropTypes.bool,
   currentSlide: PropTypes.shape({
@@ -1860,7 +1849,6 @@ Presentation.propTypes = {
 
 Presentation.defaultProps = {
   hasScreenShare: false,
-  isScreenshareDisplayed: false,
   currentSlide: undefined,
   slidePosition: undefined,
   presentationAreaSize: undefined,
