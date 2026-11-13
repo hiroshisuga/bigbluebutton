@@ -6,6 +6,7 @@ import { HUNDRED_PERCENT, MAX_PERCENT, MIN_PERCENT } from '/imports/utils/slideC
 import { SPACE } from '/imports/utils/keyCodes';
 import { defineMessages, injectIntl } from 'react-intl';
 import Session from '/imports/ui/services/storage/in-memory';
+import { notify } from '/imports/ui/services/notification';
 import PresentationToolbarContainer from './presentation-toolbar/container';
 import PresentationMenu from './presentation-menu/container';
 import DownloadPresentationButton from './download-presentation-button/component';
@@ -214,7 +215,7 @@ class Presentation extends PureComponent {
       hadPresentation: false,
       ignorePresentationRestoring: true,
       currentSlideNote: '',
-      showScreenshareSlideWarning: false,
+      hasWarnedAboutScreenshareNavigation: false,
       presenterView: null,
       presenterAnnotations: null,
     };
@@ -253,7 +254,7 @@ class Presentation extends PureComponent {
   static getDerivedStateFromProps(props, state) {
     const { prevProps } = state;
     const stateChange = { prevProps: props };
-    if (!props.hasScreenShare) stateChange.showScreenshareSlideWarning = false;
+    if (!props.hasScreenShare) stateChange.hasWarnedAboutScreenshareNavigation = false;
 
     if (
       props.userIsPresenter
@@ -1221,10 +1222,13 @@ class Presentation extends PureComponent {
   };
 
   handleSlideNavigation() {
-    const { userIsPresenter, isPresentationDetached, hasScreenShare } = this.props;
-    if (userIsPresenter && isPresentationDetached && hasScreenShare
-      && !this.state.showScreenshareSlideWarning) {
-      this.setState({ showScreenshareSlideWarning: true });
+    const {
+      userIsPresenter, isPresentationDetached, isScreenshareDisplayed, intl,
+    } = this.props;
+    if (userIsPresenter && isPresentationDetached && isScreenshareDisplayed
+      && !this.state.hasWarnedAboutScreenshareNavigation) {
+      this.setState({ hasWarnedAboutScreenshareNavigation: true });
+      notify(intl.formatMessage(intlMessages.screenshareSlideWarning), 'warning', 'desktop');
     }
   }
 
@@ -1478,12 +1482,6 @@ class Presentation extends PureComponent {
                 height: svgHeight + toolbarHeight,
               }}
             >
-              {userIsPresenter && isPresentationDetached && this.props.hasScreenShare
-                && this.state.showScreenshareSlideWarning && (
-                  <Styled.ScreenshareSlideWarning role="alert">
-                    {intl.formatMessage(intlMessages.screenshareSlideWarning)}
-                  </Styled.ScreenshareSlideWarning>
-              )}
               <div
                 style={{
                   position: 'absolute',
@@ -1592,6 +1590,7 @@ class Presentation extends PureComponent {
       currentSlide,
       nextSlide,
       presentationBounds,
+      isScreenshareDisplayed,
       intl,
     } = this.props;
 
@@ -1610,6 +1609,8 @@ class Presentation extends PureComponent {
     }
 
     if (!currentSlide && !nextSlide) return null;
+
+    if (isScreenshareDisplayed) return null;
 
     const hasNote = !!currentSlideNote;
 
@@ -1812,6 +1813,7 @@ export default injectIntl(Presentation);
 
 Presentation.propTypes = {
   hasScreenShare: PropTypes.bool,
+  isScreenshareDisplayed: PropTypes.bool,
   // Defines a boolean value to detect whether a current user is a presenter
   userIsPresenter: PropTypes.bool,
   currentSlide: PropTypes.shape({
@@ -1871,6 +1873,7 @@ Presentation.propTypes = {
 
 Presentation.defaultProps = {
   hasScreenShare: false,
+  isScreenshareDisplayed: false,
   currentSlide: undefined,
   slidePosition: undefined,
   presentationAreaSize: undefined,
