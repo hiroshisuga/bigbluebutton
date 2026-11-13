@@ -104,6 +104,7 @@ const PresentationToolbarContainer = (props) => {
     numberOfSlides,
     currentSlide,
     currentPresentationPage,
+    onSlideNavigation,
   } = props;
 
   const handleToggleFullScreen = (ref) => FullscreenService.toggleFullScreen(ref);
@@ -150,6 +151,10 @@ const PresentationToolbarContainer = (props) => {
   };
 
   const skipToSlide = (slideNum) => {
+    if (slideNum >= 1 && slideNum <= numberOfSlides
+      && Number(slideNum) !== currentSlideNum) {
+      onSlideNavigation?.();
+    }
     const slideId = `${presentationId}/${slideNum}`;
     setPresentationPage(slideId);
   };
@@ -260,6 +265,7 @@ const PresentationToolbarContainer = (props) => {
 export default PresentationToolbarContainer;
 
 PresentationToolbarContainer.propTypes = {
+  onSlideNavigation: PropTypes.func,
   // Number of current slide being displayed
   currentSlideNum: PropTypes.number.isRequired,
 
