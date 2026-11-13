@@ -7,8 +7,6 @@ import {
 } from '/imports/ui/stylesheets/styled-components/general';
 import {
   colorPrimary,
-  toastWarningBg,
-  toastWarningColor,
   colorWhite,
   colorGrayLightest,
   colorOffWhite,
@@ -170,18 +168,6 @@ const PresentationToolbar = styled.div`
   // has to be 1 for showing dropdown on the popupWindow,
   //  as both presentationInnerWrapper and presentationToolbarWrapper are 'z-index: 1'.
   z-index: ${({ isPresentationDetached }) => (isPresentationDetached ? 1 : 0)};
-`;
-
-const ScreenshareSlideWarning = styled.div`
-  position: absolute;
-  top: 0.5rem;
-  left: 0.5rem;
-  right: 0.5rem;
-  z-index: 3;
-  padding: 0.5rem 0.75rem;
-  background: ${toastWarningBg};
-  color: ${toastWarningColor};
-  pointer-events: none;
 `;
 
 const ToastSeparator = styled(ToastStyled.Separator)``;
@@ -527,7 +513,6 @@ export default {
   WhiteboardSizeAvailable,
   PresentationToolbar,
   ToastSeparator,
-  ScreenshareSlideWarning,
   Button,
   ExtraTools,
   IconWithMask,
