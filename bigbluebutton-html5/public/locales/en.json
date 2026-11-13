@@ -294,6 +294,7 @@
     "app.presentation.changedSlideContent": "Presentation changed to slide: {slideNumber}",
     "app.presentation.emptySlideContent": "No content for current slide",
     "app.presentation.currentSlide": "Current slide",
+    "app.presentation.screenshareSlideWarning": "Screen sharing is still active. You are navigating slides; please check what participants can see.",
     "app.presentation.nextSlide": "Next slide",
     "app.presentation.noCurrentSlide": "No current slide",
     "app.presentation.noNextSlide": "No next slide",
