@@ -159,6 +159,7 @@ class ActionsBar extends PureComponent {
       isReactionsButtonEnabled,
       isRaiseHandEnabled,
       selectedLayout,
+      isPresentationDetached,
     } = this.props;
 
     const shouldShowPresentationButton = selectedLayout !== LAYOUT_TYPE.CAMERAS_ONLY
@@ -237,6 +238,7 @@ class ActionsBar extends PureComponent {
                     hasGenericContent={hasGenericContent}
                     hasCameraAsContent={hasCameraAsContent}
                     isDarkThemeEnabled={isDarkThemeEnabled}
+                    isPresentationDetached={isPresentationDetached}
                   />
                 )}
               {((amIPresenter || amIModerator)

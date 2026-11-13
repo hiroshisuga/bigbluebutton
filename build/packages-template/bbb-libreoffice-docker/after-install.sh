@@ -19,6 +19,7 @@ fi
 chmod +x /usr/share/bbb-libreoffice-conversion/convert-cool.sh
 chmod +x /usr/share/bbb-libreoffice-conversion/convert-local.sh
 chmod +x /usr/share/bbb-libreoffice-conversion/convert-remote.sh
+chmod +x /usr/share/bbb-libreoffice-conversion/run-pptx-fixes-in-container.sh
 
 
 if [ ! -L /usr/share/bbb-libreoffice-conversion/convert.sh ]; then

@@ -97,6 +97,7 @@ const uploadAndConvertPresentation = (
   onProgress,
   onConversion,
   current,
+  expandAnimations,
 ) => {
   if (!file) return Promise.resolve();
 
@@ -111,6 +112,7 @@ const uploadAndConvertPresentation = (
 
   data.append('is_downloadable', downloadable);
   data.append('current', current);
+  data.append('expand_animations', expandAnimations === true ? 'true' : 'false');
 
   const opts = {
     method: 'POST',
@@ -142,6 +144,7 @@ const uploadAndConvertPresentations = (
   p.name,
   p.presentationId, p.file, p.downloadable, meetingId, uploadEndpoint,
   p.onUpload, p.onProgress, p.onConversion, p.current,
+  p.expandAnimations === true,
 )));
 
 const removePresentations = (
@@ -249,7 +252,72 @@ const useExternalUploadData = () => {
   };
 };
 
-function handleFiledrop(files, files2, that, intl, intlMessages) {
+const uploadPresentationNotes = (
+  presentationId,
+  file,
+  endpoint,
+  onProgress,
+) => {
+  if (!file) return Promise.resolve();
+
+  const data = new FormData();
+  data.append('notesUpload', file);
+  data.append('conference', Auth.meetingID);
+  data.append('room', Auth.meetingID);
+  data.append('presentationId', presentationId);
+  data.append('pod_id', POD_ID);
+
+  const opts = {
+    method: 'POST',
+    body: data,
+  };
+
+  return futch(
+    Auth.authenticateURL(endpoint),
+    opts,
+    onProgress,
+  )
+    .catch((error) => {
+      logger.debug({
+        logCode: 'presentation_notes_uploader_service',
+        extraInfo: { error },
+      }, 'Presentation notes upload exception');
+
+      return Promise.reject(error);
+    });
+};
+
+const extractPresentationNotesFromExistingPptx = (
+  presentationId,
+) => {
+  if (!presentationId) return Promise.reject(new Error('missing presentationId'));
+
+  const data = new FormData();
+  data.append('conference', Auth.meetingID);
+  data.append('room', Auth.meetingID);
+  data.append('presentationId', presentationId);
+  data.append('pod_id', POD_ID);
+
+  const opts = {
+    method: 'POST',
+    body: data,
+  };
+
+  return futch(
+    Auth.authenticateURL('/bigbluebutton/presentation-notes/extract-existing'),
+    opts,
+  )
+    .catch((error) => {
+      logger.debug({
+        logCode: 'presentation_notes_extract_existing_service',
+        extraInfo: { error },
+      }, 'Presentation notes extract from existing pptx exception');
+
+      return Promise.reject(error);
+    });
+};
+
+function handleFiledrop(files, files2, that, intl, intlMessages, expandAnimations = false) {
   if (that) {
     const {
       fileValidMimeTypes,
@@ -265,12 +333,25 @@ function handleFiledrop(files, files2, that, intl, intlMessages) {
     );
     const [tooLarge, accepted] = partition(validFiles, (f) => f.size > fileSizeMax);
 
+    if (rejected.length > 0) {
+      notify(intl.formatMessage(intlMessages.rejectedError), 'error');
+    }
+
+    if (tooLarge.length > 0) {
+      const maxFileSize = getSizeWithUnit(fileSizeMax);
+      const names = tooLarge.map((file) => file.name).join(', ');
+      notify(`${names}: ${intl.formatMessage(intlMessages[413], { maxFileSize })}`, 'error');
+    }
+
+    if (!accepted.length) return;
+
     const presentationsToUpload = accepted.map((file) => {
       const id = uniqueId(uuid());
 
       return {
         file,
         downloadable: false, // by default new presentations are set not to be downloadable
+        expandAnimations: expandAnimations === true && /\.pptx$/i.test(file.name),
         isRemovable: true,
         presentationId: id,
         name: file.name,
@@ -330,16 +411,6 @@ function handleFiledrop(files, files2, that, intl, intlMessages) {
           });
         });
     });
-
-    if (rejected.length > 0) {
-      notify(intl.formatMessage(intlMessages.rejectedError), 'error');
-    }
-
-    if (tooLarge.length > 0) {
-      const maxFileSize = getSizeWithUnit(fileSizeMax);
-      const names = tooLarge.map((file) => file.name).join(', ');
-      notify(`${names}: ${intl.formatMessage(intlMessages[413], { maxFileSize })}`, 'error');
-    }
   }
 }
 
@@ -350,4 +421,6 @@ export default {
   uploadAndConvertPresentation,
   handleFiledrop,
   useExternalUploadData,
+  uploadPresentationNotes,
+  extractPresentationNotesFromExistingPptx,
 };
