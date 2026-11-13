@@ -359,12 +359,6 @@ const PresenterToolSlideLabel = styled.div`
   font-size: 0.85rem;
 `;
 
-const PresenterToolScreenshareWarning = styled(ScreenshareSlideWarning)`
-  top: auto;
-  bottom: 0.5rem;
-  font-size: 0.85rem;
-`;
-
 const PresenterToolSlideImage = styled.img`
   width: auto;
   height: auto;
@@ -545,7 +539,6 @@ export default {
   PresenterToolSlidePane,
   PresenterToolSlideFrame,
   PresenterToolSlideLabel,
-  PresenterToolScreenshareWarning,
   PresenterToolSlideImage,
   PresenterToolEmptySlide,
   PresenterToolNotesPanel,
