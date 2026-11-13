@@ -49,6 +49,7 @@ const PresentationContainer = ({
 }) => {
   const [annotationStreamData, setAnnotationStreamData] = useState([]);
   const layoutContextDispatch = layoutDispatch();
+  const hasScreenShare = layoutSelectInput((i) => i.screenShare.hasScreenShare);
   const { selectedLayout } = useSettings(SETTINGS.LAYOUT);
 
   const {
@@ -319,6 +320,7 @@ const PresentationContainer = ({
           presentationIsOpen,
           popupWindow,
           isPresentationDetached,
+          hasScreenShare,
           toggleDetachPresentation,
           setPresentationFitToWidth,
           fitToWidth,

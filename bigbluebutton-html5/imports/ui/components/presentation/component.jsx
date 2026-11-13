@@ -23,6 +23,10 @@ import FallbackView from '/imports/ui/components/common/fallback-errors/fallback
 import TooltipContainer from '/imports/ui/components/common/tooltip/container';
 
 const intlMessages = defineMessages({
+  screenshareSlideWarning: {
+    id: 'app.presentation.screenshareSlideWarning',
+    description: 'Remind the presenter about screen sharing when navigating popup slides',
+  },
   presentationLabel: {
     id: 'app.presentationUploder.title',
     description: 'presentation area element label',
@@ -208,6 +212,7 @@ class Presentation extends PureComponent {
       hadPresentation: false,
       ignorePresentationRestoring: true,
       currentSlideNote: '',
+      showScreenshareSlideWarning: false,
       presenterView: null,
       presenterAnnotations: null,
     };
@@ -230,6 +235,7 @@ class Presentation extends PureComponent {
     this.renderPresentationMenu = this.renderPresentationMenu.bind(this);
     this.renderPresentationContents = this.renderPresentationContents.bind(this);
     this.detachPresentation = this.detachPresentation.bind(this);
+    this.handleSlideNavigation = this.handleSlideNavigation.bind(this);
 
     this.onResize = () => setTimeout(this.handleResize.bind(this), 0);
     this.setPresentationRef = this.setPresentationRef.bind(this);
@@ -247,6 +253,7 @@ class Presentation extends PureComponent {
   static getDerivedStateFromProps(props, state) {
     const { prevProps } = state;
     const stateChange = { prevProps: props };
+    if (!props.hasScreenShare) stateChange.showScreenshareSlideWarning = false;
 
     if (
       props.userIsPresenter
@@ -1215,6 +1222,14 @@ class Presentation extends PureComponent {
     );
   }
 
+  handleSlideNavigation() {
+    const { userIsPresenter, isPresentationDetached, hasScreenShare } = this.props;
+    if (userIsPresenter && isPresentationDetached && hasScreenShare
+      && !this.state.showScreenshareSlideWarning) {
+      this.setState({ showScreenshareSlideWarning: true });
+    }
+  }
+
   renderPresentationToolbar(toolbarWidth) {
     const {
       currentSlide,
@@ -1253,6 +1268,7 @@ class Presentation extends PureComponent {
           currentPresentationPage,
           tldrawAPI,
         }}
+        onSlideNavigation={this.handleSlideNavigation}
         setIsPanning={this.setIsPanning}
         isPanning={isPanning}
         currentSlideNum={currentSlide.num}
@@ -1441,6 +1457,12 @@ class Presentation extends PureComponent {
                 height: svgHeight + toolbarHeight,
               }}
             >
+              {userIsPresenter && isPresentationDetached && this.props.hasScreenShare
+                && this.state.showScreenshareSlideWarning && (
+                  <Styled.ScreenshareSlideWarning role="alert">
+                    {intl.formatMessage(intlMessages.screenshareSlideWarning)}
+                  </Styled.ScreenshareSlideWarning>
+              )}
               <div
                 style={{
                   position: 'absolute',
@@ -1768,6 +1790,7 @@ class Presentation extends PureComponent {
 export default injectIntl(Presentation);
 
 Presentation.propTypes = {
+  hasScreenShare: PropTypes.bool,
   // Defines a boolean value to detect whether a current user is a presenter
   userIsPresenter: PropTypes.bool,
   currentSlide: PropTypes.shape({
@@ -1825,6 +1848,7 @@ Presentation.propTypes = {
 };
 
 Presentation.defaultProps = {
+  hasScreenShare: false,
   currentSlide: undefined,
   slidePosition: undefined,
   presentationAreaSize: undefined,
