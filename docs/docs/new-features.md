@@ -211,6 +211,10 @@ Administrators will appreciate that we now allow the passing of custom client se
 
 Integrations can now skip one or more enabled recording formats for a specific meeting by passing `meta_bbb-disable-recording-formats` on the `/create` call, for example `meta_bbb-disable-recording-formats=video,presentation`. Disabled formats are not processed or published. See the [Create API parameters](/development/api/#get-post-create) and [recording format customization](/administration/customize#install-additional-recording-processing-formats) docs for details.
 
+#### Custom text in the recording notification dialog
+
+Starting with BigBlueButton 3.0.36, integrations can append their own plain-text message to the recording notification dialog by passing `notifyRecordingAppend` on the `/create` call — for example a reference to an institution's recording policy. The text is shown after the standard description and only when the dialog itself is enabled with `notifyRecordingIsOn=true`; HTML is displayed as text, and breakout rooms inherit the value from their parent session. See the [Create API parameters](/development/api/#get-post-create) for details.
+
 #### Removal of Meteor and MongoDB
 
 For years, we have discussed internally the topic of replacing Meteor.js with other technologies in order to improve scalability, performance, etc. Over the last year, we have introduced several different new components to replace Meteor. These new components are: `bbb-graphql-server`, `bbb-graphql-middleware`, `bbb-graphql-actions`, PostgreSQL database, and the GraphQL server Hasura. As of BigBlueButton 3.0.0-beta.1, we are no longer using Meteor or MongoDB.
@@ -322,17 +326,35 @@ or the mailing lists.
 ### Upgraded components
 
 Under the hood, BigBlueButton 3.0 installs on Ubuntu 22.04 64-bit, and the following key components have been upgraded
-- Grails 7.0.12
-- Gradle 8.14.3
-- Groovy 4.0.21
+- Grails 8.0.0
+- Gradle 9.8.0
+- Groovy 5.1.3
 - Java 21
-- Spring 6.2.19
-- Spring Boot 3.5.16
+- Spring 7.0.9
+- Spring Boot 4.1.1
+- Tomcat 11.0.27 (embedded in bbb-web)
+- FreeSWITCH 1.11.3 (since BigBlueButton 3.0.36; earlier 3.0 releases shipped a patched 1.10.12)
+
+The bbb-web stack (Grails, Gradle, Groovy, Spring, Spring Boot and Tomcat) was upgraded in BigBlueButton 3.0.40; earlier 3.0 releases shipped Grails 7.0.12, Gradle 8.14.3, Groovy 4.0.21, Spring 6.2.19, Spring Boot 3.5.16 and Tomcat 10.1.
+
+#### bbb-web on Grails 8: what changes for integrations and administrators
+
+- Grails 8 can add four browser security headers to every bbb-web response (`X-Frame-Options: SAMEORIGIN`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-XSS-Protection: 0`). On 3.0 they are off, so responses stay as they were on Grails 7. To turn them on, set `grails.security.headers.enabled=true` in `/etc/bigbluebutton/bbb-web.properties` and restart bbb-web (`sudo systemctl restart bbb-web`); joining a meeting from a page on another site keeps working either way, only a page rendered by bbb-web itself, such as an API response, can no longer be shown inside a frame on another site.
+- A request for a URL under `/bigbluebutton/` that no API call handles is still answered with 404, but the body is JSON instead of the XML `<Map>` document Grails 7 produced.
+- Without a CORS configuration (the default; the cluster-proxy setup configures one), a cross-origin preflight request is answered with 200 and no `Access-Control-*` headers instead of 403, and responses no longer carry `Vary: Origin`. Neither version grants cross-origin access.
+- A request with more than 10000 parameters is answered with an HTTP 500 page by the embedded Tomcat; Tomcat 10.1 ignored the parameters beyond the limit.
+- Sent directly to port 8090 (nginx answers 413 for bodies above 1 MB before that), a form POST larger than Tomcat's 2 MB limit is answered with an HTTP 500 page instead of an API error.
+- bbb-web does not start while `grails.controllers.upload.maxFileSize` or `grails.controllers.upload.maxRequestSize` is set in `/usr/share/bbb-web/WEB-INF/classes/application.properties`, for example from an older copy of that file put back by a post-installation routine; the packaged file uses `spring.servlet.multipart.max-file-size` and `max-request-size` instead. The old keys in `/etc/bigbluebutton/bbb-web.properties` are ignored.
+- If a `systemd` override of `bbb-web.service` replaces `ExecStart`, update it to launch with `-cp .` as the packaged unit does. With the previous classpath (`-cp WEB-INF/lib/*:/:WEB-INF/classes/:.`) bbb-web on Grails 8 never finishes starting and nginx answers 502.
 
 For full details on what is new in BigBlueButton 3.0, see the release notes.
 
 
 Recent releases:
+- [3.0.40](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v3.0.40)
+- [3.0.39](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v3.0.39)
+- [3.0.38](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v3.0.38)
+- [3.0.37](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v3.0.37)
 - [3.0.36](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v3.0.36)
 - [3.0.35](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v3.0.35)
 - [3.0.34](https://github.com/bigbluebutton/bigbluebutton/releases/tag/v3.0.34)
@@ -404,6 +426,8 @@ The functionality Select Random User which used to be part of the BigBlueButton 
 We removed the built-in typed captions support given that we support several options for automatic captions which seem to be much more popular.
 We implemented a plugin for typed captions - [Typed captions plugin](https://github.com/bigbluebutton/bbb-plugin-typed-captions) which you could use instead.
 
+With this change, `captions` is no longer a valid `disabledFeatures` value. It has had no effect since BBB 3.0.0; only the documentation and the `bigbluebutton.properties` comment still listed it. A server that still sets it keeps working: the value is accepted and ignored. Use `liveTranscription` to disable automatic transcription, and `pluginManifests` to choose which plugins (such as typed captions) load in a session.
+
 #### Removed userStatus
 
 The `userStatus` feature was replaced by `userReaction`. They were vastly overlapping, causing some confusion when using and maintaining.
@@ -464,6 +488,28 @@ The word "session" is more generic and encompasses both educational and work con
 Starting with BigBlueButton 3.0.36 the JVM components build and run on Java 21 (previously Java 17). The `bbb-web` package now depends on `openjdk-21-jdk`, and `bbb-apps-akka` and `bbb-fsesl-akka` require a Java 21 runtime, so upgrading the packages pulls Java 21 in automatically — the `bbb-web` post-install step also switches the system default with `update-java-alternatives -s java-1.21.0-openjdk-amd64`. Java 21 is available from the standard Ubuntu 22.04 repositories, so no additional apt source is needed.
 
 If you build from source, install `openjdk-21-jdk-headless` and point `JAVA_HOME` at `/usr/lib/jvm/java-21-openjdk-amd64`. The build tooling moved to sbt 1.10.7 at the same time; see the [Development Guide](/development/guide) for the full setup.
+
+#### New optional package: bbb-playback-presentation-legacy
+
+The players for recordings made with BigBlueButton 0.81 and 0.9 (served under `/playback/presentation/0.81/` and `/playback/presentation/0.9.0/`) moved out of `bbb-playback-presentation` into the new `bbb-playback-presentation-legacy` package, together with the redirect from the unversioned `/playback/presentation/playback.html` link. Recordings made by any current version use the 2.3 player from `bbb-playback`, so a default install no longer ships the old players, and links to them answer 404.
+
+It is an **optional** package, not a dependency of the `bigbluebutton` meta-package. If you migrated recordings from those versions and still need to play them, install it with
+
+`$ sudo apt install bbb-playback-presentation-legacy`
+
+See [Play recordings made with BigBlueButton 0.81 or 0.9](/administration/customize#play-recordings-made-with-bigbluebutton-081-or-09) for details.
+
+#### Legacy `/ws` SIP-over-WebSocket endpoint removed
+
+Starting with BigBlueButton 3.0.37 the `bbb-html5` package no longer ships `/usr/share/bigbluebutton/nginx/sip.nginx`, the nginx `/ws` location that proxied SIP-over-WebSocket traffic to FreeSWITCH for the long-deprecated in-browser SIP.js audio path. The file is absent on new installs and is deleted on upgrade, and `bbb-conf --check` no longer inspects it or reports `sipjsHackViaWs`. Audio through bbb-webrtc-sfu (the default) and LiveKit is unaffected.
+
+A local override at `/etc/bigbluebutton/nginx/sip.nginx` is left in place and reinstates the endpoint; the package upgrade prints a warning when it finds one. See [Legacy FreeSWITCH SIP-over-WebSocket endpoint](/administration/customize#legacy-freeswitch-sip-over-websocket-endpoint-ws) for details.
+
+#### Added new setting to turn off away status notes in the public chat
+
+- Client settings.yml: `public.chat.announceUserAwayStatusInChat`. Defaults to `true`. Added in BigBlueButton 3.0.40.
+
+When a user sets themselves away or back to active, a note is added to the public chat. To stop these notes in every session, set the value to `false` in `/etc/bigbluebutton/bbb-html5.yml` and restart BigBlueButton (`sudo bbb-conf --restart`); to stop them in a single session, set it in a [client settings override](/development/api#clientsettingsoverride) on the create call. The away icon on the user's avatar is not affected. `public.chat.announcePresenterChangeInChat` does the same for the note announcing a new presenter.
 
 ### Changes to events.xml
 

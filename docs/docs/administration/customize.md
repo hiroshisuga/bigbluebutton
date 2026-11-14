@@ -156,6 +156,16 @@ If for some reason the scripts have to be run more than once, use the --force mo
 $ sudo ./bbb-x.x-script --force
 ```
 
+#### Play recordings made with BigBlueButton 0.81 or 0.9
+
+Recordings made with BigBlueButton 0.81 and 0.9 are played by their own players, served under `/playback/presentation/0.81/` and `/playback/presentation/0.9.0/`. Those players are no longer installed by default. `bbb-playback-presentation` still ships the processing scripts and the nginx configuration that serves `/playback/presentation`, but not the players, so the links to the old players answer 404. If you migrated recordings from those versions and still need to play them, install the optional package that provides them:
+
+```bash
+$ sudo apt-get install bbb-playback-presentation-legacy
+```
+
+The package installs both players and the redirect from the unversioned link `/playback/presentation/playback.html` to the 0.81 player, so links published by those versions keep working. These players only render recordings created by BigBlueButton 0.81 and 0.9; recordings made with the current version use the `2.3` player from `bbb-playback`. To remove the players again, run `sudo apt-get remove bbb-playback-presentation-legacy`.
+
 #### Enable playback of recordings on iOS
 
 The `presentation` playback format encodes the video shared during the session (webcam and screen share) as `.webm` (VP8) files; however, iOS devices only support playback of `.mp4` (h.264) video files. To enable playback of the `presentation` recording format on iOS devices, edit `/usr/local/bigbluebutton/core/scripts/presentation.yml` and uncomment the entry for `mp4`.
@@ -1323,7 +1333,7 @@ and superseded by the bbb-webrtc-sfu and LiveKit audio bridges.
 
 **This endpoint is absent on new installs and is removed on upgrade.**
 
-:::warn
+:::warning
 We recommend against reinstating `/ws` on any BBB install. 
 Migrating to any of the newer bridges is the de facto course of action, and
 the sipjs bridge has been removed in the next BBB release.
@@ -1587,7 +1597,7 @@ These configs can be set in `/etc/bigbluebutton/bbb-web.properties`. The table i
 | `lockSettingsDisablePrivateChat` | Default lock setting: disable private chat | true/false | false _`overwritable`_ |
 | `lockSettingsDisablePublicChat` | Default lock setting: disable public chat | true/false | false _`overwritable`_ |
 | `lockSettingsDisableNotes` | Default lock setting: disable shared notes | true/false | false _`overwritable`_ |
-| `lockSettingsHideUserList` | Default lock setting: hide the user list from non-moderators | true/false | false _`overwritable`_ |
+| `lockSettingsHideUserList` | Default lock setting: hide the user list from non-moderators (since 3.0.38 also other viewers' talking indicator, voice state and reactions) | true/false | false _`overwritable`_ |
 | `lockSettingsLockOnJoin` | Default lock setting: apply lock settings to all users on join | true/false | true _`overwritable`_ |
 | `lockSettingsLockOnJoinConfigurable` | Allow the lock-on-join flag to be configured per meeting | true/false | false _`overwritable`_ |
 | `lockSettingsHideViewersCursor` | Default lock setting: hide viewers' cursors from each other | true/false | false _`overwritable`_ |

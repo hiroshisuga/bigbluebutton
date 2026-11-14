@@ -15,19 +15,23 @@ object Dependencies {
     // Libraries
     val pekkoVersion = "1.0.1"
     val gson = "2.8.9"
-    val jackson = "2.22.1"
+    val jackson = "2.22.3"
     val sl4j = "1.7.32"
     val pool = "2.11.1"
     val codec = "1.15"
-    val jacksonDataFormat = "2.22.1"
+    val jacksonDataFormat = "2.22.3"
 
     // Redis
-    val lettuce = "6.1.5.RELEASE"
+    val lettuce = "7.7.0.RELEASE"
 
-    // Netty. Explicitly pinned to lift the netty 4.1.68.Final that
-    // lettuce-core 6.1.5.RELEASE pulls in. These pins can be
-    // dropped once lettuce-core is upgraded to a release carrying newer netty.
-    val netty = "4.1.137.Final"
+    // Netty. Explicitly pinned to lift the netty 4.2.x that lettuce-core
+    // pulls in to the current patched release. Lettuce's bundled netty lags
+    // the security tip, so retarget this pin on future lettuce upgrades
+    // rather than dropping it.
+    val netty = "4.2.17.Final"
+
+    // reactor-core: lettuce transitive; only the 3.8 line receives fixes.
+    val reactor = "3.8.7"
 
     // Test
     val scalaTest = "3.0.8"
@@ -51,6 +55,9 @@ object Dependencies {
     // and win conflict resolution over lettuce-core's older transitive netty.
     val nettyHandler = "io.netty" % "netty-handler" % Versions.netty
     val nettyCodec = "io.netty" % "netty-codec" % Versions.netty
+    val nettyCodecDns = "io.netty" % "netty-codec-dns" % Versions.netty
+    val nettyResolverDns = "io.netty" % "netty-resolver-dns" % Versions.netty
+    val reactorCore = "io.projectreactor" % "reactor-core" % Versions.reactor
     val jacksonDataFormat = "com.fasterxml.jackson.dataformat" % "jackson-dataformat-yaml" % Versions.jacksonDataFormat
   }
 
@@ -79,5 +86,8 @@ object Dependencies {
     Compile.lettuceCore,
     Compile.nettyHandler,
     Compile.nettyCodec,
+    Compile.nettyCodecDns,
+    Compile.nettyResolverDns,
+    Compile.reactorCore,
     Compile.jacksonDataFormat) ++ testing
 }
