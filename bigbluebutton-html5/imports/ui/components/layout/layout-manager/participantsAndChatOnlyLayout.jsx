@@ -15,7 +15,7 @@ const windowWidth = () => window.document.documentElement.clientWidth;
 const windowHeight = () => window.document.documentElement.clientHeight;
 
 const ParticipantsAndChatOnlyLayout = (props) => {
-  const { bannerAreaHeight, isMobile } = props;
+  const { bannerAreaHeight, isMobile, isPresentationDetached } = props;
 
   function usePrevious(value) {
     const ref = useRef();
@@ -109,7 +109,7 @@ const ParticipantsAndChatOnlyLayout = (props) => {
     const { element: fullscreenElement } = fullscreen;
 
     if (
-      fullscreenElement === 'Presentation'
+      (fullscreenElement === 'Presentation' && !isPresentationDetached)
       || fullscreenElement === 'Screenshare'
       || fullscreenElement === 'ExternalVideo'
       || fullscreenElement === 'GenericContent'

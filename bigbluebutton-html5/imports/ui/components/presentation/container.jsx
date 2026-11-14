@@ -44,6 +44,12 @@ const PresentationContainer = (props) => {
 
   const { pres_page_curr: presentationPageArray } = (presentationPageData || {});
   const currentPresentationPage = presentationPageArray?.[0];
+  const nextPresentationPage =
+     currentPresentationPage?.nextPagesSvg?.length > 0
+      ? {
+          svgUrl: currentPresentationPage.nextPagesSvg[0],
+        }
+      : null;
   const slideSvgUrl = currentPresentationPage?.svgUrl
     ? Auth.authenticateURL(currentPresentationPage.svgUrl) : undefined;
   const currentPageId = currentPresentationPage?.pageId;
@@ -67,7 +73,11 @@ const PresentationContainer = (props) => {
   } = useMeeting((m) => ({
     createdTime: m.createdTime,
     usersPolicies: m.usersPolicies,
+    componentsFlags: m.componentsFlags,
   }));
+  const hasScreenShare = currentMeeting?.componentsFlags?.hasScreenshare === true;
+  const isScreenshareDisplayed = hasScreenShare
+    && currentMeeting?.componentsFlags?.hasScreenshareAsContent === true;
 
   const { data: initialPageAnnotations, refetch: refetchInitialPageAnnotations } = useQuery(
     CURRENT_PAGE_ANNOTATIONS_QUERY,
@@ -170,8 +180,20 @@ const PresentationContainer = (props) => {
     num: currentPresentationPage?.num,
     presentationId: currentPresentationPage?.presentationId,
     svgUri: slideSvgUrl,
+    noteUri: slideSvgUrl?.replace(
+      /\/svg\/(\d+)(\?.*)?$/,
+      '/notes/$1$2',
+    ),
     infiniteWhiteboard: currentPresentationPage.infiniteWhiteboard,
   } : null;
+
+  const nextSlide = nextPresentationPage
+    ? {
+        svgUri: Auth.authenticateURL(nextPresentationPage.svgUrl),
+        num: currentSlide ? currentSlide.num + 1 : undefined,
+        presentationId: currentSlide?.presentationId,
+      }
+    : null;
 
   let slidePosition;
   if (currentSlide) {
@@ -260,12 +282,15 @@ const PresentationContainer = (props) => {
           numCameras,
           ...props,
           userIsPresenter,
+          hasScreenShare,
+          isScreenshareDisplayed,
           presentationBounds: presentation,
           fullscreenContext,
           fullscreenElementId,
           isMobile: deviceType === DEVICE_TYPE.MOBILE,
           isIphone,
           currentSlide,
+          nextSlide,
           slidePosition,
           hasWBAccess: currentUser?.whiteboardWriteAccess,
           downloadPresentationUri: currentPresentationPage?.downloadFileUri

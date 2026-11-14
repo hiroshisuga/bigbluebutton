@@ -121,9 +121,9 @@ const notifyShapeNumberExceeded = (intl, limit) => {
   if (intl) notify(intl.formatMessage(intlMessages.shapeNumberExceeded, { limit }), 'warning', 'whiteboard');
 };
 
-const toggleToolsAnimations = (activeAnim, anim, time, hasWBAccess = false) => {
+const toggleToolsAnimations = (activeAnim, anim, time, hasWBAccess = false, targetDoc = document) => {
   const handleOptionsDropdown = () => {
-    const optionsDropdown = document.getElementById('WhiteboardOptionButton');
+    const optionsDropdown = targetDoc.getElementById('WhiteboardOptionButton');
     if (optionsDropdown) {
       optionsDropdown.classList.remove(activeAnim);
       optionsDropdown.style.transition = `opacity ${time} ease-in-out`;
@@ -136,7 +136,7 @@ const toggleToolsAnimations = (activeAnim, anim, time, hasWBAccess = false) => {
   }
 
   const checkElementsAndRun = () => {
-    const tlEls = document.querySelectorAll('.tlui-menu-zone, .tlui-toolbar__tools, .tlui-toolbar__extras, .tlui-style-panel__wrapper, .tlui-undo, .tlui-redo');
+    const tlEls = targetDoc.querySelectorAll('.tlui-menu-zone, .tlui-toolbar__tools, .tlui-toolbar__extras, .tlui-style-panel__wrapper, .tlui-undo, .tlui-redo');
     if (tlEls.length) {
       tlEls?.forEach((el) => {
         el.classList.remove(activeAnim);
@@ -362,7 +362,7 @@ const getCustomAssetUrls = () => {
       'size-medium': `${TL_ICON_PATHS}/size-medium.svg`,
       'size-large': `${TL_ICON_PATHS}/size-large.svg`,
       'size-extra-large': `${TL_ICON_PATHS}/size-extra-large.svg`,
-      'font-draw': `${TL_ICON_PATHS}/font-draw.svg`,
+      'font-draw': `${TL_ICON_PATHS}/font-amt.svg`,
       'font-sans': `${TL_ICON_PATHS}/font-sans.svg`,
       'font-serif': `${TL_ICON_PATHS}/font-serif.svg`,
       'font-mono': `${TL_ICON_PATHS}/font-mono.svg`,
