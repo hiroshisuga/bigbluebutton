@@ -97,6 +97,7 @@ const uploadAndConvertPresentation = (
   onProgress,
   onConversion,
   current,
+  expandAnimations,
 ) => {
   if (!file) return Promise.resolve();
 
@@ -111,6 +112,7 @@ const uploadAndConvertPresentation = (
 
   data.append('is_downloadable', downloadable);
   data.append('current', current);
+  data.append('expand_animations', expandAnimations === true ? 'true' : 'false');
 
   const opts = {
     method: 'POST',
@@ -142,6 +144,7 @@ const uploadAndConvertPresentations = (
   p.name,
   p.presentationId, p.file, p.downloadable, meetingId, uploadEndpoint,
   p.onUpload, p.onProgress, p.onConversion, p.current,
+  p.expandAnimations === true,
 )));
 
 const removePresentations = (
@@ -249,7 +252,7 @@ const useExternalUploadData = () => {
   };
 };
 
-function handleFiledrop(files, files2, that, intl, intlMessages) {
+function handleFiledrop(files, files2, that, intl, intlMessages, expandAnimations = false) {
   if (that) {
     const {
       fileValidMimeTypes,
@@ -265,12 +268,25 @@ function handleFiledrop(files, files2, that, intl, intlMessages) {
     );
     const [tooLarge, accepted] = partition(validFiles, (f) => f.size > fileSizeMax);
 
+    if (rejected.length > 0) {
+      notify(intl.formatMessage(intlMessages.rejectedError), 'error');
+    }
+
+    if (tooLarge.length > 0) {
+      const maxFileSize = getSizeWithUnit(fileSizeMax);
+      const names = tooLarge.map((file) => file.name).join(', ');
+      notify(`${names}: ${intl.formatMessage(intlMessages[413], { maxFileSize })}`, 'error');
+    }
+
+    if (!accepted.length) return;
+
     const presentationsToUpload = accepted.map((file) => {
       const id = uniqueId(uuid());
 
       return {
         file,
         downloadable: false, // by default new presentations are set not to be downloadable
+        expandAnimations: expandAnimations === true && /\.pptx$/i.test(file.name),
         isRemovable: true,
         presentationId: id,
         name: file.name,
@@ -330,16 +346,6 @@ function handleFiledrop(files, files2, that, intl, intlMessages) {
           });
         });
     });
-
-    if (rejected.length > 0) {
-      notify(intl.formatMessage(intlMessages.rejectedError), 'error');
-    }
-
-    if (tooLarge.length > 0) {
-      const maxFileSize = getSizeWithUnit(fileSizeMax);
-      const names = tooLarge.map((file) => file.name).join(', ');
-      notify(`${names}: ${intl.formatMessage(intlMessages[413], { maxFileSize })}`, 'error');
-    }
   }
 }
 

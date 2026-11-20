@@ -6,6 +6,12 @@ fi;
 
 cd "$(dirname "$0")"
 
+if ! /usr/bin/python3 -c 'import lxml.etree' >/dev/null 2>&1; then
+	echo "Installing python3-lxml for PPTX animation expansion"
+	apt-get update || exit 1
+	apt-get install -y --no-install-recommends python3-lxml || exit 1
+fi
+
 DOCKER_CHECK=`docker --version &> /dev/null && echo 1 || echo 0`
 
 if [ "$DOCKER_CHECK"  = "0" ]; then
@@ -36,6 +42,7 @@ if [ "$FOLDER_CHECK" = "0" ]; then
 	echo "Install folder doesn't exists, installing"
 	install -Dm755 assets/convert-local.sh /usr/share/bbb-libreoffice-conversion/convert.sh
 	install -Dm755 assets/convert-cool.sh /usr/share/bbb-libreoffice-conversion/convert-cool.sh
+	install -Dm644 assets/expand_pptx_animations.py /usr/share/bbb-libreoffice-conversion/expand_pptx_animations.py
 	chown -R root /usr/share/bbb-libreoffice-conversion/
 else
 	echo "Install folder already exists"
