@@ -177,6 +177,23 @@ const TldrawV2GlobalStyle = createGlobalStyle`
   .tlui-kbd > span {
     font-family: 'Arial', sans-serif !important;
   }
+  
+  .tl-text-shape__wrapper[data-font='draw'] {
+    /* tldraw text */
+    /* font-family: 'tldraw_draw', 'KosugiMaruSubset', sans-serif; */
+    font-family: 'AMT', 'MRY', sans-serif;
+  }
+
+  .tl-text-label[data-font='draw'] .tl-text {
+    /* tldraw sticky note */
+    font-family: 'AMT', 'MRY', sans-serif;
+  }
+
+  /*
+  .tl-text-shape__wrapper[data-font='serif'] {
+    font-family: 'Times New Roman', 'MM', serif;
+  }
+  */
 
   [data-side="bottom"][data-align="end"][data-state="open"][role="dialog"] {
     right: 3.5rem !important;
@@ -189,6 +206,12 @@ const TldrawV2GlobalStyle = createGlobalStyle`
 
   [data-testid="tools.delete-selected-items"] {
     display: flex;
+  }
+
+  .tl-container.bbb-laser-active
+    .tl-collaborator__cursor-hint
+    use[href='#cursor_hint'][color='#FF0000'] {
+    display: none;
   }
 
   ${({ presentationHeight }) => {
@@ -264,7 +287,34 @@ const EditableWBWrapper = styled.div`
   }
 `;
 
+const LaserContextMenu = styled.div`
+  position: fixed !important;
+  height: auto !important;
+  background: #1e1e1e;
+  color: #fff;
+  padding: 6px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  z-index: 99999;
+`;
+
+const LaserMenuItem = styled.div`
+  width: 36px;
+  height: 36px;
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  &:hover {
+    background: #333;
+  }
+`;
+
 export default {
   TldrawV2GlobalStyle,
   EditableWBWrapper,
+  LaserContextMenu,
+  LaserMenuItem,
 };
