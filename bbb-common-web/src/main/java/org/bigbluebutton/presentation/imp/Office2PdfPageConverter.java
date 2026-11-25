@@ -29,6 +29,7 @@ import java.util.concurrent.TimeUnit;
 import com.zaxxer.nuprocess.NuProcess;
 import com.zaxxer.nuprocess.NuProcessBuilder;
 import org.bigbluebutton.presentation.UploadedPresentation;
+import org.bigbluebutton.presentation.ConversionMessageConstants;
 import org.bigbluebutton.presentation.handlers.Office2PdfConverterHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -78,6 +79,10 @@ public abstract class Office2PdfPageConverter {
       }
 
       if(!office2PdfConverterHandler.isCommandSuccessful()) {
+        if (office2PdfConverterHandler.isPptxResourceLimitExceeded()
+            && "pptx".equalsIgnoreCase(pres.getFileType())) {
+          pres.setConversionStatus(ConversionMessageConstants.PPTX_RESOURCE_LIMIT_EXCEEDED_KEY);
+        }
         throw new Exception(String.format("Error while executing conversion script %s.", presOfficeConversionExec));
       }
 

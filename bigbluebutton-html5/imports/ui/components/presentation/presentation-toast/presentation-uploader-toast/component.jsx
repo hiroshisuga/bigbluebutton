@@ -119,6 +119,10 @@ const intlMessages = defineMessages({
     id: 'app.presentationUploder.conversion.officeDocConversionFailed',
     description: 'warns the user that the conversion failed because of wrong office file',
   },
+  PPTX_RESOURCE_LIMIT_EXCEEDED: {
+    id: 'app.presentationUploder.conversion.pptxResourceLimitExceeded',
+    description: 'warns the user that PPTX processing exceeded internal limits',
+  },
   UNSUPPORTED_DOCUMENT: {
     id: 'app.presentationUploder.conversion.unsupportedDocument',
     description: 'warns the user that the file extension is not supported',
