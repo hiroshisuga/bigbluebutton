@@ -8,18 +8,23 @@ import (
 	"sync"
 	"time"
 
+	"bbb-graphql-middleware/config"
 	"bbb-graphql-middleware/internal/common"
 	streamingserver "bbb-graphql-middleware/internal/streaming_server"
 
 	"github.com/coder/websocket"
 )
 
-var streamingHandleByMiddlewarePatterns = [][]byte{
-	[]byte("\"query\":\"subscription getCursorCoordinatesStream"),
-	[]byte("\"query\":\"subscription getChatMessageStream"),
-	[]byte("\"query\":\"subscription getNotificationStream"),
-	[]byte("\"query\":\"subscription getUserVoiceStateStream"),
-}
+// Derived from the canonical list rather than hand-maintained, so a stream cannot be added to one
+// place and forgotten in the other.
+var streamingHandleByMiddlewarePatterns = func() [][]byte {
+	patterns := make([][]byte, 0, len(config.StreamingSubscriptionsManagedByMiddleware))
+	for _, operationName := range config.StreamingSubscriptionsManagedByMiddleware {
+		patterns = append(patterns, []byte("\"query\":\"subscription "+operationName))
+	}
+
+	return patterns
+}()
 
 func BrowserConnectionReader(
 	browserConnection *common.BrowserConnection,
@@ -80,7 +85,10 @@ func BrowserConnectionReader(
 			continue
 		}
 
-		if browserMessageType.Type == "subscribe" {
+		// Until connection_init is authorized, every message stays on the channel that
+		// connectionInitHandler reads, which discards all but connection_init. The other paths have
+		// no authentication, limit or consumer before that.
+		if browserMessageType.Type == "subscribe" && initAuthorized(browserConnection) {
 			if bytes.Contains(message, []byte("\"query\":\"mutation")) {
 				browserConnection.FromBrowserToGqlActionsChannel.SendWait(browserConnection.Context, message)
 				continue
@@ -102,4 +110,13 @@ func BrowserConnectionReader(
 
 		browserConnection.FromBrowserToHasuraChannel.SendWait(browserConnection.Context, message)
 	}
+}
+
+// initAuthorized reports whether connectionInitHandler has authorized this connection, which is when
+// it sets the meeting.
+func initAuthorized(browserConnection *common.BrowserConnection) bool {
+	browserConnection.RLock()
+	defer browserConnection.RUnlock()
+
+	return browserConnection.MeetingId != ""
 }

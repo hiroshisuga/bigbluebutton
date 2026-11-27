@@ -277,7 +277,7 @@ const createEndpointTableData = [
     "required": false,
     "type": "Boolean",
     "default": false,
-    "description": (<>Setting to <code className="language-plaintext highlighter-rouge">true</code> will prevent viewers from seeing other viewers in the user list. (added 2.2)</>)
+    "description": (<>Setting to <code className="language-plaintext highlighter-rouge">true</code> will prevent viewers from seeing other viewers in the user list. Since 3.0.38 it also withholds other viewers' talking indicator, voice state and reactions; moderators remain visible. (added 2.2)</>)
   },
   {
     "name": "lockSettingsLockOnJoin",
@@ -551,9 +551,6 @@ const createEndpointTableData = [
                 <li>
                   <code className="language-plaintext highlighter-rouge">liveTranscription</code> - <b>Live Transcription</b>
                 </li>
-                <li>
-                  <code className="language-plaintext highlighter-rouge">captions</code> - <b>Closed Captions</b>
-                </li>
               </ul>
             </li>
             <li>
@@ -637,6 +634,12 @@ const createEndpointTableData = [
     "type": "Boolean",
     "default": false,
     "description": (<>If it is true, a modal will be displayed to collect recording consent from users when meeting recording starts (only if <code className="language-plaintext highlighter-rouge">notifyRecordingIsOn=true</code>). By default it is false. (added 2.6)</>)
+  },
+  {
+    "name": "notifyRecordingAppend",
+    "required": false,
+    "type": "String",
+    "description": (<>Optional plain-text message appended after the standard recording notification description. It is shown only when recording notifications are enabled with <code className="language-plaintext highlighter-rouge">notifyRecordingIsOn=true</code>. If omitted or empty, the dialog is unchanged. HTML is displayed as text. (added 3.0.36)</>)
   },
   {
     "name": "presentationUploadExternalUrl",

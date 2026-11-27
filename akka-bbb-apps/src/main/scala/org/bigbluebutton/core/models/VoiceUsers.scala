@@ -71,7 +71,7 @@ object VoiceUsers {
       u <- findWithVoiceUserId(users, voiceUserId)
     } yield {
       val vu = u.modify(_.muted).setTo(muted)
-        .modify(_.talking).setTo(false)
+        .modify(_.talking).setTo(!muted && u.talking)
         .modify(_.lastStatusUpdateOn).setTo(System.currentTimeMillis())
       users.save(vu)
       UserVoiceDAO.update(vu)
@@ -169,6 +169,21 @@ object VoiceUsers {
     users.save(vu)
     vu
   }
+
+  def setUserRole(
+      users:  VoiceUsers,
+      userId: String,
+      role:   String
+  ): Option[VoiceUserState] = {
+    for {
+      u <- findWIthIntId(users, userId)
+    } yield {
+      val vu = u.modify(_.role).setTo(role)
+        .modify(_.lastStatusUpdateOn).setTo(System.currentTimeMillis())
+      users.save(vu)
+      vu
+    }
+  }
 }
 
 class VoiceUsers {
@@ -254,6 +269,7 @@ case class VoiceUserState(
     callingWith:           String,
     callerName:            String,
     callerNum:             String,
+    role:                  String,
     color:                 String,
     speechLocale:          String,
     muted:                 Boolean,

@@ -23,7 +23,9 @@ export const constants = {
   lockSettingsDisablePublicChat: 'lockSettingsDisablePublicChat=true',
   lockSettingsHideUserList: 'lockSettingsHideUserList=true',
   allowModsToEjectCameras: 'allowModsToEjectCameras=true',
-  notifyRecordingIsOn: 'notifyRecordingIsOn=true&notifyRecordingIsOn=true',
+  notifyRecordingIsOn: 'notifyRecordingIsOn=true',
+  notifyRecordingAppendMessage: 'This meeting will be summarized using AI — <strong>plain text</strong>',
+  notifyRecordingAppend: 'notifyRecordingAppend=This meeting will be summarized using AI — <strong>plain text</strong>',
   preUploadedPresentation:
     'preUploadedPresentation=https://raw.githubusercontent.com/bigbluebutton/bigbluebutton/v3.0.x-develop/bigbluebutton-tests/playwright/core/media/sample.pdf',
   preUploadedPresentationOverrideDefault: 'preUploadedPresentationOverrideDefault=true',
@@ -86,7 +88,6 @@ export const constants = {
   // Disabled Features
   breakoutRoomsDisabled: 'disabledFeatures=breakoutRooms',
   speechRecognitionDisabled: 'disabledFeatures=liveTranscription',
-  captionsDisabled: 'disabledFeatures=captions',
   chatDisabled: 'disabledFeatures=chat',
   externalVideosDisabled: 'disabledFeatures=externalVideos',
   learningDashboardDisabled: 'disabledFeatures=learningDashboard',
@@ -108,7 +109,6 @@ export const constants = {
   breakoutRoomsExclude: 'disabledFeatures=breakoutRooms,presentation,chat&disabledFeaturesExclude=breakoutRooms',
   speechRecognitionExclude:
     'disabledFeatures=breakoutRooms,presentation,chat,liveTranscription&disabledFeaturesExclude=liveTranscription',
-  captionsExclude: 'disabledFeatures=captions,presentation,chat&disabledFeaturesExclude=captions',
   chatExclude: 'disabledFeatures=presentation,chat&disabledFeaturesExclude=chat',
   externalVideosExclude: 'disabledFeatures=presentation,chat,externalVideos&disabledFeaturesExclude=externalVideos',
   layoutsExclude: 'disabledFeatures=presentation,chat,layouts&disabledFeaturesExclude=layouts',

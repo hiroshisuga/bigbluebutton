@@ -236,6 +236,27 @@ object VoiceApp extends SystemConfiguration {
               VoiceUsers.setLastStatusUpdate(liveMeeting.voiceUsers, vu)
             }
 
+            // Talking is edge-triggered (FS only emits start/stop-talking
+            // transitions), so a missed or overridden edge vent would
+            // desync until the next transition, which never comes if the
+            // member kept talking throughout. Reconcile talking state here
+            // as well.
+            for {
+              current <- VoiceUsers.findWithVoiceUserId(
+                liveMeeting.voiceUsers,
+                cvu.voiceUserId
+              )
+            } yield {
+              if (current.talking != cvu.talking) {
+                handleUserTalking(
+                  liveMeeting,
+                  outGW,
+                  cvu.voiceUserId,
+                  cvu.talking
+                )
+              }
+            }
+
             // Purge voice users that don't have a matching user record
             // Avoid this if the meeting is a breakout room since might be real
             // voice users participating
@@ -263,6 +284,9 @@ object VoiceApp extends SystemConfiguration {
                   cvu.voiceUserId
                 )
               }
+              val userRole = Users2x.findWithIntId(liveMeeting.users2x, cvu.intId)
+                .map(_.role)
+                .getOrElse(Roles.VIEWER_ROLE)
               handleUserJoinedVoiceConfEvtMsg(
                 liveMeeting,
                 outGW,
@@ -273,6 +297,7 @@ object VoiceApp extends SystemConfiguration {
                 cvu.callingWith,
                 cvu.callerIdName,
                 cvu.callerIdNum,
+                role = userRole,
                 ColorPicker.nextColor(liveMeeting.props.meetingProp.intId),
                 speechLocale = "",
                 cvu.muted,
@@ -328,6 +353,7 @@ object VoiceApp extends SystemConfiguration {
       callingWith:  String,
       callerIdName: String,
       callerIdNum:  String,
+      role:         String,
       color:        String,
       speechLocale: String,
       muted:        Boolean,
@@ -397,6 +423,7 @@ object VoiceApp extends SystemConfiguration {
       callingWith,
       callerIdName,
       callerIdNum,
+      role,
       color,
       speechLocale,
       muted,
@@ -458,7 +485,14 @@ object VoiceApp extends SystemConfiguration {
 
       // If the meeting is muted tell freeswitch to mute the new person
       // Dial-in users may skip this if dialInEnforceMuteOnStart=false (akka-apps config)
+      // Skip members that already joined muted (e.g. SFU's mute-on-start
+      // dialplans): the extra conference mute command is a no-op that FS may
+      // only execute when a held channel wakes up, and its stale mute-member
+      // event then races (and can override) a subsequent unmute.
+      // Dial-in is exempt: those channels are never held at creation, and
+      // for LiveKit SIP this is the only server-side mute hook.
       if (MeetingStatus2x.isMeetingMuted(liveMeeting.status)
+        && (!muted || isDialInUser)
         && (dialInEnforceMuteOnStart || !isDialInUser)) {
         val event = MsgBuilder.buildMuteUserInVoiceConfSysMsg(
           liveMeeting.props.meetingProp.intId,
@@ -1011,6 +1045,30 @@ object VoiceApp extends SystemConfiguration {
         lastFloorTime
       )
       outGW.send(event)
+    }
+  }
+
+  def setUserRole(
+    liveMeeting: LiveMeeting,
+    outGW:       OutMsgRouter,
+    userId:      String,
+    role:        String
+  ): Unit = {
+    for {
+      u <- VoiceUsers.setUserRole(
+        liveMeeting.voiceUsers,
+        userId,
+        role
+      )
+    } yield {
+      val eventUserVoiceStatus = MsgBuilder.buildUserVoiceStateEvtMsg(
+        liveMeeting.props.meetingProp.intId,
+        liveMeeting.props.voiceProp.voiceConf,
+        u.intId,
+        Some(u),
+        leftVoiceConf = false
+      )
+      outGW.send(eventUserVoiceStatus)
     }
   }
 }
