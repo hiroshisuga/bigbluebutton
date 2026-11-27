@@ -601,6 +601,8 @@ class PresentationController {
       }
 
       def expected = generatePageToken(
+        conf,
+        rm,
         presentationName,
         Integer.parseInt(slide),
         presentationService.pageTokenSecret
