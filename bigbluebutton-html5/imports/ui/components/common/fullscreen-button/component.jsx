@@ -19,7 +19,7 @@ const propTypes = {
   intl: PropTypes.shape({
     formatMessage: PropTypes.func.isRequired,
   }).isRequired,
-  fullscreenRef: PropTypes.instanceOf(Element),
+  fullscreenRef: PropTypes.object,
   dark: PropTypes.bool,
   bottom: PropTypes.bool,
   isIphone: PropTypes.bool,
