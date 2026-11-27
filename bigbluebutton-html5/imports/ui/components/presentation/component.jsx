@@ -1443,7 +1443,7 @@ class Presentation extends PureComponent {
     const presentationIsHidden = !presentationBounds
       || presentationBounds.width === 0
       || presentationBounds.height === 0;
-    if (!presentationIsOpen || presentationIsHidden) return null;
+    if (!presentationIsOpen || (presentationIsHidden && !isPresentationDetached)) return null;
 
     return (
       <>

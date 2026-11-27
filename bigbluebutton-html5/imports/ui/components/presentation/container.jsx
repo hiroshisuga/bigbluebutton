@@ -269,7 +269,11 @@ const PresentationContainer = (props) => {
   const shouldRestoreOnUpdate = userIsPresenter
     && currentPresentationId === prevPresentationId ? false : restoreOnUpdate;
 
-  if (layoutType === 'videoFocus' && presentation?.width === 0) return null;
+  if (
+    layoutType === 'videoFocus'
+    && presentation?.width === 0
+    && !props.isPresentationDetached
+  ) return null;
 
   const multiUserWhiteboardEnabled = currentMeeting?.usersPolicies?.multiUserWhiteboardEnabled
     ?? false;
