@@ -119,6 +119,10 @@ const intlMessages = defineMessages({
     id: 'app.presentationUploder.conversion.officeDocConversionFailed',
     description: 'warns the user that the conversion failed because of wrong office file',
   },
+  PPTX_RESOURCE_LIMIT_EXCEEDED: {
+    id: 'app.presentationUploder.conversion.pptxResourceLimitExceeded',
+    description: 'warns the user that PPTX processing exceeded internal limits',
+  },
   UNSUPPORTED_DOCUMENT: {
     id: 'app.presentationUploder.conversion.unsupportedDocument',
     description: 'warns the user that the file extension is not supported',
@@ -306,6 +310,59 @@ function renderToastItem(item, intl) {
         </Styled.StatusInfoSpan>
       </Styled.StatusInfo>
     </Styled.UploadRow>
+  );
+}
+
+function renderNotesUploadToast({
+  title,
+  fileName,
+  progress,
+}) {
+  const statusText = progress != null
+    ? `${Math.floor(progress)}%`
+    : '';
+
+  return (
+    <Styled.ToastWrapper data-test="presentationNotesUploadProgressToast">
+      <Styled.UploadToastHeader>
+        <Styled.UploadIcon iconName="upload" />
+        <Styled.UploadToastTitle>{title}</Styled.UploadToastTitle>
+      </Styled.UploadToastHeader>
+
+      <Styled.InnerToast>
+        <div>
+          <div>
+            <Styled.UploadRow>
+              <Styled.FileLine>
+                <span>
+                  <Icon iconName="file" />
+                </span>
+
+                <Styled.ToastFileName>
+                  <span>{fileName}</span>
+                </Styled.ToastFileName>
+
+                <Styled.StatusIcon>
+                  <Styled.ToastItemIcon
+                    loading
+                    iconName="blank"
+                  />
+                </Styled.StatusIcon>
+              </Styled.FileLine>
+
+              <Styled.StatusInfo>
+                <Styled.StatusInfoSpan
+                  data-test="processingPresentationNotesItem"
+                  styles="info"
+                >
+                  {statusText}
+                </Styled.StatusInfoSpan>
+              </Styled.StatusInfo>
+            </Styled.UploadRow>
+          </div>
+        </div>
+      </Styled.InnerToast>
+    </Styled.ToastWrapper>
   );
 }
 
@@ -656,4 +713,5 @@ export const PresentationUploaderToast = ({
 export default {
   handleDismissToast,
   renderPresentationItemStatus,
+  renderNotesUploadToast,
 };
