@@ -2,12 +2,13 @@ import React, { useEffect } from 'react';
 import { throttle } from 'radash';
 
 const hasBackgroundImageUrl = (el) => {
-  const style = window.getComputedStyle(el);
+  const targetWin = el?.ownerDocument?.defaultView || window;
+  const style = targetWin.getComputedStyle(el);
   const bg = style.backgroundImage || '';
   return bg.includes('url(');
 };
 
-const useCursor = (publishCursorUpdate, whiteboardId) => {
+const useCursor = (publishCursorUpdate, whiteboardId, whiteboardRef) => {
   const publishRef = React.useRef(publishCursorUpdate);
   const whiteboardIdRef = React.useRef(whiteboardId);
   const pendingRef = React.useRef(null);
@@ -18,7 +19,8 @@ const useCursor = (publishCursorUpdate, whiteboardId) => {
 
   useEffect(() => () => {
     if (rafRef.current) {
-      cancelAnimationFrame(rafRef.current);
+      const { id, win } = rafRef.current;
+      win.cancelAnimationFrame(id);
       rafRef.current = null;
       if (pendingRef.current) {
         publishRef.current({
@@ -34,29 +36,33 @@ const useCursor = (publishCursorUpdate, whiteboardId) => {
     if (newX === undefined || newX === null || newY === undefined || newY === null) return;
     pendingRef.current = { xPercent: newX, yPercent: newY };
     if (!rafRef.current) {
-      rafRef.current = requestAnimationFrame(() => {
-        rafRef.current = null;
-        if (pendingRef.current) {
-          publishRef.current({
-            whiteboardId: whiteboardIdRef.current,
-            ...pendingRef.current,
-          });
-          pendingRef.current = null;
-        }
-      });
+      const targetWin = whiteboardRef.current?.ownerDocument?.defaultView || window;
+      rafRef.current = {
+        id: targetWin.requestAnimationFrame(() => {
+          rafRef.current = null;
+          if (pendingRef.current) {
+            publishRef.current({
+              whiteboardId: whiteboardIdRef.current,
+              ...pendingRef.current,
+            });
+            pendingRef.current = null;
+          }
+        }),
+        win: targetWin,
+      };
     }
-  }, []);
+  }, [whiteboardRef]);
 
   return updateCursorPosition;
 };
 
-const getPresentationOptionsMenuItem = () => document.querySelector('li#presentationFullscreen')
-    || document.querySelector('li#presentationSnapshot')
-    || document.querySelector('li#toolVisibility')
-    || null;
+const getPresentationOptionsMenuItem = (targetDoc = document) => targetDoc.querySelector('li#presentationFullscreen')
+      || targetDoc.querySelector('li#presentationSnapshot')
+      || targetDoc.querySelector('li#toolVisibility')
+      || null;
 
-const getTldrawOpenMenu = () => {
-  const tlElement = document.querySelectorAll('[id^=radix-]');
+const getTldrawOpenMenu = (targetDoc = document) => {
+  const tlElement = targetDoc.querySelectorAll('[id^=radix-]');
   const tldrawMenu = Array.from(tlElement).find((el) => {
     const menuClasses = ['tlui-popover__content', 'tlui-menu'];
     if (el && menuClasses.includes(el.className)) {
@@ -93,6 +99,10 @@ const useMouseEvents = ({
   const PAN_THRESHOLD = 8;
   // Outlives zoomChanger's 200 ms debounce, so the zoom effect still skips its camera sync.
   const TOUCH_GESTURE_SETTLE_MS = 300;
+
+  const getWhiteboardDocument = () => (
+    whiteboardRef.current?.ownerDocument || document
+  );
 
   const getDistanceBetweenTouches = (touch1, touch2) => {
     const dx = touch2.clientX - touch1.clientX;
@@ -146,7 +156,8 @@ const useMouseEvents = ({
   const handleMouseDownWindow = (event) => {
     const { target } = event;
     const editor = tlEditorRef.current;
-    const presentationInnerWrapper = document.getElementById('presentationInnerWrapper');
+    const targetDoc = getWhiteboardDocument();
+    const presentationInnerWrapper = targetDoc.getElementById('presentationInnerWrapper');
 
     if (!(presentationInnerWrapper && presentationInnerWrapper.contains(target))) {
       if (editor?.getEditingShape()) {
@@ -178,6 +189,7 @@ const useMouseEvents = ({
         'fade-in',
         animations ? '.3s' : '0s',
         hasWBAccess || isPresenterRef.current,
+        getWhiteboardDocument(),
       );
     }
   };
@@ -185,8 +197,9 @@ const useMouseEvents = ({
   const handleMouseLeave = () => {
     if (whiteboardToolbarAutoHide) {
       clearTimeout(mouseLeaveTimeoutRef.current);
-      const presentationWBOptionsMenuItem = getPresentationOptionsMenuItem();
-      const tldrawMenu = getTldrawOpenMenu();
+      const targetDoc = getWhiteboardDocument();
+      const presentationWBOptionsMenuItem = getPresentationOptionsMenuItem(targetDoc);
+      const tldrawMenu = getTldrawOpenMenu(targetDoc);
       if (presentationWBOptionsMenuItem || tldrawMenu) {
         if (tldrawMenu) {
           mouseLeaveTimeoutRef.current = setTimeout(() => {
@@ -206,6 +219,7 @@ const useMouseEvents = ({
               'fade-out',
               animations ? '3s' : '0s',
               hasWBAccess || isPresenterRef.current,
+              getWhiteboardDocument(),
             );
           }
         } else {
@@ -214,6 +228,7 @@ const useMouseEvents = ({
             'fade-out',
             animations ? '3s' : '0s',
             hasWBAccess || isPresenterRef.current,
+            getWhiteboardDocument(),
           );
         }
       }
@@ -477,6 +492,7 @@ const useMouseEvents = ({
         'fade-out',
         animations ? '3s' : '0s',
         hasWBAccess || isPresenterRef.current,
+        getWhiteboardDocument(),
       );
     } else {
       toggleToolsAnimations(
@@ -484,13 +500,18 @@ const useMouseEvents = ({
         'fade-in',
         animations ? '.3s' : '0s',
         hasWBAccess || isPresenterRef.current,
+        getWhiteboardDocument(),
       );
     }
   }, [whiteboardToolbarAutoHide]);
 
   React.useEffect(() => {
-    const presentationWrapper = document.getElementById('presentationInnerWrapper');
-    window.addEventListener('mousedown', handleMouseDownWindow);
+    const targetDoc = getWhiteboardDocument();
+    const targetWin = targetDoc.defaultView || window;
+    const presentationWrapper = targetDoc.getElementById('presentationInnerWrapper');
+
+    targetWin.addEventListener('mousedown', handleMouseDownWindow);
+
     if (presentationWrapper) {
       presentationWrapper.addEventListener('mousedown', handleMouseDownWhiteboard);
       presentationWrapper.addEventListener('mouseup', handleMouseUp);
@@ -523,7 +544,7 @@ const useMouseEvents = ({
         presentationWrapper.removeEventListener('touchcancel', handleTouchCancel, { capture: true });
         presentationWrapper.removeEventListener('touchmove', handleTouchMove);
       }
-      window.removeEventListener('mousedown', handleMouseDownWindow);
+      targetWin.removeEventListener('mousedown', handleMouseDownWindow);
     };
   }, [
     tlEditorRef,
